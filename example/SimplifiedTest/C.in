@@ -1,7 +1,0 @@
-int main() {
-  if (a == 2) {
-    printf("hello world!");
-  }
-  int b = 233;
-  return c;
-}
