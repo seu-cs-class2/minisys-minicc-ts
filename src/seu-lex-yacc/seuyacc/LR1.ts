@@ -1,10 +1,5 @@
-/* eslint-disable indent */
-/* eslint-disable @typescript-eslint/member-delimiter-style */
-/* eslint-disable @typescript-eslint/no-use-before-define */
-
 /**
  * LR语法分析
- * by Withod, z0gSh1u
  * 2020-05 @ https://github.com/Withod/seu-lex-yacc
  */
 

@@ -1,8 +1,5 @@
-/* eslint-disable @typescript-eslint/member-delimiter-style */
-
 /**
  * FA（有限状态自动机）及状态、转换的声明
- * by z0gSh1u & Twileon
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 

@@ -1,13 +1,9 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-
 /**
  * DFA（确定有限状态自动机）
- * by Withod, Twileon & z0gSh1u
  * 2020-05 @ https://github.com/Withod/seu-lex-yacc
  */
 
 import { FiniteAutomata, State, SpAlpha, getSpAlpha, Action, Transform } from './FA'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { NFA } from './NFA'
 
 /**
@@ -133,54 +129,6 @@ export class DFA extends FiniteAutomata {
   }
 
   /**
-   * 尝试用DFA识别字符串
-   * @param str 待识别字符串
-   */
-  test(str: string) {
-    let sentence = str.split('')
-    // 试验每一个开始状态
-    for (let startState of this._startStates) {
-      let currentState = startState, // 本轮深搜当前状态
-        matchedWordCount = 0, // 符合的字符数
-        candidates: State[] = [] // DFS辅助数组，记录历史状态
-      while (matchedWordCount <= sentence.length) {
-        if (
-          // 目前匹配了全句
-          matchedWordCount === sentence.length &&
-          // 并且目前已经到达接收态
-          this.hasReachedAccept(currentState)
-        ) {
-          return true
-        } else if (matchedWordCount === sentence.length) {
-          // 全部匹配完成但是未到达接收态，说明应换一个开始状态再次试验
-          break
-        } else if (
-          !this._alphabet.includes(sentence[matchedWordCount]) &&
-          !this._alphabet.includes(getSpAlpha(SpAlpha.ANY))
-        ) {
-          // 字母表不存在该字符，并且该自动机没有any转移
-          // 注：此时matchedWordCount一定小于sentence.length，不用担心越界
-          return false
-        } else {
-          // 剩余情况则向外推进，继续搜索
-          let newState = this.expand(
-            currentState,
-            this._alphabet.indexOf(sentence[matchedWordCount])
-          )
-          matchedWordCount += 1
-          newState && !candidates.includes(newState) && candidates.push(newState)
-        }
-        if (!candidates.length) {
-          break // 没有可选的进一步状态了
-        } else {
-          currentState = candidates.pop() as State // 选一个可选的进一步状态
-        }
-      }
-    }
-    return false
-  }
-
-  /**
    * 返回从当前状态收到一个字母后能到达的所有状态
    * @param state 当前状态
    * @param alpha 字母在字母表的下标
@@ -217,10 +165,11 @@ export class DFA extends FiniteAutomata {
     }
   }
 
-  /**
-   * 检测该状态是否为接收状态
-   */
-  hasReachedAccept(currentState: State) {
-    return this._acceptStates.indexOf(currentState) !== -1
+  serialize() {
+
+  }
+
+  load() {
+    
   }
 }

@@ -1,9 +1,5 @@
-/* eslint-disable @typescript-eslint/member-delimiter-style */
-/* eslint-disable indent */
-
 /**
  * NFA（非确定有限状态自动机）
- * by z0gSh1u & Twileon
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 
@@ -74,56 +70,6 @@ export class NFA extends FiniteAutomata {
     res._alphabet = [...nfa._alphabet]
     res._transformAdjList = JSON.parse(JSON.stringify(nfa._transformAdjList))
     return res
-  }
-
-  /**
-   * 尝试用NFA识别字符串
-   * @param str 待识别字符串
-   */
-  test(str: string) {
-    let sentence = str.split('')
-    // 试验每一个开始状态
-    for (let startState of this._startStates) {
-      let currentState: State = startState, // 本轮深搜当前状态
-        matchedLength = 0,
-        candidates: State[] = [] // DFS辅助数组，记录历史状态
-      while (matchedLength <= sentence.length) {
-        if (
-          // 目前匹配了全句
-          matchedLength === sentence.length &&
-          // 并且目前已经到达接收态
-          this.hasReachedAccept(currentState)
-        ) {
-          return true
-        } else if (matchedLength === sentence.length) {
-          // 全部匹配完成但是未到达接收态，说明应换一个开始状态再次试验
-          break
-        } else if (
-          !this._alphabet.includes(sentence[matchedLength]) &&
-          !this._alphabet.includes(getSpAlpha(SpAlpha.ANY))
-        ) {
-          // 字母表不存在该字符，并且该自动机没有any转移
-          // 注：此时matchedWordCount一定小于sentence.length，不用担心越界
-          return false
-        } else {
-          // 剩余情况则向外推进，继续搜索
-          let expandResult = this.expand(
-            currentState,
-            this._alphabet.indexOf(sentence[matchedLength])
-          )
-          matchedLength += 1
-          for (let expandState of expandResult) {
-            !candidates.includes(expandState) && candidates.push(expandState)
-          }
-        }
-        if (!candidates.length) {
-          break // 没有可选的进一步状态了
-        } else {
-          currentState = candidates.pop() as State // 选一个可选的进一步状态
-        }
-      }
-    }
-    return false
   }
 
   /**
@@ -238,27 +184,6 @@ export class NFA extends FiniteAutomata {
    */
   linkEpsilon(from: State[], to: State[]) {
     this.link(from, to, SpAlpha.EPSILON)
-  }
-
-  /**
-   * 检测该状态是否到达接收状态（考虑了借助epsilon边预后扩展）
-   */
-  hasReachedAccept(currentState: State) {
-    // 不考虑epsilon边
-    if (this._acceptStates.includes(currentState)) return true
-    // 考虑epsilon边
-    let stack = [currentState] // 深搜辅助栈
-    while (!!stack.length) {
-      for (let transform of this.getTransforms(stack.pop() as State, [SpAlpha.EPSILON])) {
-        // 遍历所有epsilon转移
-        let targetState = this._states[transform.target]
-        // 如果到达接收状态就返回真
-        if (this._acceptStates.includes(targetState)) return true
-        // 否则放入栈等待进一步扩展
-        else if (stack.indexOf(targetState)) stack.push(targetState)
-      }
-    }
-    return false
   }
 
   /**

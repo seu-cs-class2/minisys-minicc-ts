@@ -1,6 +1,5 @@
 /**
  * 正则表达式相关代码
- * by z0gSh1u
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 

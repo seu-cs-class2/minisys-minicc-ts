@@ -1,6 +1,5 @@
 /**
  * Lex源文件（.l）解析器
- * by z0gSh1u & Withod
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 

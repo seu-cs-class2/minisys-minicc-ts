@@ -6,6 +6,6 @@ module.exports = {
   TrailingCooma: 'none',
   bracketSpacing: true,
   arrowParens: 'avoid',
-  printWidth: 100,
+  printWidth: 120,
   proseWrap: 'never',
 }

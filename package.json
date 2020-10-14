@@ -1,5 +1,5 @@
 {
-  "name": "seulexyacc",
+  "name": "minisys-minicc-ts",
   "version": "1.0.0",
   "description": "",
   "main": "app.js",
@@ -12,7 +12,6 @@
     "test:watch": "jest --watchAll",
     "build": "npm run clean && tsc"
   },
-  "author": "z0gSh1u, Withod, Twileon",
   "license": "MIT",
   "devDependencies": {
     "@commitlint/cli": "^8.3.5",
@@ -42,18 +41,7 @@
       "pre-commit": "echo 0"
     }
   },
-  "directories": {
-    "doc": "doc",
-    "example": "example",
-    "test": "test"
-  },
   "repository": {
-    "type": "git",
-    "url": "git+https://github.com/z0gSh1u/seu-lex-yacc.git"
-  },
-  "keywords": [],
-  "bugs": {
-    "url": "https://github.com/z0gSh1u/seu-lex-yacc/issues"
-  },
-  "homepage": "https://github.com/z0gSh1u/seu-lex-yacc#readme"
+    "url": "https://github.com/seu-cs-class2/minisys-minicc-ts"
+  }
 }

@@ -1,10 +1,5 @@
-/* eslint-disable @typescript-eslint/member-delimiter-style */
-/* eslint-disable indent */
-/* eslint-disable @typescript-eslint/no-use-before-define */
-
 /**
  * 自动机可视化工具
- * by z0gSh1u
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 
@@ -70,7 +65,7 @@ export function visualizeFA(fa: FiniteAutomata, viewNow = true) {
   }
   // 计算布局并导出
   let dagreJSON = JSON.stringify(dumpObject, null, 2)
-  const VisualizerPath = path.join(__dirname, '../../../enhance/FAVisualizer')
+  const VisualizerPath = path.join(__dirname, '../../enhance/FAVisualizer')
   const shape = 'circle'
   fs.writeFileSync(
     path.join(VisualizerPath, './data.js'),
