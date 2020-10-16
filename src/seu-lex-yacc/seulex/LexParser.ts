@@ -4,7 +4,7 @@
  */
 
 import fs from 'fs'
-import { assert } from '../../utils'
+import { assert } from '../utils'
 import { Regex } from './Regex'
 import { Action } from './FA'
 

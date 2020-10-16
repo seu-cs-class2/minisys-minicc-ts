@@ -5,6 +5,7 @@
 
 import { FiniteAutomata, State, SpAlpha, getSpAlpha, Action, Transform } from './FA'
 import { NFA } from './NFA'
+import * as fs from 'fs'
 
 /**
  * 确定有限状态自动机
@@ -27,13 +28,6 @@ export class DFA extends FiniteAutomata {
 
   get acceptActionMap() {
     return this._acceptActionMap
-  }
-
-  sameTransform(tr1: Transform[], tr2: Transform[]) {
-    return (
-      tr1.every(i1 => tr2.some(i2 => i1.alpha == i2.alpha && i1.target == i2.target)) &&
-      tr2.every(i1 => tr1.some(i2 => i1.alpha == i2.alpha && i1.target == i2.target))
-    )
   }
 
   /**
@@ -73,10 +67,7 @@ export class DFA extends FiniteAutomata {
         if (newStateSet.length < 1) continue
         let j = 0
         for (; j < stateSets.length; j++) {
-          if (
-            stateSets[j].every(s => newStateSet.includes(s)) &&
-            newStateSet.every(s => stateSets[j].includes(s))
-          )
+          if (stateSets[j].every(s => newStateSet.includes(s)) && newStateSet.every(s => stateSets[j].includes(s)))
             break // 与已有的状态集合相同
         }
         if (j == stateSets.length) {
@@ -110,8 +101,7 @@ export class DFA extends FiniteAutomata {
       }
       if (anyTargetState != -1) {
         for (let index = 0; index < res._transformAdjList[i].length; index++) {
-          if (res._transformAdjList[i][index].target == anyTargetState)
-            res._transformAdjList[i].splice(index--, 1)
+          if (res._transformAdjList[i][index].target == anyTargetState) res._transformAdjList[i].splice(index--, 1)
         }
         if (res._transformAdjList[i].length < 1)
           res._transformAdjList[i].push({
@@ -138,10 +128,7 @@ export class DFA extends FiniteAutomata {
     let transforms = this.getTransforms(state),
       otherTarget = -1
     for (let transform of transforms) {
-      if (
-        transform.alpha === alpha ||
-        (transform.alpha === SpAlpha.ANY && this._alphabet[alpha] !== '\n')
-      ) {
+      if (transform.alpha === alpha || (transform.alpha === SpAlpha.ANY && this._alphabet[alpha] !== '\n')) {
         return this._states[transform.target]
       } else if (transform.alpha === SpAlpha.OTHER) {
         otherTarget = transform.target
@@ -165,11 +152,63 @@ export class DFA extends FiniteAutomata {
     }
   }
 
-  serialize() {
-
+  /**
+   * 序列化保存DFA
+   */
+  dump(desc: string, savePath: string) {
+    // @ts-ignore
+    let obj: DFADumpObject = { desc }
+    // alphabet
+    obj['alphabet'] = Array.from(this._alphabet)
+    // states
+    obj['stateCount'] = this._states.length
+    // startStates
+    obj['startStatesIndex'] = []
+    this._startStates.forEach(v => obj['startStatesIndex'].push(this._states.indexOf(v)))
+    // acceptStates
+    obj['acceptStatesIndex'] = []
+    this._acceptStates.forEach(v => obj['acceptStatesIndex'].push(this._states.indexOf(v)))
+    // transformAdjList
+    obj['transformAdjList'] = Array.from(this._transformAdjList)
+    // acceptActionMap
+    obj['acceptActionMap'] = []
+    for (let [state, action] of this._acceptActionMap.entries())
+      obj['acceptActionMap'].push({ accpetStateIndex: this._states.indexOf(state), action })
+    // output
+    fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
   }
 
-  load() {
-    
+  /**
+   * 从DFA的序列化结果装载DFA
+   */
+  static fromFile(dumpPath: string) {
+    const obj = JSON.parse(fs.readFileSync(dumpPath).toString()) as DFADumpObject
+    const dfa = new DFA()
+    // alphabet
+    dfa._alphabet = Array.from(obj.alphabet)
+    // states
+    for (let i = 0; i < obj.stateCount; i++) dfa._states.push(new State())
+    // startStates
+    obj.startStatesIndex.forEach(v => dfa._startStates.push(dfa._states[v]))
+    // acceptStates
+    obj.acceptStatesIndex.forEach(v => dfa._acceptStates.push(dfa._states[v]))
+    // transformAdjList
+    dfa._transformAdjList = Array.from(obj.transformAdjList)
+    // acceptActionMap
+    obj.acceptActionMap.forEach(({ accpetStateIndex, action }) => {
+      dfa._acceptActionMap.set(dfa._states[accpetStateIndex], action)
+    })
+    // return
+    return dfa
   }
+}
+
+export type DFADumpObject = {
+  desc: string
+  alphabet: string[]
+  stateCount: number
+  startStatesIndex: number[]
+  acceptStatesIndex: number[]
+  transformAdjList: Transform[][]
+  acceptActionMap: { accpetStateIndex: number; action: Action }[]
 }

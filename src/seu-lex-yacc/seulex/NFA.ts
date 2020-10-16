@@ -5,7 +5,7 @@
 
 import { FiniteAutomata, State, Transform, SpAlpha, getSpAlpha, Action } from './FA'
 import { Regex } from './Regex'
-import { splitAndKeep, assert, ESCAPE_REVERSE } from '../../utils'
+import { splitAndKeep, assert, ESCAPE_REVERSE } from '../utils'
 import { LexParser } from './LexParser'
 
 /**

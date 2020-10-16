@@ -98,7 +98,7 @@ export class FiniteAutomata {
   }
 
   /**
-   * 深拷贝FA，State的Symbol生成新的，与原FA互不影响）
+   * 深拷贝FA，State的Symbol生成新的，与原FA互不影响
    */
   static copy(fa: FiniteAutomata) {
     let res = new FiniteAutomata()

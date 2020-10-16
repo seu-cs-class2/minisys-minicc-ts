@@ -7,7 +7,7 @@ import { FiniteAutomata, getSpAlpha } from './FA'
 import fs from 'fs'
 import path from 'path'
 import * as childProcess from 'child_process'
-import { ESCAPE_CONVERT, inStr } from '../../utils'
+import { ESCAPE_CONVERT, inStr } from '../utils'
 
 /**
  * 可视化自动机

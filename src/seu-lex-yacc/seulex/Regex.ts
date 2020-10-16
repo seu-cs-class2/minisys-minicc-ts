@@ -13,7 +13,7 @@ import {
   SUPPORTED_ESCAPE,
   PATTERN_INSIDEQUOTE_NOTSLASH,
   PATTERN_RANGE_NOTSLASH,
-} from '../../utils'
+} from '../utils'
 
 /**
  * 正则表达式类
