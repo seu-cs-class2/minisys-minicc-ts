@@ -10,7 +10,7 @@ import {
   PATTERN_INITIAL_PRODUCER,
   PATTERN_CONTINUED_PRODUCER,
   PATTERN_BLOCK_PRODUCER,
-} from '../../utils'
+} from '../utils'
 import { YaccParserProducer, YaccParserOperator } from './Grammar'
 
 /**
@@ -76,8 +76,7 @@ export class YaccParser {
       let words = line.split(/\s+/)
       switch (words[0]) {
         case '%token':
-          for (let i = 1; i < words.length; i++)
-            !this._tokenDecl.includes(words[i]) && this._tokenDecl.push(words[i])
+          for (let i = 1; i < words.length; i++) !this._tokenDecl.includes(words[i]) && this._tokenDecl.push(words[i])
           break
         case '%left':
         case '%right':

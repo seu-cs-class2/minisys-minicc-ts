@@ -71,15 +71,6 @@ export function lexSourceCode(code: string, dfa: DFA) {
       .trim()
   }
 
-  const switchActions = (function () {
-    const res = new Map<number, string>() // TokenIndex -> Action
-    for (let state of dfa.acceptStates) {
-      const index = dfa.states.indexOf(state)
-      res.set(index, dfa.acceptActionMap.get(dfa.states[index])!.code)
-    }
-    return res
-  })()
-
   // 反复调用以实现词法分析
   // 0-到达代码尾部 1-尚未到达代码尾部
   function yylex() {
@@ -88,12 +79,6 @@ export function lexSourceCode(code: string, dfa: DFA) {
 
     // 当前状态非尽头
     while (curState !== -1) {
-      // 特别地，如果半路触到接收态，只是暂存，然后继续跑，以实现最长匹配
-      if (accs[curState] !== -1) {
-        latAccState = curState
-        latAccPtr = curPtr - 1
-        rollbackLines = 0
-      }
       // 读入一个新字符
       curChar = code[curPtr]
       curBuf += curChar
@@ -102,7 +87,13 @@ export function lexSourceCode(code: string, dfa: DFA) {
       if (curChar === '\n') yylineno++, rollbackLines++
       // 尝试借助它进行状态转移
       curState = transMat[curState][curChar.charCodeAt(0)]
-      console.log(`CurState: ${curState}, CurPtr: ${curPtr}`)
+      // 特别地，如果半路触到接收态，只是暂存，然后继续跑，以实现最长匹配
+      if (curState !== -1 && accs[curState] !== -1) {
+        latAccState = curState
+        latAccPtr = curPtr - 1
+        rollbackLines = 0
+      }
+      if (curPtr >= code.length) break
     }
 
     // 开始处理接收的情况
@@ -110,6 +101,7 @@ export function lexSourceCode(code: string, dfa: DFA) {
       // 回退多余的失败匹配
       curPtr = latAccPtr + 1
       yylineno -= rollbackLines
+      curBuf = curBuf.substring(0, curBuf.length - 1)
       // 重置相关状态
       curState = 0 // 开始状态下标固定为0
       yytext = String(curBuf)
@@ -122,9 +114,6 @@ export function lexSourceCode(code: string, dfa: DFA) {
       // 重置相关状态
       latAccPtr = 0
       latAccState = -1
-
-      console.log(tokens);
-      
     } else {
       throw new Error(`无法识别的字符。行号=${yylineno}，指针=${curPtr}`)
     }

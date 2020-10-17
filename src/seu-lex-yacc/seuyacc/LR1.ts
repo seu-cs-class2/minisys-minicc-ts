@@ -14,9 +14,9 @@ import {
   LR1Operator,
   YaccParserOperator,
 } from './Grammar'
-import { assert, cookString, ASCII_MIN, ASCII_MAX } from '../../utils'
-import { ProgressBar } from '../../enhance/progressbar'
-import { LR1DFAtoLALRDFA } from './LALR'
+import { assert, cookString, ASCII_MIN, ASCII_MAX } from '../utils'
+import { ProgressBar } from '../enhance/progressbar'
+import * as fs from 'fs'
 
 export type GrammarSymbol = {
   type: 'ascii' | 'token' | 'nonterminal' | 'sptoken'
@@ -41,10 +41,9 @@ export class LR1Analyzer {
   private _GOTOReverseLookup!: number[]
   private _first: number[][]
   private _epsilon: number
-  // 求过的GOTO记录一下，不然下辈子都跑不出来
   private GOTOCache: Map<GOTOCacheKey, LR1State>
 
-  constructor(yaccParser: YaccParser, useLALR = false) {
+  constructor(yaccParser: YaccParser) {
     this._symbols = []
     this._producers = []
     this._operators = []
@@ -58,12 +57,9 @@ export class LR1Analyzer {
     this._convertProducer(yaccParser.producers)
     this._convertOperator(yaccParser.operatorDecl)
     this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
-    console.log('\n[ constructLR1DFA or LALRDFA, this might take a long time... ]')
+    console.log('\n[ constructLR1DFA, this might take a long time... ]')
     this._preCalFirst()
     this._constructLR1DFA()
-    if (useLALR) {
-      this._dfa = LR1DFAtoLALRDFA(this)
-    }
     console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]')
     this._constructACTIONGOTOTable()
     console.log('\n')
@@ -96,8 +92,8 @@ export class LR1Analyzer {
       let id = decl.literal
         ? this._getSymbolId({ type: 'ascii', content: decl.literal })
         : decl.tokenName
-          ? this._getSymbolId({ type: 'token', content: decl.tokenName })
-          : -1
+        ? this._getSymbolId({ type: 'token', content: decl.tokenName })
+        : -1
       assert(id != -1, 'Operator declaration not found. This should never occur.')
       this._operators.push(new LR1Operator(id, decl.assoc, decl.precedence))
     }
@@ -113,15 +109,12 @@ export class LR1Analyzer {
     // 128~X Token编号
     // X+1~Y 非终结符编号
     // Y+1~Y+3 特殊符号
-    for (let i = 0; i < 128; i++)
-      this._symbols.push({ type: 'ascii', content: String.fromCharCode(i) })
+    for (let i = 0; i < 128; i++) this._symbols.push({ type: 'ascii', content: String.fromCharCode(i) })
     // 标记一下ASCII中的不可打印字符
-    for (let i = 0; i < ASCII_MIN; i++)
-      this._symbols[i] = { type: 'ascii', content: '[UNPRINTABLE]' }
+    for (let i = 0; i < ASCII_MIN; i++) this._symbols[i] = { type: 'ascii', content: '[UNPRINTABLE]' }
     this._symbols[ASCII_MAX + 1] = { type: 'ascii', content: '[UNPRINTABLE]' }
     for (let token of yaccParser.tokenDecl) this._symbols.push({ type: 'token', content: token })
-    for (let nonTerminal of yaccParser.nonTerminals)
-      this._symbols.push({ type: 'nonterminal', content: nonTerminal })
+    for (let nonTerminal of yaccParser.nonTerminals) this._symbols.push({ type: 'nonterminal', content: nonTerminal })
     for (let spSymbol of Object.values(SpSymbol)) this._symbols.push(spSymbol)
     this._startSymbol = this._getSymbolId({ type: 'nonterminal', content: yaccParser.startSymbol })
     assert(this._startSymbol != -1, 'LR1 startSymbol unset.')
@@ -130,10 +123,7 @@ export class LR1Analyzer {
   /**
    * 获取编号后的符号的编号
    */
-  _getSymbolId(grammarSymbol: {
-    type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'
-    content: string
-  }) {
+  _getSymbolId(grammarSymbol: { type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'; content: string }) {
     for (let i = 0; i < this._symbols.length; i++)
       if (
         (!grammarSymbol.type ? true : this._symbols[i].type === grammarSymbol.type) &&
@@ -151,9 +141,7 @@ export class LR1Analyzer {
   }
 
   getSymbolString(id: number) {
-    return this._symbolTypeIs(id, 'ascii')
-      ? `'${this._symbols[id].content}'`
-      : this._symbols[id].content
+    return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content
   }
 
   formatPrintProducer(producer: LR1Producer) {
@@ -164,32 +152,29 @@ export class LR1Analyzer {
   }
 
   /**
-   * 预先计算各符号的FIRST集
+   * 预先计算各符号的FIRST集（不动点法）
    */
   _preCalFirst() {
     let changed = true
-    for (let index in this.symbols) 
-      this._first.push(this._symbols[index].type == 'nonterminal' ? [] : [Number(index)])
+    for (let index in this.symbols) this._first.push(this._symbols[index].type == 'nonterminal' ? [] : [Number(index)])
     while (changed) {
       changed = false
       for (let index in this._symbols) {
         if (this._symbols[index].type != 'nonterminal') continue
         this._producersOf(Number(index)).forEach(producer => {
-          let i = 0, hasEpsilon = false
+          let i = 0,
+            hasEpsilon = false
           do {
             hasEpsilon = false
             if (i >= producer.rhs.length) {
-              if (!this._first[index].includes(this._epsilon))
-                this._first[index].push(this._epsilon), changed = true
+              if (!this._first[index].includes(this._epsilon)) this._first[index].push(this._epsilon), (changed = true)
               break
             }
             this._first[producer.rhs[i]].forEach(symbol => {
-              if (!this._first[index].includes(symbol))
-                this._first[index].push(symbol), changed = true
-              if (symbol == this._epsilon)
-                hasEpsilon = true
+              if (!this._first[index].includes(symbol)) this._first[index].push(symbol), (changed = true)
+              if (symbol == this._epsilon) hasEpsilon = true
             })
-          } while (i++, hasEpsilon)
+          } while ((i++, hasEpsilon))
         })
       }
     }
@@ -200,7 +185,8 @@ export class LR1Analyzer {
    */
   FIRST(symbols: number[]): number[] {
     let ret: number[] = []
-    let i = 0, hasEpsilon = false
+    let i = 0,
+      hasEpsilon = false
     do {
       hasEpsilon = false
       if (i >= symbols.length) {
@@ -211,11 +197,10 @@ export class LR1Analyzer {
         if (symbol == this._epsilon) {
           hasEpsilon = true
         } else {
-          if (!ret.includes(symbol))
-            ret.push(symbol)
+          if (!ret.includes(symbol)) ret.push(symbol)
         }
       })
-    } while (i++, hasEpsilon)
+    } while ((i++, hasEpsilon))
     return ret
   }
 
@@ -252,13 +237,12 @@ export class LR1Analyzer {
               b = this._getSymbolId({ type: 'token', content: tmp })
             id = id ? id : a != -1 ? a : b != -1 ? b : -1
           }
-          assert(
-            id != -1,
-            `symbol not found in symbols. This error should never occur. symbol=${tmp}`
-          )
+          assert(id != -1, `symbol not found in symbols. This error should never occur. symbol=${tmp}`)
           rhs.push(id)
         }
-        this._producers.push(new LR1Producer(lhs, rhs, `reduceTo("${stringProducer.lhs}"); \n${stringProducer.actions[index]}`))
+        this._producers.push(
+          new LR1Producer(lhs, rhs, `reduceTo("${stringProducer.lhs}"); \n${stringProducer.actions[index]}`)
+        )
       }
     }
   }
@@ -266,20 +250,15 @@ export class LR1Analyzer {
   _constructLR1DFA() {
     // 将C初始化为 {CLOSURE}({|S'->S, $|})
     let newStartSymbolContent = this._symbols[this._startSymbol].content + "'"
-    while (this._symbols.some(symbol => symbol.content === newStartSymbolContent))
-      newStartSymbolContent += "'"
+    while (this._symbols.some(symbol => symbol.content === newStartSymbolContent)) newStartSymbolContent += "'"
     this._symbols.push({ type: 'nonterminal', content: newStartSymbolContent })
-    this._producers.push(new LR1Producer(this._symbols.length - 1, [this._startSymbol], `$$ = $1; reduceTo("${newStartSymbolContent}");`))
+    this._producers.push(
+      new LR1Producer(this._symbols.length - 1, [this._startSymbol], `$$ = $1; reduceTo("${newStartSymbolContent}");`)
+    )
     this._startSymbol = this._symbols.length - 1
     let initProducer = this._producersOf(this._startSymbol)[0]
     let I0 = this.CLOSURE(
-      new LR1State([
-        new LR1Item(
-          initProducer,
-          this._producers.indexOf(initProducer),
-          this._getSymbolId(SpSymbol.END)
-        ),
-      ])
+      new LR1State([new LR1Item(initProducer, this._producers.indexOf(initProducer), this._getSymbolId(SpSymbol.END))])
     )
     // 初始化自动机
     let dfa = new LR1DFA(0)
@@ -361,9 +340,7 @@ export class LR1Analyzer {
       let lookahead = oneItemOfI.lookahead
       for (let extendProducer of extendProducers) {
         // 求取新的展望符号
-        let newLookaheads = this.FIRST(
-          this._producers[oneItemOfI.producer].rhs.slice(oneItemOfI.dotPosition + 1)
-        )
+        let newLookaheads = this.FIRST(this._producers[oneItemOfI.producer].rhs.slice(oneItemOfI.dotPosition + 1))
         // 存在epsilon作为FIRST符，可以用它“闪过”
         if (newLookaheads.includes(this._getSymbolId(SpSymbol.EPSILON))) {
           newLookaheads = newLookaheads.filter(v => v != this._getSymbolId(SpSymbol.EPSILON))
@@ -371,11 +348,7 @@ export class LR1Analyzer {
         }
         // for FIRST(βa)中的每个终结符号b
         for (let lookahead of newLookaheads) {
-          let newItem = new LR1Item(
-            extendProducer,
-            this._producers.indexOf(extendProducer),
-            lookahead
-          )
+          let newItem = new LR1Item(extendProducer, this._producers.indexOf(extendProducer), lookahead)
           if (res.items.some(item => LR1Item.same(item, newItem))) continue // 重复的情况不再添加，避免出现一样的Item
           !allItemsOfI.includes(newItem) && allItemsOfI.push(newItem) // 继续扩展
           res.addItem(newItem)
@@ -421,11 +394,6 @@ export class LR1Analyzer {
     let pb = new ProgressBar()
     // 在该过程中，我们强制处理了所有冲突，保证文法是LR(1)的
     for (let i = 0; i < dfaStates.length; i++) {
-      if (i == dfaStates.length - 1) {
-        for (let pro of dfaStates[i].items) {
-          console.log(this.formatPrintProducer(pro.rawProducer))
-        }
-      }
       pb.render({ completed: i, total: dfaStates.length })
       // 处理移进的情况
       // ① [A->α`aβ, b], GOTO(Ii, a) = Ij, ACTION[i, a] = shift(j)
@@ -461,12 +429,7 @@ export class LR1Analyzer {
             }
           }
           let reducePrecedence = reduceOperator?.precedence as number
-          if (
-            !reduceOperator ||
-            !shiftOperator ||
-            reducePrecedence == -1 ||
-            shiftPrecedence == -1
-          ) {
+          if (!reduceOperator || !shiftOperator || reducePrecedence == -1 || shiftPrecedence == -1) {
             // 没有完整地定义优先级，就保持原有的移进
           } else {
             if (reducePrecedence == shiftPrecedence) {
@@ -510,7 +473,36 @@ export class LR1Analyzer {
     for (let i = 0; i < dfaStates.length; i++)
       for (let A = 0; A < this._symbols.length; A++)
         for (let j = 0; j < dfaStates.length; j++)
-          if (LR1State.same(this.GOTO(dfaStates[i], A), dfaStates[j]))
-            this._GOTOTable[i][lookup(A)] = j
+          if (LR1State.same(this.GOTO(dfaStates[i], A), dfaStates[j])) this._GOTOTable[i][lookup(A)] = j
+  }
+
+  dump(savePath: string) {
+    let obj: any = {}
+    // symbols
+    obj['symbols'] = this._symbols
+    // operators
+    obj['operators'] = this._operators
+    // producers
+    obj['producers'] = this._producers
+    // startSymbol
+    obj['startSymbol'] = this._startSymbol
+    // LR1DFA
+    obj['dfa'] = this._dfa
+    // ACTIONTable
+    obj['ACTIONTable'] = this._ACTIONTable
+    // GOTOTable
+    obj['GOTOTable'] = this._GOTOTable
+    // Reverse Lookup
+    obj['ACTIONReverseLookup'] = this._ACTIONReverseLookup
+    obj['GOTOReverseLookup'] = this._GOTOReverseLookup
+    // first
+    obj['first'] = this._first
+    // epsilon
+    obj['epsilon'] = this._epsilon
+    fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
+  }
+
+  static load(savePath: string) {
+    return
   }
 }
