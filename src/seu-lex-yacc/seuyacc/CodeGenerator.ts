@@ -9,26 +9,114 @@
 import { YaccParser } from './YaccParser'
 import { LR1Analyzer } from './LR1'
 import { SpSymbol } from './Grammar'
+import { Token } from '../seulex/Lex'
 
-/**
- * 生成Token编号供Lex使用
- */
-export function generateYTABH(analyzer: LR1Analyzer) {
-  function _generateTokenId() {
-    let res = ``
+export const WHITESPACE_SYMBOL_ID = -10
+
+interface TableCell {
+  action: number
+  target: number
+}
+
+function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
+  // Token编号表
+  const tokenIds = (function () {
+    let map = new Map<string, number>()
     for (let i = 0; i < analyzer.symbols.length; i++)
       if (analyzer.symbols[i].type == 'sptoken' || analyzer.symbols[i].type == 'token')
-        res += `#define ${analyzer.symbols[i].content} ${i}\n`
-    return res
+        map.set(analyzer.symbols[i].content, i)
+    map.set('WHITESPACE', WHITESPACE_SYMBOL_ID)
+  })()
+
+  // 转移表，合并ACTION-GOTO表
+  // table[i][k] 在i状态遇到符号k的转移
+  const ActionCode = {
+    nonterminal: 1,
+    shift: 2,
+    reduce: 3,
+    acc: 4,
+    default: 0,
   }
-  let res = `
-  #ifndef Y_TAB_H_
-  #define Y_TAB_H_
-  #define WHITESPACE -10
-  ${_generateTokenId()}
-  #endif
-  `
-  return res
+  const table = (function () {
+    let table: TableCell[][] = []
+    for (let state = 0; state < analyzer.dfa.states.length; state++) {
+      let nonCnt = 0,
+        nonnonCnt = 0
+      let row: TableCell[] = []
+      for (let symbol = 0; symbol < analyzer.symbols.length; symbol++) {
+        let action = -1,
+          target = 0
+        if (analyzer.symbols[symbol].type == 'nonterminal') {
+          // 遇到非终结符的处理
+          action = ActionCode.nonterminal
+          target = analyzer.GOTOTable[state][nonCnt++]
+        } else {
+          switch (analyzer.ACTIONTable[state][nonnonCnt].type) {
+            case 'shift':
+              action = ActionCode.shift
+              target = analyzer.ACTIONTable[state][nonnonCnt].data
+              break
+            case 'reduce':
+              action = ActionCode.reduce
+              target = analyzer.ACTIONTable[state][nonnonCnt].data
+              break
+            case 'acc':
+              action = ActionCode.acc
+              break
+            default:
+              action = ActionCode.default
+          }
+          nonnonCnt++
+        }
+        row.push({ action, target })
+      }
+      table.push(row)
+    }
+    return table
+  })()
+
+  const DealWithResult = {
+    YACC_NOTHING: -2,
+    YACC_ACCPET: -42,
+    YACC_ERROR: -1,
+  }
+  const stateStack: number[] = []
+  function dealWith(symbol: number) {
+    if (symbol == WHITESPACE_SYMBOL_ID) return DealWithResult.YACC_NOTHING
+    if (stateStack.length < 1) throw new Error('在解析过程中，状态栈变空。')
+    let state = stateStack[stateStack.length - 1]
+    const cell = table[state][symbol]
+    switch (cell.action) {
+      case ActionCode.default:
+        return DealWithResult.YACC_NOTHING
+      case ActionCode.acc:
+        return DealWithResult.YACC_ACCPET
+      case ActionCode.nonterminal:
+        stateStack.push(cell.target)
+        return DealWithResult.YACC_NOTHING
+      case ActionCode.shift:
+        stateStack.push(cell.target)
+        return DealWithResult.YACC_NOTHING
+      case ActionCode.reduce:
+        // TODO:
+      default:
+        return symbol
+    }
+    return DealWithResult.YACC_NOTHING
+  }
+
+  let currentTokenIndex = 0
+  function _yylex() {
+    return tokens[currentTokenIndex++]
+  }
+
+  let token: Token
+  stateStack.push(analyzer.dfa.startStateId)
+  
+  while (token != DealWithResult.YACC_ACCPET && (token = _yylex())) {
+    // TODO: 
+  }
+
 }
 
 function genPresetContent(analyzer: LR1Analyzer) {
@@ -56,30 +144,8 @@ function genPresetContent(analyzer: LR1Analyzer) {
   char *curToken = NULL;
   FILE *treeout = NULL;
   int memoryAddrCnt = 0;
-  ${genSymbolChartClass()}
   ${genNode()}
   ${genFunctions()}
-  `
-}
-
-function genExceptions() {
-  return `
-  void ArrayUpperBoundExceeded(void) {
-    printf("Array upper bound exceeded!");
-  }
-  void ArrayLowerBoundExceeded(void) {
-    printf("Array lower bound exceeded!");
-  }
-  void SomethingRedefined(void) {
-    printf("Something redefined!");
-  }
-  void SyntaxError(void) {
-    printf("Syntax error!");
-  }
-  void throw(void (*func)(void)) {
-    atexit(func);
-    exit(EXIT_FAILURE);
-  }
   `
 }
 
@@ -89,39 +155,6 @@ function genExtern() {
   extern char yytext[];
   extern int yylex();
   extern FILE *yyout;
-  `
-}
-
-function genSymbolChartClass() {
-  return `
-  struct SymbolChart {
-    int symbolNum;
-    char *name[SYMBOL_CHART_LIMIT];
-    char *type[SYMBOL_CHART_LIMIT];
-    char *value[SYMBOL_CHART_LIMIT];
-  }symbolChart = {.symbolNum = 0};
-  char *value(char *name, char *type) {
-    for (int i = 0; i < symbolChart.symbolNum; i++) {
-      if (strcmp(name, symbolChart.name[i]) == 0 && strcmp(type, symbolChart.type[i]))
-        return symbolChart.value[i];
-    }
-    return NULL;
-  }
-  void createSymbol(char *name, char *type, int size) {
-    if (symbolChart.symbolNum >= SYMBOL_CHART_LIMIT) throw(ArrayUpperBoundExceeded);
-    if (value(name, type) != NULL) throw(SomethingRedefined);
-    char *addr = (char *)malloc(32 * sizeof(char));
-    itoa(memoryAddrCnt, addr, 10);
-    memoryAddrCnt += size;
-    symbolChart.name[symbolChart.symbolNum] = (char *)malloc(strlen(name) * sizeof(char));
-    symbolChart.type[symbolChart.symbolNum] = (char *)malloc(strlen(type) * sizeof(char));
-    symbolChart.value[symbolChart.symbolNum] = (char *)malloc(strlen(addr) * sizeof(char));
-    strcpy(symbolChart.name[symbolChart.symbolNum], name);
-    strcpy(symbolChart.type[symbolChart.symbolNum], type);
-    strcpy(symbolChart.value[symbolChart.symbolNum], addr);
-    symbolChart.symbolNum++;
-    free(addr);
-  }
   `
 }
 
@@ -189,49 +222,6 @@ function genFunctions() {
   `
 }
 
-function genTable(analyzer: LR1Analyzer) {
-  let code = `
-  struct TableCell {
-    int action;
-    int target;
-  };
-  struct TableCell table[${analyzer.dfa.states.length}][${analyzer.symbols.length}] = {`
-  for (let state = 0; state < analyzer.dfa.states.length; state++) {
-    let nonCnt = 0
-    let nonnonCnt = 0
-    for (let symbol = 0; symbol < analyzer.symbols.length; symbol++) {
-      let action = -1
-      let target = 0
-      if (analyzer.symbols[symbol].type == 'nonterminal') {
-        action = 1
-        target = analyzer.GOTOTable[state][nonCnt++]
-      } else {
-        switch (analyzer.ACTIONTable[state][nonnonCnt].type) {
-          case 'shift':
-            action = 2
-            target = analyzer.ACTIONTable[state][nonnonCnt].data
-            break
-          case 'reduce':
-            action = 3
-            target = analyzer.ACTIONTable[state][nonnonCnt].data
-            break
-          case 'acc':
-            action = 4
-            break
-          default:
-            action = 0
-        }
-        nonnonCnt++
-      }
-      code += `(struct TableCell){${action}, ${target}},`
-    }
-  }
-  code = code.substr(0, code.length - 1)
-  code += `};
-  `
-  return code
-}
-
 function genDealWithFunction(analyzer: LR1Analyzer) {
   let code = `
   int dealWith(int symbol) {
@@ -289,62 +279,6 @@ function genDealWithFunction(analyzer: LR1Analyzer) {
   return code
 }
 
-function actionCodeModified(action: string, producerLen: number) {
-  let bslash = false,
-    inSQuot = false,
-    inDQuot = false,
-    dollar = false,
-    buffer = '',
-    ret = ''
-  action.split('').forEach(c => {
-    if (dollar) {
-      if (c == '$') (ret += 'curAttr'), (dollar = false)
-      else if (c.charCodeAt(0) >= '0'.charCodeAt(0) && c.charCodeAt(0) <= '9'.charCodeAt(0))
-        buffer += c
-      else {
-        let num = parseInt(buffer)
-        if (num < 1 || num > producerLen) ret += '$' + buffer
-        else ret += `symbolAttr[symbolAttrSize-${producerLen - num + 1}]`
-        ret += c
-        dollar = false
-        buffer = ''
-      }
-    } else {
-      if (!inSQuot && !inDQuot && !dollar && c == '$') dollar = true
-      else if (!inDQuot && !bslash && c == "'") inSQuot = !inSQuot
-      else if (!inSQuot && !bslash && c == '"') inDQuot = !inDQuot
-      else if (c == '\\') bslash = !bslash
-      else bslash = false
-      if (c != '$') ret += c
-    }
-  })
-  return ret
-}
-
-function genPrintTree() {
-  return `
-  void printTree(struct Node *curNode, int depth) {
-    if (curNode == NULL) return;
-    for (int i = 0; i < depth * 2; i++)
-      fprintf(treeout, " ");
-    fprintf(treeout, "%s", curNode->value);
-    if (curNode->yytext != NULL && strlen(curNode->yytext) > 0)
-      fprintf(treeout, " (%s)", curNode->yytext);
-    if (curNode->childNum < 1) return;
-    fprintf(treeout, " {\\n");
-    for (int i = 0;i < curNode->childNum; i++) {
-      printTree(curNode->children[i], depth+1);
-      if (i+1 < curNode->childNum)
-        fprintf(treeout, ",");
-      fprintf(treeout, "\\n");
-    }
-    for (int i = 0; i < depth * 2; i++)
-      fprintf(treeout, " ");
-    fprintf(treeout, "}");
-  }
-  `
-}
-
 function genYaccParse(analyzer: LR1Analyzer) {
   return `
   int yyparse() {
@@ -381,23 +315,10 @@ function genYaccParse(analyzer: LR1Analyzer) {
  * 生成语法分析器
  */
 export function generateYTABC(yaccParser: YaccParser, analyzer: LR1Analyzer) {
-  
-  let finalCode = `  
-  // ===========================================
-  // |  YTABC generated by seuyacc             |
-  // |  Visit github.com/z0gSh1u/seu-lex-yacc  |
-  // ===========================================
-  #define DEBUG_MODE 0
-  // * ============== copyPart ================
-  `
-  finalCode += yaccParser.copyPart // 用户之间复制部分
-  finalCode += `
-  // * ========== seuyacc generation ============
-  `
+  let finalCode = ''
   finalCode += genPresetContent(analyzer)
   finalCode += genTable(analyzer)
   finalCode += genDealWithFunction(analyzer)
-  finalCode += genPrintTree()
   finalCode += genYaccParse(analyzer)
   finalCode += yaccParser.userCodePart
   return finalCode
