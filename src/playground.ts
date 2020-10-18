@@ -8,7 +8,7 @@ import { NFA } from './seu-lex-yacc/seulex/NFA'
 // console.log('Start dumping...')
 // dfa.dump('Generated from MiniC.l', 'F:\\minisys-minicc-ts\\src\\lexer\\dump.json')
 
-const dfa = DFA.fromFile('F:\\minisys-minicc-ts\\src\\lexer\\dump.json')
+const dfa = DFA.fromFile('E:\\program\\project\\seu-cs-class2\\minisys-minicc-ts\\src\\lexer\\dump.json')
 const cCode = `
 int main() {
   int a = 2;
