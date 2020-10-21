@@ -1,3 +1,13 @@
+/*
+_____   _____   _____   _____    _____   _____       ___   _____   _____   _____  
+|  _  \ | ____| |  _  \ |  _  \  | ____| /  ___|     /   | |_   _| | ____| |  _  \ 
+| | | | | |__   | |_| | | |_| |  | |__   | |        / /| |   | |   | |__   | | | | 
+| | | | |  __|  |  ___/ |  _  /  |  __|  | |       / / | |   | |   |  __|  | | | | 
+| |_| | | |___  | |     | | \ \  | |___  | |___   / /  | |   | |   | |___  | |_| | 
+|_____/ |_____| |_|     |_|  \_\ |_____| \_____| /_/   |_|   |_|   |_____| |_____/ 
+
+*/
+
 /* eslint-disable @typescript-eslint/no-use-before-define */
 
 /**
@@ -9,115 +19,6 @@
 import { YaccParser } from './YaccParser'
 import { LR1Analyzer } from './LR1'
 import { SpSymbol } from './Grammar'
-import { Token } from '../seulex/Lex'
-
-export const WHITESPACE_SYMBOL_ID = -10
-
-interface TableCell {
-  action: number
-  target: number
-}
-
-function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
-  // Token编号表
-  const tokenIds = (function () {
-    let map = new Map<string, number>()
-    for (let i = 0; i < analyzer.symbols.length; i++)
-      if (analyzer.symbols[i].type == 'sptoken' || analyzer.symbols[i].type == 'token')
-        map.set(analyzer.symbols[i].content, i)
-    map.set('WHITESPACE', WHITESPACE_SYMBOL_ID)
-  })()
-
-  // 转移表，合并ACTION-GOTO表
-  // table[i][k] 在i状态遇到符号k的转移
-  const ActionCode = {
-    nonterminal: 1,
-    shift: 2,
-    reduce: 3,
-    acc: 4,
-    default: 0,
-  }
-  const table = (function () {
-    let table: TableCell[][] = []
-    for (let state = 0; state < analyzer.dfa.states.length; state++) {
-      let nonCnt = 0,
-        nonnonCnt = 0
-      let row: TableCell[] = []
-      for (let symbol = 0; symbol < analyzer.symbols.length; symbol++) {
-        let action = -1,
-          target = 0
-        if (analyzer.symbols[symbol].type == 'nonterminal') {
-          // 遇到非终结符的处理
-          action = ActionCode.nonterminal
-          target = analyzer.GOTOTable[state][nonCnt++]
-        } else {
-          switch (analyzer.ACTIONTable[state][nonnonCnt].type) {
-            case 'shift':
-              action = ActionCode.shift
-              target = analyzer.ACTIONTable[state][nonnonCnt].data
-              break
-            case 'reduce':
-              action = ActionCode.reduce
-              target = analyzer.ACTIONTable[state][nonnonCnt].data
-              break
-            case 'acc':
-              action = ActionCode.acc
-              break
-            default:
-              action = ActionCode.default
-          }
-          nonnonCnt++
-        }
-        row.push({ action, target })
-      }
-      table.push(row)
-    }
-    return table
-  })()
-
-  const DealWithResult = {
-    YACC_NOTHING: -2,
-    YACC_ACCPET: -42,
-    YACC_ERROR: -1,
-  }
-  const stateStack: number[] = []
-  function dealWith(symbol: number) {
-    if (symbol == WHITESPACE_SYMBOL_ID) return DealWithResult.YACC_NOTHING
-    if (stateStack.length < 1) throw new Error('在解析过程中，状态栈变空。')
-    let state = stateStack[stateStack.length - 1]
-    const cell = table[state][symbol]
-    switch (cell.action) {
-      case ActionCode.default:
-        return DealWithResult.YACC_NOTHING
-      case ActionCode.acc:
-        return DealWithResult.YACC_ACCPET
-      case ActionCode.nonterminal:
-        stateStack.push(cell.target)
-        return DealWithResult.YACC_NOTHING
-      case ActionCode.shift:
-        stateStack.push(cell.target)
-        return DealWithResult.YACC_NOTHING
-      case ActionCode.reduce:
-        // TODO:
-      default:
-        return symbol
-    }
-    return DealWithResult.YACC_NOTHING
-  }
-
-  let currentTokenIndex = 0
-  function _yylex() {
-    return tokens[currentTokenIndex++]
-  }
-
-  let token: Token
-  stateStack.push(analyzer.dfa.startStateId)
-  
-  while (token != DealWithResult.YACC_ACCPET && (token = _yylex())) {
-    // TODO: 
-  }
-
-}
 
 function genPresetContent(analyzer: LR1Analyzer) {
   return `

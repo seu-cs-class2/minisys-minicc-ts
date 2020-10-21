@@ -1,4 +1,13 @@
 /**
+ * 符号表
+ */
+export class SymbolTable {
+  private _name: string
+  private _domain: 'function' | 'global'
+  
+}
+
+/**
  * 四元式
  * <op, arg1, arg2, result>
  */
