@@ -43,7 +43,7 @@ export class LR1Analyzer {
   private _epsilon: number
   private GOTOCache: Map<GOTOCacheKey, LR1State>
 
-  constructor(yaccParser: YaccParser) {
+  constructor(yaccParser?: YaccParser) {
     this._symbols = []
     this._producers = []
     this._operators = []
@@ -53,16 +53,18 @@ export class LR1Analyzer {
     this._GOTOReverseLookup = []
     this.GOTOCache = new Map<GOTOCacheKey, LR1State>()
     this._first = []
-    this._distributeId(yaccParser)
-    this._convertProducer(yaccParser.producers)
-    this._convertOperator(yaccParser.operatorDecl)
-    this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
-    console.log('\n[ constructLR1DFA, this might take a long time... ]')
-    this._preCalFirst()
-    this._constructLR1DFA()
-    console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]')
-    this._constructACTIONGOTOTable()
-    console.log('\n')
+    if (yaccParser) {
+      this._distributeId(yaccParser)
+      this._convertProducer(yaccParser.producers)
+      this._convertOperator(yaccParser.operatorDecl)
+      this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
+      console.log('\n[ constructLR1DFA, this might take a long time... ]')
+      this._preCalFirst()
+      this._constructLR1DFA()
+      console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]')
+      this._constructACTIONGOTOTable()
+      console.log('\n')
+    }
   }
 
   get symbols() {
@@ -476,8 +478,9 @@ export class LR1Analyzer {
           if (LR1State.same(this.GOTO(dfaStates[i], A), dfaStates[j])) this._GOTOTable[i][lookup(A)] = j
   }
 
-  dump(savePath: string) {
-    let obj: any = {}
+  dump(desc: string, savePath: string) {
+    // @ts-ignore
+    let obj: any = { desc }
     // symbols
     obj['symbols'] = this._symbols
     // operators
@@ -502,7 +505,31 @@ export class LR1Analyzer {
     fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
   }
 
-  static load(savePath: string) {
-    return
+  static load(dumpPath: string) {
+    const obj = JSON.parse(fs.readFileSync(dumpPath).toString()) as LR1DumpObject
+    const lr1 = new LR1Analyzer(void 'empty')
+    // symbols
+    lr1._symbols = obj.symbols
+    // producers
+    obj.producers.forEach(producer => {
+      lr1._producers.push(new LR1Producer(producer.lhs, producer.rhs, producer.action))
+    })
+    // 
+
+    // TODO:
   }
+}
+
+export type LR1DumpObject = {
+  desc: string
+  symbols: GrammarSymbol[]
+  producers: LR1Producer[]
+  startSymbol: number
+  dfa: LR1DFA
+  ACTIONTable: ACTIONTableCell[][]
+  GOTOTable: number[][]
+  ACTIONReverseLookup: number[]
+  GOTOReverseLookup: number[]
+  first: number[][]
+  epsilon: number
 }

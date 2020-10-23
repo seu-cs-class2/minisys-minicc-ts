@@ -1,10 +1,37 @@
+export interface Variable {
+  name: string
+  type: string
+  location: string
+  alive: boolean
+  nextUse: number
+  inRegister: number
+  
+}
+
 /**
  * 符号表
  */
 export class SymbolTable {
   private _name: string
   private _domain: 'function' | 'global'
-  
+  private _vars: Variable[]
+
+  private _paramSize: number
+  private _varsSize: number
+  private _returnSize: number
+
+  private _irEntry: number
+  private _irExit: number
+
+  private _basicBlocks: number[]
+
+  lookUp(varName: string) {
+    const index = this._vars.findIndex(x => x.name == varName)
+    if (index !== -1) return this._vars[index]
+    else return null
+  }
+
+  newEntry() {}
 }
 
 /**

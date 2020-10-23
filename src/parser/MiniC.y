@@ -41,7 +41,7 @@ parameter_list
 	;
 
 stmt
-  : IF LPAREN logic_expr RPAREN stmt { BACKPATCH($3.truebranch, $5.entry); }
+  : IF LPAREN logic_expr RPAREN stmt
 	| IF LPAREN logic_expr RPAREN stmt ELSE stmt
 	| WHILE LPAREN logic_expr RPAREN stmt
 	| var_declaration
@@ -61,9 +61,8 @@ block_stmt
 	;
 
 type
-  : INT	{ $$.type = 'int'; }
+  : INT
 	| FLOAT
-	| CHAR
 	;
 
 expr
