@@ -40,7 +40,7 @@ export class LR1Analyzer {
   private _ACTIONReverseLookup!: number[]
   private _GOTOReverseLookup!: number[]
   private _first: number[][]
-  private _epsilon: number
+  private _epsilon!: number
   private GOTOCache: Map<GOTOCacheKey, LR1State>
 
   constructor(yaccParser?: YaccParser) {
@@ -219,7 +219,7 @@ export class LR1Analyzer {
    * 将产生式转换为单条存储的、数字->数字[]形式
    * @test pass
    */
-  private _convertProducer(stringProducers: YaccParserProducer[]) {
+  private _convertProducer(stringProducers: YaccParserProducer[]) {    
     for (let stringProducer of stringProducers) {
       let lhs = this._getSymbolId({ type: 'nonterminal', content: stringProducer.lhs })
       assert(lhs != -1, 'lhs not found in symbols. This error should never occur.')
@@ -238,8 +238,8 @@ export class LR1Analyzer {
             let a = this._getSymbolId({ type: 'nonterminal', content: tmp }),
               b = this._getSymbolId({ type: 'token', content: tmp })
             id = id ? id : a != -1 ? a : b != -1 ? b : -1
-          }
-          assert(id != -1, `symbol not found in symbols. This error should never occur. symbol=${tmp}`)
+          }          
+          assert(id != -1, `Symbol not found in symbols. This error should never occur. symbol=${tmp}`)
           rhs.push(id)
         }
         this._producers.push(
@@ -478,6 +478,9 @@ export class LR1Analyzer {
           if (LR1State.same(this.GOTO(dfaStates[i], A), dfaStates[j])) this._GOTOTable[i][lookup(A)] = j
   }
 
+  /**
+   * 序列化保存LR1Analyzer
+   */
   dump(desc: string, savePath: string) {
     // @ts-ignore
     let obj: any = { desc }
@@ -505,24 +508,58 @@ export class LR1Analyzer {
     fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
   }
 
+  /**
+   * 加载导出的LR1Analyzer
+   */
   static load(dumpPath: string) {
     const obj = JSON.parse(fs.readFileSync(dumpPath).toString()) as LR1DumpObject
     const lr1 = new LR1Analyzer(void 'empty')
     // symbols
     lr1._symbols = obj.symbols
+    // operators
+    obj.operators.forEach(operator => {
+      // @ts-ignore
+      lr1._operators.push(new LR1Operator(operator._symbolId, operator._assoc, operator._precedence))
+    })
     // producers
     obj.producers.forEach(producer => {
-      lr1._producers.push(new LR1Producer(producer.lhs, producer.rhs, producer.action))
+      // @ts-ignore
+      lr1._producers.push(new LR1Producer(producer._lhs, producer._rhs, producer._action))
     })
-    // 
-
-    // TODO:
+    // startSymbol
+    lr1._startSymbol = obj.startSymbol
+    // dfa
+    // @ts-ignore
+    lr1._dfa = new LR1DFA(obj.dfa._startStateId)
+    // @ts-ignore
+    obj.dfa._states.forEach(state => {
+      lr1._dfa.addState(state)
+    })
+    // @ts-ignore
+    obj.dfa._adjList.forEach((records, i) => {
+      records.forEach(record => {
+        lr1._dfa.link(i, record.to, record.alpha)
+      })
+    })
+    // ACTIONTable
+    lr1._ACTIONTable = obj.ACTIONTable
+    // GOTOTable
+    lr1._GOTOTable = obj.GOTOTable
+    // Reverse Lookup
+    lr1._ACTIONReverseLookup = obj.ACTIONReverseLookup
+    lr1._GOTOReverseLookup = obj.GOTOReverseLookup
+    // first
+    lr1._first = obj.first
+    // epsilon
+    lr1._epsilon = obj.epsilon
+    return lr1
   }
 }
 
 export type LR1DumpObject = {
   desc: string
   symbols: GrammarSymbol[]
+  operators: LR1Operator[]
   producers: LR1Producer[]
   startSymbol: number
   dfa: LR1DFA

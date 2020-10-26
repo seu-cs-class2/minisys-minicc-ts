@@ -18,7 +18,7 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
@@ -39,16 +39,18 @@ class LR1Analyzer {
         this._GOTOReverseLookup = [];
         this.GOTOCache = new Map();
         this._first = [];
-        this._distributeId(yaccParser);
-        this._convertProducer(yaccParser.producers);
-        this._convertOperator(yaccParser.operatorDecl);
-        this._epsilon = this._getSymbolId(Grammar_1.SpSymbol.EPSILON);
-        console.log('\n[ constructLR1DFA, this might take a long time... ]');
-        this._preCalFirst();
-        this._constructLR1DFA();
-        console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]');
-        this._constructACTIONGOTOTable();
-        console.log('\n');
+        if (yaccParser) {
+            this._distributeId(yaccParser);
+            this._convertProducer(yaccParser.producers);
+            this._convertOperator(yaccParser.operatorDecl);
+            this._epsilon = this._getSymbolId(Grammar_1.SpSymbol.EPSILON);
+            console.log('\n[ constructLR1DFA, this might take a long time... ]');
+            this._preCalFirst();
+            this._constructLR1DFA();
+            console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]');
+            this._constructACTIONGOTOTable();
+            console.log('\n');
+        }
     }
     get symbols() {
         return this._symbols;
@@ -221,7 +223,7 @@ class LR1Analyzer {
                         let a = this._getSymbolId({ type: 'nonterminal', content: tmp }), b = this._getSymbolId({ type: 'token', content: tmp });
                         id = id ? id : a != -1 ? a : b != -1 ? b : -1;
                     }
-                    utils_1.assert(id != -1, `symbol not found in symbols. This error should never occur. symbol=${tmp}`);
+                    utils_1.assert(id != -1, `Symbol not found in symbols. This error should never occur. symbol=${tmp}`);
                     rhs.push(id);
                 }
                 this._producers.push(new Grammar_1.LR1Producer(lhs, rhs, `reduceTo("${stringProducer.lhs}"); \n${stringProducer.actions[index]}`));
@@ -465,8 +467,12 @@ class LR1Analyzer {
                     if (Grammar_1.LR1State.same(this.GOTO(dfaStates[i], A), dfaStates[j]))
                         this._GOTOTable[i][lookup(A)] = j;
     }
-    dump(savePath) {
-        let obj = {};
+    /**
+     * 序列化保存LR1Analyzer
+     */
+    dump(desc, savePath) {
+        // @ts-ignore
+        let obj = { desc };
         // symbols
         obj['symbols'] = this._symbols;
         // operators
@@ -490,8 +496,51 @@ class LR1Analyzer {
         obj['epsilon'] = this._epsilon;
         fs.writeFileSync(savePath, JSON.stringify(obj, null, 2));
     }
-    static load(savePath) {
-        return;
+    /**
+     * 加载导出的LR1Analyzer
+     */
+    static load(dumpPath) {
+        const obj = JSON.parse(fs.readFileSync(dumpPath).toString());
+        const lr1 = new LR1Analyzer(void 'empty');
+        // symbols
+        lr1._symbols = obj.symbols;
+        // operators
+        obj.operators.forEach(operator => {
+            // @ts-ignore
+            lr1._operators.push(new Grammar_1.LR1Operator(operator._symbolId, operator._assoc, operator._precedence));
+        });
+        // producers
+        obj.producers.forEach(producer => {
+            // @ts-ignore
+            lr1._producers.push(new Grammar_1.LR1Producer(producer._lhs, producer._rhs, producer._action));
+        });
+        // startSymbol
+        lr1._startSymbol = obj.startSymbol;
+        // dfa
+        // @ts-ignore
+        lr1._dfa = new Grammar_1.LR1DFA(obj.dfa._startStateId);
+        // @ts-ignore
+        obj.dfa._states.forEach(state => {
+            lr1._dfa.addState(state);
+        });
+        // @ts-ignore
+        obj.dfa._adjList.forEach((records, i) => {
+            records.forEach(record => {
+                lr1._dfa.link(i, record.to, record.alpha);
+            });
+        });
+        // ACTIONTable
+        lr1._ACTIONTable = obj.ACTIONTable;
+        // GOTOTable
+        lr1._GOTOTable = obj.GOTOTable;
+        // Reverse Lookup
+        lr1._ACTIONReverseLookup = obj.ACTIONReverseLookup;
+        lr1._GOTOReverseLookup = obj.GOTOReverseLookup;
+        // first
+        lr1._first = obj.first;
+        // epsilon
+        lr1._epsilon = obj.epsilon;
+        return lr1;
     }
 }
 exports.LR1Analyzer = LR1Analyzer;
