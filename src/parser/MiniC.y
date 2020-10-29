@@ -28,149 +28,137 @@
 %%
 
 program
-	: decl_list
+	: decl_list	{ _YYASTRoot = newNode('program', $1); }
 	;
 
 decl_list
-	: decl_list decl 																							{ backpatch($1.nextlist, $2.instr); $$.nextlist = $2.nextlist; }
-	| decl 																												{ $$.nextlist = $1.nextlist; }
+	: decl_list decl { $$ = newNode('decl_list', $1, $2); } 
+	| decl 	{ $$ = newNode('decl_list', $1); }
 	;
 
 decl
-	: var_decl
-	| fun_decl 																										{ toscope('global'); }
+	: var_decl { $$ = newNode('decl', $1); }
+	| fun_decl { $$ = newNode('decl', $1); }
 	;
 
 var_decl
-	: type_spec IDENTIFIER SEMICOLON 															{ newentry($2.literal, $1.type); }
-	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON 	{ newentry($2.literal, $1.type, $4.literal); }
+	: type_spec IDENTIFIER SEMICOLON { $$ = newNode('var_decl', $1, $2); }
+	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON { $$ = newNode('var_decl', $1, $2, $4); }
 	;
 
 type_spec
-	: VOID 																												{ $$.type = 'void'; }
-	| INT 																												{ $$.type = 'int'; }
+	: VOID { $$ = newNode('type_spec', $1); }
+	| INT { $$ = newNode('type_spec', $1); }
 	;
 
 fun_decl
-	: type_spec IDENTIFIER LPAREN params RPAREN compound_stmt 		{ $$.name = $2.literal; regfunc($2.literal, ??); newtable($2.literal); tablepush($4.itemlist); }
+	: type_spec IDENTIFIER LPAREN params RPAREN LBRACE local_decls stmt_list RBRACE { $$ = newNode('fun_decl', $1, $4, $7, $8); }
 	;
 
 params
-	: param_list 																									{ $$.itemlist = $1.itemlist; }
-	| VOID 																												{ $$.itemlist = null; }
+	: param_list { $$ = newNode('params', $1); }
+	| VOID { $$ = newNode('params'); }
 	;
 
 param_list
-	: param_list COMMA param 																			{ $$.itemlist = concatparam($1.itemlist, $3.itemlist); }
-	| param 																											{ $$.itemlist = $1.itemlist; }
+	: param_list COMMA param { $$ = newNode('param_list', $1, $3); }
+	| param { $$ = newNode('param_list', $1); }
 	;
 
 param
-	: type_spec IDENTIFIER
+	: type_spec IDENTIFIER { $$ = newNode('param', $1, $2); }
 	;
 
 stmt_list
-	: stmt_list stmt
+	: stmt_list stmt { $$ = newNode('stmt_list', $1, $2); }
 	;
 
 stmt
-	: expr_stmt
-	| block_stmt																									
-	| if_stmt																											{ $$.nextlist = $1.nextlist; }
-	| while_stmt																									{ $$.nextlist = $1.nextlist; }
-	| return_stmt																									
-	| continue_stmt																								{ // jump somewhere }
-	| break_stmt																									{ // jump somewhere }
+	: expr_stmt { $$ = newNode('stmt', $1); }
+	| compound_stmt { $$ = newNode('stmt', $1); }
+	| if_stmt { $$ = newNode('stmt', $1); }
+	| while_stmt { $$ = newNode('stmt', $1); }
+	| return_stmt { $$ = newNode('stmt', $1); }
+	| continue_stmt { $$ = newNode('stmt', $1); }
+	| break_stmt { $$ = newNode('stmt', $1); }
+	;
+
+compound_stmt
+	: LBRACE stmt_list RBRACE { $$ = newNode('compound_stmt', $2); }
+	;
+
+if_stmt
+	: IF LPAREN expr RPAREN stmt { $$ = newNode('if_stmt', $3, $5); }
+	;
+
+while_stmt
+	: WHILE LPAREN expr RPAREN stmt { $$ = newNode('while_stmt', $3, $5); }
+	;
+
+continue_stmt
+	: CONTINUE SEMICOLON { $$ = newNode('continue_stmt'); }
+	;
+
+break_stmt
+	: BREAK SEMICOLON { $$ = newNode(break_stmt); }
 	;
 
 expr_stmt
-	: IDENTIFIER ASSIGN expr SEMICOLON
-	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON
+	: IDENTIFIER ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3); }
+	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3, $5); }
 	| DOLLAR expr ASSIGN SEMICOLON
 	| IDENTIFIER LPAREN args RPAREN SEMICOLON
 	;
 
-while_stmt
-	: WHILE LPAREN expr RPAREN stmt 															{ backpatch($5.nextlist, $3.instr?); backpatch($3.truelist, $5.instr?); $$.nextlist = $3.falselist; genquad('j', '', '', ???); }
-	;
-
-block_stmt
-	: LBRACE stmt_list RBRACE 																		{ $$.nextlist = $2.nextlist; }
-	;
-
-compound_stmt
-	: LBRACE local_decls stmt_list RBRACE
-	;
-
 local_decls
-	: local_decls local_decl
+	: local_decls local_decl { $$ = newNode('local_decls', $1, $2); }
 	;
 
 local_decl
-	: type_spec IDENTIFIER SEMICOLON SEMICOLON
-	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON
-	;
-
-if_stmt
-	: IF LPAREN expr RPAREN stmt 																	{ backpatch($3.truelist, $5.instr); $$.nextlist = merge($3.falselist, $5.nextlist); }
+	: type_spec IDENTIFIER SEMICOLON { $$ = newNode('local_decl', $1, $2); }
+	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON { $$ = newNode('local_decl', ) }
 	;
 
 return_stmt
-	: RETURN SEMICOLON
-	| RETURN expr SEMICOLON 																			{ genquad('return', $2.place, '', ''); markalive($2.place); }
+	: RETURN SEMICOLON { $$ = newNode('return_stmt'); }
+	| RETURN expr SEMICOLON { $$ = newNode('return_stmt', $2); }
 	;
 
 expr
-	: expr OR_OP _M expr 																								
-	| expr AND_OP _M expr
-	| expr EQ_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_eq', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr NE_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_ne', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr GT_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_gt', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr LT_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_lt', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr GE_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_ge', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr LE_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_le', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr PLUS expr 																							{ $$.place = newtemp($1.place); genquad('+', $1.place, $3.place, $$.place); }
-	| expr MINUS expr 																						{ $$.place = newtemp($1.place); genquad('-', $1.place, $3.place, $$.place); }
-	| expr MULTIPLY expr 																					{ $$.place = newtemp($1.place); genquad('*', $1.place, $3.place, $$.place); }
-	| expr SLASH expr 																						{ $$.place = newtemp($1.place); genquad('/', $1.place, $3.place, $$.place); }
-	| expr PERCENT expr 																					{ $$.place = newtemp($1.place); genquad('%', $1.place, $3.place, $$.place); }
-	| NOT_OP expr																									{ $$.truelist = $2.falselist; $$.falselist = $2.truelist; }
-	| MINUS expr																									{ $$.place = newtemp($2.place); genquad('-', $2.place, '', $$.place); }
-	| PLUS expr 																									{ $$.place = $2.place; }
-	| DOLLAR expr																									{ //FIXME: $$.place = newtemp($2.place); genquad('$', '$2.place', '', $$.place); }
-	| LPAREN expr RPAREN 																					{ $$.place = $2.place; }
-	| IDENTIFIER 																									{ $$.place = findsymbol($1.literal); }
+	: expr OR_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr AND_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr EQ_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr NE_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr GT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr LT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr GE_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr LE_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr PLUS expr  { $$ = newNode('expr', $1, $2, $3); }
+	| expr MINUS expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr MULTIPLY expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr SLASH expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr PERCENT expr { $$ = newNode('expr', $1, $2, $3); }
+	| NOT_OP expr { $$ = newNode('expr', $1, $2); }
+	| MINUS expr { $$ = newNode('expr', $1, $2); }
+	| PLUS expr { $$ = newNode('expr', $1, $2); }
+	| DOLLAR expr { $$ = newNode('expr', $1, $2); }
+	| LPAREN expr RPAREN { $$ = newNode('expr', $2); }
+	| IDENTIFIER { $$ = newNode('expr', $1); }
 	| IDENTIFIER LBRACKET expr RBRACKET
 	| IDENTIFIER LPAREN args RPAREN
-	| CONSTANT
-	| expr BITAND_OP expr
-	| expr BITXOR_OP expr
-	| BITINV_OP expr
-	| expr LEFT_OP expr
-	| expr RIGHT_OP expr
-	| expr BITOR_OP expr
+	| CONSTANT { $$ = newNode('expr', $1); }
+	| expr BITAND_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr BITXOR_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| BITINV_OP expr { $$ = newNode('expr', $1, $2); }
+	| expr LEFT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr RIGHT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr BITOR_OP expr { $$ = newNode('expr', $1, $2, $3); }
 	;
 
 args
 	: args COMMA expr
 	| expr
 	;
-
-continue_stmt
-	: CONTINUE SEMICOLON
-	;
-
-break_stmt
-	: BREAK SEMICOLON
-	;
-
-_M
-	: _EPSILON																														{ $$.instr = makelabel(nextinstr); }
-	;
-
-_N
-	: _EPSILON
-	; 																														{ $$.instr = makelist(nextinstr); }
 
 %%
 

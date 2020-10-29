@@ -6,13 +6,13 @@
 import fs from 'fs'
 import path from 'path'
 import * as childProcess from 'child_process'
-import { LR1DFA } from './Grammar'
+import { LR0DFA, LR1DFA } from './Grammar'
 import { LR1Analyzer } from './LR1'
 
 /**
  * 可视化LR1分析表（ACTIONGOTOTable）
  */
-export function visualizeACTIONGOTOTable(lr1Analyzer: LR1Analyzer, viewNow = true) {
+export function visualizeLR1ACTIONGOTOTable(lr1Analyzer: LR1Analyzer, viewNow = true) {
   let ACTIONHead = []
   for (let i of lr1Analyzer.ACTIONReverseLookup) ACTIONHead.push(lr1Analyzer.getSymbolString(i))
   let GOTOHead = []
@@ -58,7 +58,7 @@ export function visualizeACTIONGOTOTable(lr1Analyzer: LR1Analyzer, viewNow = tru
   }
   const dumpObject = { ACTIONHead, GOTOHead, ACTIONTable, GOTOTable }
   const dumpJSON = JSON.stringify(dumpObject, null, 2)
-  const VisualizerPath = path.join(__dirname, '../../../enhance/TableVisualizer')
+  const VisualizerPath = path.join(__dirname, '../enhance/TableVisualizer')
   fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulex_data = ${dumpJSON}`)
   // 启动浏览器显示
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)
@@ -67,7 +67,7 @@ export function visualizeACTIONGOTOTable(lr1Analyzer: LR1Analyzer, viewNow = tru
 /**
  * 可视化GOTO图（LR1DFA）
  */
-export function visualizeGOTOGraph(lr1dfa: LR1DFA, lr1Analyzer: LR1Analyzer, viewNow = true) {
+export function visualizeLR1GOTOGraph(lr1dfa: LR1DFA, lr1Analyzer: LR1Analyzer, viewNow = true) {
   let dumpObject: {
     nodes: {
       key: string
@@ -129,12 +129,14 @@ export function visualizeGOTOGraph(lr1dfa: LR1DFA, lr1Analyzer: LR1Analyzer, vie
     })
   }
   let dagreJSON = JSON.stringify(dumpObject, null, 2)
-  const VisualizerPath = path.join(__dirname, '../../../enhance/FAVisualizer')
+  const VisualizerPath = path.join(__dirname, '../enhance/FAVisualizer')
   const shape = 'rect'
-  fs.writeFileSync(
-    path.join(VisualizerPath, './data.js'),
-    `window._seulex_shape = '${shape}'; let data = ${dagreJSON}`
-  )
+  fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulex_shape = '${shape}'; let data = ${dagreJSON}`)
   // 启动浏览器显示
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)
 }
+
+/**
+ *
+ */
+export function visualizeLR0GOTOGraph(lr0dfa: LR0DFA) {}
