@@ -28,41 +28,41 @@
 %%
 
 program
-	: decl_list
+	: decl_list	{ _ASTRoot = newNode('program', $1); }
 	;
 
 decl_list
-	: decl_list decl 																							{ backpatch($1.nextlist, $2.instr); $$.nextlist = $2.nextlist; }
-	| decl 																												{ $$.nextlist = $1.nextlist; }
+	: decl_list decl { $$ = newNode('decl_list', $1, $2); } 																							
+	| decl 																												
 	;
 
 decl
 	: var_decl
-	| fun_decl 																										{ toscope('global'); }
+	| fun_decl 																										
 	;
 
 var_decl
-	: type_spec IDENTIFIER SEMICOLON 															{ newentry($2.literal, $1.type); }
-	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON 	{ newentry($2.literal, $1.type, $4.literal); }
+	: type_spec IDENTIFIER SEMICOLON 															
+	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON 	
 	;
 
 type_spec
-	: VOID 																												{ $$.type = 'void'; }
-	| INT 																												{ $$.type = 'int'; }
+	: VOID 																												
+	| INT 																												
 	;
 
 fun_decl
-	: type_spec IDENTIFIER LPAREN params RPAREN compound_stmt 		{ $$.name = $2.literal; regfunc($2.literal, ??); newtable($2.literal); tablepush($4.itemlist); }
+	: type_spec IDENTIFIER LPAREN params RPAREN compound_stmt 		
 	;
 
 params
-	: param_list 																									{ $$.itemlist = $1.itemlist; }
-	| VOID 																												{ $$.itemlist = null; }
+	: param_list 																									
+	| VOID 																												
 	;
 
 param_list
-	: param_list COMMA param 																			{ $$.itemlist = concatparam($1.itemlist, $3.itemlist); }
-	| param 																											{ $$.itemlist = $1.itemlist; }
+	: param_list COMMA param 																			
+	| param 																											
 	;
 
 param
@@ -76,11 +76,11 @@ stmt_list
 stmt
 	: expr_stmt
 	| block_stmt																									
-	| if_stmt																											{ $$.nextlist = $1.nextlist; }
-	| while_stmt																									{ $$.nextlist = $1.nextlist; }
+	| if_stmt																											
+	| while_stmt																									
 	| return_stmt																									
-	| continue_stmt																								{ // jump somewhere }
-	| break_stmt																									{ // jump somewhere }
+	| continue_stmt																								
+	| break_stmt																									
 	;
 
 expr_stmt
@@ -91,11 +91,11 @@ expr_stmt
 	;
 
 while_stmt
-	: WHILE LPAREN expr RPAREN stmt 															{ backpatch($5.nextlist, $3.instr?); backpatch($3.truelist, $5.instr?); $$.nextlist = $3.falselist; genquad('j', '', '', ???); }
+	: WHILE LPAREN expr RPAREN stmt 															
 	;
 
 block_stmt
-	: LBRACE stmt_list RBRACE 																		{ $$.nextlist = $2.nextlist; }
+	: LBRACE stmt_list RBRACE 																		
 	;
 
 compound_stmt
@@ -112,34 +112,34 @@ local_decl
 	;
 
 if_stmt
-	: IF LPAREN expr RPAREN stmt 																	{ backpatch($3.truelist, $5.instr); $$.nextlist = merge($3.falselist, $5.nextlist); }
+	: IF LPAREN expr RPAREN stmt 																	
 	;
 
 return_stmt
 	: RETURN SEMICOLON
-	| RETURN expr SEMICOLON 																			{ genquad('return', $2.place, '', ''); markalive($2.place); }
+	| RETURN expr SEMICOLON 																			
 	;
 
 expr
-	: expr OR_OP _M expr 																								
-	| expr AND_OP _M expr
-	| expr EQ_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_eq', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr NE_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_ne', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr GT_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_gt', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr LT_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_lt', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr GE_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_ge', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr LE_OP expr																							{ $$.truelist = makelist(nextinstr); $$.falselist = makelist(nextinstr + 1); genquad('j_le', $1.place, $3.place, '_'); genquad('j', '', '', '_'); }
-	| expr PLUS expr 																							{ $$.place = newtemp($1.place); genquad('+', $1.place, $3.place, $$.place); }
-	| expr MINUS expr 																						{ $$.place = newtemp($1.place); genquad('-', $1.place, $3.place, $$.place); }
-	| expr MULTIPLY expr 																					{ $$.place = newtemp($1.place); genquad('*', $1.place, $3.place, $$.place); }
-	| expr SLASH expr 																						{ $$.place = newtemp($1.place); genquad('/', $1.place, $3.place, $$.place); }
-	| expr PERCENT expr 																					{ $$.place = newtemp($1.place); genquad('%', $1.place, $3.place, $$.place); }
-	| NOT_OP expr																									{ $$.truelist = $2.falselist; $$.falselist = $2.truelist; }
-	| MINUS expr																									{ $$.place = newtemp($2.place); genquad('-', $2.place, '', $$.place); }
-	| PLUS expr 																									{ $$.place = $2.place; }
-	| DOLLAR expr																									{ //FIXME: $$.place = newtemp($2.place); genquad('$', '$2.place', '', $$.place); }
-	| LPAREN expr RPAREN 																					{ $$.place = $2.place; }
-	| IDENTIFIER 																									{ $$.place = findsymbol($1.literal); }
+	: expr OR_OP expr 																								
+	| expr AND_OP expr
+	| expr EQ_OP expr																							
+	| expr NE_OP expr																							
+	| expr GT_OP expr																							
+	| expr LT_OP expr																							
+	| expr GE_OP expr																							
+	| expr LE_OP expr																							
+	| expr PLUS expr 																							
+	| expr MINUS expr 																						
+	| expr MULTIPLY expr 																					
+	| expr SLASH expr 																						
+	| expr PERCENT expr 																					
+	| NOT_OP expr																									
+	| MINUS expr																									
+	| PLUS expr 																									
+	| DOLLAR expr																									
+	| LPAREN expr RPAREN 																					
+	| IDENTIFIER 																									
 	| IDENTIFIER LBRACKET expr RBRACKET
 	| IDENTIFIER LPAREN args RPAREN
 	| CONSTANT
@@ -163,14 +163,6 @@ continue_stmt
 break_stmt
 	: BREAK SEMICOLON
 	;
-
-_M
-	: _EPSILON																														{ $$.instr = makelabel(nextinstr); }
-	;
-
-_N
-	: _EPSILON
-	; 																														{ $$.instr = makelist(nextinstr); }
 
 %%
 
