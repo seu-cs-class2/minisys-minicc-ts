@@ -1,4 +1,3 @@
-import { Token } from '../lexer/Lex'
 import { ASTNode } from './AST'
 
 interface YYContext {

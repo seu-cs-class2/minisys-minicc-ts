@@ -18,7 +18,7 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
@@ -26,14 +26,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visualizeGOTOGraph = exports.visualizeACTIONGOTOTable = void 0;
+exports.visualizeLR0GOTOGraph = exports.visualizeLR1GOTOGraph = exports.visualizeLR1ACTIONGOTOTable = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const childProcess = __importStar(require("child_process"));
 /**
  * 可视化LR1分析表（ACTIONGOTOTable）
  */
-function visualizeACTIONGOTOTable(lr1Analyzer, viewNow = true) {
+function visualizeLR1ACTIONGOTOTable(lr1Analyzer, viewNow = true) {
     let ACTIONHead = [];
     for (let i of lr1Analyzer.ACTIONReverseLookup)
         ACTIONHead.push(lr1Analyzer.getSymbolString(i));
@@ -83,16 +83,16 @@ function visualizeACTIONGOTOTable(lr1Analyzer, viewNow = true) {
     }
     const dumpObject = { ACTIONHead, GOTOHead, ACTIONTable, GOTOTable };
     const dumpJSON = JSON.stringify(dumpObject, null, 2);
-    const VisualizerPath = path_1.default.join(__dirname, '../../../enhance/TableVisualizer');
+    const VisualizerPath = path_1.default.join(__dirname, '../enhance/TableVisualizer');
     fs_1.default.writeFileSync(path_1.default.join(VisualizerPath, './data.js'), `window._seulex_data = ${dumpJSON}`);
     // 启动浏览器显示
     viewNow && childProcess.exec(`start ${path_1.default.join(VisualizerPath, './index.html')} `);
 }
-exports.visualizeACTIONGOTOTable = visualizeACTIONGOTOTable;
+exports.visualizeLR1ACTIONGOTOTable = visualizeLR1ACTIONGOTOTable;
 /**
  * 可视化GOTO图（LR1DFA）
  */
-function visualizeGOTOGraph(lr1dfa, lr1Analyzer, viewNow = true) {
+function visualizeLR1GOTOGraph(lr1dfa, lr1Analyzer, viewNow = true) {
     let dumpObject = { nodes: [], edges: [] };
     // 设置点（项目集）
     for (let i = 0; i < lr1dfa.states.length; i++) {
@@ -143,10 +143,15 @@ function visualizeGOTOGraph(lr1dfa, lr1Analyzer, viewNow = true) {
         });
     }
     let dagreJSON = JSON.stringify(dumpObject, null, 2);
-    const VisualizerPath = path_1.default.join(__dirname, '../../../enhance/FAVisualizer');
+    const VisualizerPath = path_1.default.join(__dirname, '../enhance/FAVisualizer');
     const shape = 'rect';
     fs_1.default.writeFileSync(path_1.default.join(VisualizerPath, './data.js'), `window._seulex_shape = '${shape}'; let data = ${dagreJSON}`);
     // 启动浏览器显示
     viewNow && childProcess.exec(`start ${path_1.default.join(VisualizerPath, './index.html')} `);
 }
-exports.visualizeGOTOGraph = visualizeGOTOGraph;
+exports.visualizeLR1GOTOGraph = visualizeLR1GOTOGraph;
+/**
+ *
+ */
+function visualizeLR0GOTOGraph(lr0dfa) { }
+exports.visualizeLR0GOTOGraph = visualizeLR0GOTOGraph;

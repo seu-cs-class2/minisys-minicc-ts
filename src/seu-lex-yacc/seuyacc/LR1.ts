@@ -1,6 +1,10 @@
 /**
- * LR语法分析
- * 2020-05 @ https://github.com/Withod/seu-lex-yacc
+ * DEPRECATED!
+ * 构造LR1的时间代价太大，不适合大规模文法的分析表构造。
+ * 我们换用从LR0构造LALR的高效方法（龙书4.7.5节）
+ * 
+ * LR1语法分析
+ * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 
 import { YaccParser } from './YaccParser'
@@ -13,22 +17,17 @@ import {
   LR1State,
   LR1Operator,
   YaccParserOperator,
+  GrammarSymbol,
 } from './Grammar'
 import { assert, cookString, ASCII_MIN, ASCII_MAX } from '../utils'
 import { ProgressBar } from '../enhance/progressbar'
 import * as fs from 'fs'
-
-export type GrammarSymbol = {
-  type: 'ascii' | 'token' | 'nonterminal' | 'sptoken'
-  content: string
-}
 
 export type ACTIONTableCell = {
   type: 'shift' | 'reduce' | 'acc' | 'none'
   data: number // state or producer
 }
 
-type GOTOCacheKey = { i: LR1State; a: number } // i：dfaStates，a：字母下标
 export class LR1Analyzer {
   private _symbols: GrammarSymbol[]
   private _operators: LR1Operator[]
@@ -41,7 +40,6 @@ export class LR1Analyzer {
   private _GOTOReverseLookup!: number[]
   private _first: number[][]
   private _epsilon!: number
-  private GOTOCache: Map<GOTOCacheKey, LR1State>
 
   constructor(yaccParser?: YaccParser) {
     this._symbols = []
@@ -51,7 +49,6 @@ export class LR1Analyzer {
     this._GOTOTable = []
     this._ACTIONReverseLookup = []
     this._GOTOReverseLookup = []
-    this.GOTOCache = new Map<GOTOCacheKey, LR1State>()
     this._first = []
     if (yaccParser) {
       this._distributeId(yaccParser)
@@ -219,7 +216,7 @@ export class LR1Analyzer {
    * 将产生式转换为单条存储的、数字->数字[]形式
    * @test pass
    */
-  private _convertProducer(stringProducers: YaccParserProducer[]) {    
+  private _convertProducer(stringProducers: YaccParserProducer[]) {
     for (let stringProducer of stringProducers) {
       let lhs = this._getSymbolId({ type: 'nonterminal', content: stringProducer.lhs })
       assert(lhs != -1, 'lhs not found in symbols. This error should never occur.')
@@ -238,7 +235,7 @@ export class LR1Analyzer {
             let a = this._getSymbolId({ type: 'nonterminal', content: tmp }),
               b = this._getSymbolId({ type: 'token', content: tmp })
             id = id ? id : a != -1 ? a : b != -1 ? b : -1
-          }          
+          }
           assert(id != -1, `Symbol not found in symbols. This error should never occur. symbol=${tmp}`)
           rhs.push(id)
         }
@@ -266,16 +263,11 @@ export class LR1Analyzer {
     let dfa = new LR1DFA(0)
     dfa.addState(I0)
     let stack = [0]
-    let pb = new ProgressBar()
     while (stack.length) {
       let I = dfa.states[stack.pop() as number] // for C中的每个项集I
       for (let X = 0; X < this._symbols.length; X++) {
         // for 每个文法符号X
         let gotoIX = this.GOTO(I, X)
-        pb.render({
-          completed: this.GOTOCache.size,
-          total: dfa.states.length * this.symbols.length,
-        })
         if (gotoIX.items.length === 0) continue // gotoIX要非空
         const sameStateCheck = dfa.states.findIndex(x => LR1State.same(x, gotoIX)) // 存在一致状态要处理
         if (sameStateCheck !== -1) {
@@ -295,7 +287,7 @@ export class LR1Analyzer {
    * 求取GOTO(I, X)
    * 见龙书算法4.53
    */
-  private _GOTO(I: LR1State, X: number) {
+  private GOTO(I: LR1State, X: number) {
     let J = new LR1State([])
     for (let item of I.items) {
       // for I中的每一个项
@@ -305,23 +297,6 @@ export class LR1Analyzer {
       }
     }
     return this.CLOSURE(J)
-  }
-
-  /**
-   * 缓存包装版本的GOTO
-   * @param i 状态
-   * @param a 符号下标
-   */
-  private GOTO(i: LR1State, a: number) {
-    let cached = this.GOTOCache.get({ i, a })
-    let goto: LR1State
-    if (!cached) {
-      goto = this._GOTO(i, a)
-      this.GOTOCache.set({ i, a }, goto)
-    } else {
-      goto = cached
-    }
-    return goto
   }
 
   /**
@@ -352,7 +327,7 @@ export class LR1Analyzer {
         for (let lookahead of newLookaheads) {
           let newItem = new LR1Item(extendProducer, this._producers.indexOf(extendProducer), lookahead)
           if (res.items.some(item => LR1Item.same(item, newItem))) continue // 重复的情况不再添加，避免出现一样的Item
-          !allItemsOfI.includes(newItem) && allItemsOfI.push(newItem) // 继续扩展
+          allItemsOfI.every(item => !LR1Item.same(item, newItem)) && allItemsOfI.push(newItem) // 继续扩展
           res.addItem(newItem)
         }
       }

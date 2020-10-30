@@ -60,3 +60,13 @@ export class FunctionNode {
 export class BlockNode {}
 
 export class ArrayNode {}
+
+
+const handlers = {
+
+  local_decl: function() {
+
+  },
+  
+
+}

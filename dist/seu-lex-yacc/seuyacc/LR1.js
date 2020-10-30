@@ -1,7 +1,11 @@
 "use strict";
 /**
- * LR语法分析
- * 2020-05 @ https://github.com/Withod/seu-lex-yacc
+ * DEPRECATED!
+ * 构造LR1的时间代价太大，不适合大规模文法的分析表构造。
+ * 我们换用从LR0构造LALR的高效方法（龙书4.7.5节）
+ *
+ * LR1语法分析
+ * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -18,7 +22,7 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 };
@@ -37,7 +41,6 @@ class LR1Analyzer {
         this._GOTOTable = [];
         this._ACTIONReverseLookup = [];
         this._GOTOReverseLookup = [];
-        this.GOTOCache = new Map();
         this._first = [];
         if (yaccParser) {
             this._distributeId(yaccParser);
@@ -244,16 +247,11 @@ class LR1Analyzer {
         let dfa = new Grammar_1.LR1DFA(0);
         dfa.addState(I0);
         let stack = [0];
-        let pb = new progressbar_1.ProgressBar();
         while (stack.length) {
             let I = dfa.states[stack.pop()]; // for C中的每个项集I
             for (let X = 0; X < this._symbols.length; X++) {
                 // for 每个文法符号X
                 let gotoIX = this.GOTO(I, X);
-                pb.render({
-                    completed: this.GOTOCache.size,
-                    total: dfa.states.length * this.symbols.length,
-                });
                 if (gotoIX.items.length === 0)
                     continue; // gotoIX要非空
                 const sameStateCheck = dfa.states.findIndex(x => Grammar_1.LR1State.same(x, gotoIX)); // 存在一致状态要处理
@@ -274,7 +272,7 @@ class LR1Analyzer {
      * 求取GOTO(I, X)
      * 见龙书算法4.53
      */
-    _GOTO(I, X) {
+    GOTO(I, X) {
         let J = new Grammar_1.LR1State([]);
         for (let item of I.items) {
             // for I中的每一个项
@@ -285,23 +283,6 @@ class LR1Analyzer {
             }
         }
         return this.CLOSURE(J);
-    }
-    /**
-     * 缓存包装版本的GOTO
-     * @param i 状态
-     * @param a 符号下标
-     */
-    GOTO(i, a) {
-        let cached = this.GOTOCache.get({ i, a });
-        let goto;
-        if (!cached) {
-            goto = this._GOTO(i, a);
-            this.GOTOCache.set({ i, a }, goto);
-        }
-        else {
-            goto = cached;
-        }
-        return goto;
     }
     /**
      * 求取CLOSURE(I)（I为某状态）
@@ -334,7 +315,7 @@ class LR1Analyzer {
                     let newItem = new Grammar_1.LR1Item(extendProducer, this._producers.indexOf(extendProducer), lookahead);
                     if (res.items.some(item => Grammar_1.LR1Item.same(item, newItem)))
                         continue; // 重复的情况不再添加，避免出现一样的Item
-                    !allItemsOfI.includes(newItem) && allItemsOfI.push(newItem); // 继续扩展
+                    allItemsOfI.every(item => !Grammar_1.LR1Item.same(item, newItem)) && allItemsOfI.push(newItem); // 继续扩展
                     res.addItem(newItem);
                 }
             }

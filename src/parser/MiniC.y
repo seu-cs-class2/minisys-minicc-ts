@@ -28,140 +28,136 @@
 %%
 
 program
-	: decl_list	{ _ASTRoot = newNode('program', $1); }
+	: decl_list	{ _YYASTRoot = newNode('program', $1); }
 	;
 
 decl_list
-	: decl_list decl { $$ = newNode('decl_list', $1, $2); } 																							
-	| decl 																												
+	: decl_list decl { $$ = newNode('decl_list', $1, $2); } 
+	| decl 	{ $$ = newNode('decl_list', $1); }
 	;
 
 decl
-	: var_decl
-	| fun_decl 																										
+	: var_decl { $$ = newNode('decl', $1); }
+	| fun_decl { $$ = newNode('decl', $1); }
 	;
 
 var_decl
-	: type_spec IDENTIFIER SEMICOLON 															
-	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON 	
+	: type_spec IDENTIFIER SEMICOLON { $$ = newNode('var_decl', $1, $2); }
+	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON { $$ = newNode('var_decl', $1, $2, $4); }
 	;
 
 type_spec
-	: VOID 																												
-	| INT 																												
+	: VOID { $$ = newNode('type_spec', $1); }
+	| INT { $$ = newNode('type_spec', $1); }
 	;
 
 fun_decl
-	: type_spec IDENTIFIER LPAREN params RPAREN compound_stmt 		
+	: type_spec IDENTIFIER LPAREN params RPAREN LBRACE local_decls stmt_list RBRACE { $$ = newNode('fun_decl', $1, $4, $7, $8); }
 	;
 
 params
-	: param_list 																									
-	| VOID 																												
+	: param_list { $$ = newNode('params', $1); }
+	| VOID { $$ = newNode('params'); }
 	;
 
 param_list
-	: param_list COMMA param 																			
-	| param 																											
+	: param_list COMMA param { $$ = newNode('param_list', $1, $3); }
+	| param { $$ = newNode('param_list', $1); }
 	;
 
 param
-	: type_spec IDENTIFIER
+	: type_spec IDENTIFIER { $$ = newNode('param', $1, $2); }
 	;
 
 stmt_list
-	: stmt_list stmt
+	: stmt_list stmt { $$ = newNode('stmt_list', $1, $2); }
 	;
 
 stmt
-	: expr_stmt
-	| block_stmt																									
-	| if_stmt																											
-	| while_stmt																									
-	| return_stmt																									
-	| continue_stmt																								
-	| break_stmt																									
+	: expr_stmt { $$ = newNode('stmt', $1); }
+	| compound_stmt { $$ = newNode('stmt', $1); }
+	| if_stmt { $$ = newNode('stmt', $1); }
+	| while_stmt { $$ = newNode('stmt', $1); }
+	| return_stmt { $$ = newNode('stmt', $1); }
+	| continue_stmt { $$ = newNode('stmt', $1); }
+	| break_stmt { $$ = newNode('stmt', $1); }
+	;
+
+compound_stmt
+	: LBRACE stmt_list RBRACE { $$ = newNode('compound_stmt', $2); }
+	;
+
+if_stmt
+	: IF LPAREN expr RPAREN stmt { $$ = newNode('if_stmt', $3, $5); }
+	;
+
+while_stmt
+	: WHILE LPAREN expr RPAREN stmt { $$ = newNode('while_stmt', $3, $5); }
+	;
+
+continue_stmt
+	: CONTINUE SEMICOLON { $$ = newNode('continue_stmt'); }
+	;
+
+break_stmt
+	: BREAK SEMICOLON { $$ = newNode(break_stmt); }
 	;
 
 expr_stmt
-	: IDENTIFIER ASSIGN expr SEMICOLON
-	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON
+	: IDENTIFIER ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3); }
+	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3, $5); }
 	| DOLLAR expr ASSIGN SEMICOLON
 	| IDENTIFIER LPAREN args RPAREN SEMICOLON
 	;
 
-while_stmt
-	: WHILE LPAREN expr RPAREN stmt 															
-	;
-
-block_stmt
-	: LBRACE stmt_list RBRACE 																		
-	;
-
-compound_stmt
-	: LBRACE local_decls stmt_list RBRACE
-	;
-
 local_decls
-	: local_decls local_decl
+	: local_decls local_decl { $$ = newNode('local_decls', $1, $2); }
 	;
 
 local_decl
-	: type_spec IDENTIFIER SEMICOLON SEMICOLON
-	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON
-	;
-
-if_stmt
-	: IF LPAREN expr RPAREN stmt 																	
+	: type_spec IDENTIFIER SEMICOLON { $$ = newNode('local_decl', $1, $2); }
+	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON { $$ = newNode('local_decl', ) }
 	;
 
 return_stmt
-	: RETURN SEMICOLON
-	| RETURN expr SEMICOLON 																			
+	: RETURN SEMICOLON { $$ = newNode('return_stmt'); }
+	| RETURN expr SEMICOLON { $$ = newNode('return_stmt', $2); }
 	;
 
 expr
-	: expr OR_OP expr 																								
-	| expr AND_OP expr
-	| expr EQ_OP expr																							
-	| expr NE_OP expr																							
-	| expr GT_OP expr																							
-	| expr LT_OP expr																							
-	| expr GE_OP expr																							
-	| expr LE_OP expr																							
-	| expr PLUS expr 																							
-	| expr MINUS expr 																						
-	| expr MULTIPLY expr 																					
-	| expr SLASH expr 																						
-	| expr PERCENT expr 																					
-	| NOT_OP expr																									
-	| MINUS expr																									
-	| PLUS expr 																									
-	| DOLLAR expr																									
-	| LPAREN expr RPAREN 																					
-	| IDENTIFIER 																									
+	: expr OR_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr AND_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr EQ_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr NE_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr GT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr LT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr GE_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr LE_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr PLUS expr  { $$ = newNode('expr', $1, $2, $3); }
+	| expr MINUS expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr MULTIPLY expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr SLASH expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr PERCENT expr { $$ = newNode('expr', $1, $2, $3); }
+	| NOT_OP expr { $$ = newNode('expr', $1, $2); }
+	| MINUS expr { $$ = newNode('expr', $1, $2); }
+	| PLUS expr { $$ = newNode('expr', $1, $2); }
+	| DOLLAR expr { $$ = newNode('expr', $1, $2); }
+	| LPAREN expr RPAREN { $$ = newNode('expr', $2); }
+	| IDENTIFIER { $$ = newNode('expr', $1); }
 	| IDENTIFIER LBRACKET expr RBRACKET
 	| IDENTIFIER LPAREN args RPAREN
-	| CONSTANT
-	| expr BITAND_OP expr
-	| expr BITXOR_OP expr
-	| BITINV_OP expr
-	| expr LEFT_OP expr
-	| expr RIGHT_OP expr
-	| expr BITOR_OP expr
+	| CONSTANT { $$ = newNode('expr', $1); }
+	| expr BITAND_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr BITXOR_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| BITINV_OP expr { $$ = newNode('expr', $1, $2); }
+	| expr LEFT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr RIGHT_OP expr { $$ = newNode('expr', $1, $2, $3); }
+	| expr BITOR_OP expr { $$ = newNode('expr', $1, $2, $3); }
 	;
 
 args
 	: args COMMA expr
 	| expr
-	;
-
-continue_stmt
-	: CONTINUE SEMICOLON
-	;
-
-break_stmt
-	: BREAK SEMICOLON
 	;
 
 %%
