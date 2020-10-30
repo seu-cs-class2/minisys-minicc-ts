@@ -1,5 +1,6 @@
-
-
+/**
+ * Minisys架构相关
+ */
 
 // prettier-ignore
 const registerNames = [

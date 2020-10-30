@@ -844,7 +844,7 @@ case 27:
     break;}
 case 28:
 #line 103 "minic.y"
-{ yyval = newNode(break_stmt); ;
+{ yyval = newNode('break_stmt'); ;
     break;}
 case 29:
 #line 107 "minic.y"

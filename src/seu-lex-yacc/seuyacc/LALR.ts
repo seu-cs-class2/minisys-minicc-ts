@@ -60,59 +60,6 @@ export class LALRAnalyzer {
   }
 
   /**
-   * 预先计算各符号的FIRST集（不动点法）
-   */
-  _preCalFirst() {
-    let changed = true
-    for (let index in this.symbols) this._first.push(this._symbols[index].type == 'nonterminal' ? [] : [Number(index)])
-    while (changed) {
-      changed = false
-      for (let index in this._symbols) {
-        if (this._symbols[index].type != 'nonterminal') continue
-        this._producersOf(Number(index)).forEach(producer => {
-          let i = 0,
-            hasEpsilon = false
-          do {
-            hasEpsilon = false
-            if (i >= producer.rhs.length) {
-              if (!this._first[index].includes(this._epsilon)) this._first[index].push(this._epsilon), (changed = true)
-              break
-            }
-            this._first[producer.rhs[i]].forEach(symbol => {
-              if (!this._first[index].includes(symbol)) this._first[index].push(symbol), (changed = true)
-              if (symbol == this._epsilon) hasEpsilon = true
-            })
-          } while ((i++, hasEpsilon))
-        })
-      }
-    }
-  }
-
-  /**
-   * 求取FIRST集
-   */
-  FIRST(symbols: number[]): number[] {
-    let ret: number[] = []
-    let i = 0,
-      hasEpsilon = false
-    do {
-      hasEpsilon = false
-      if (i >= symbols.length) {
-        ret.push(this._epsilon)
-        break
-      }
-      this._first[symbols[i]].forEach(symbol => {
-        if (symbol == this._epsilon) {
-          hasEpsilon = true
-        } else {
-          if (!ret.includes(symbol)) ret.push(symbol)
-        }
-      })
-    } while ((i++, hasEpsilon))
-    return ret
-  }
-
-  /**
    * 获取指定非终结符为左侧的所有产生式
    */
   private _producersOf(nonterminal: number) {
