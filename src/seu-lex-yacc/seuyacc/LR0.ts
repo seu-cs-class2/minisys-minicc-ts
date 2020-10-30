@@ -1,5 +1,7 @@
 /**
- * LR0语法分析，便于从LR0高效生成LALR
+ * 太快了！LR0太快了！
+ *
+ * LR0语法分析
  * 2020-10 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
@@ -32,7 +34,6 @@ export class LR0Analyzer {
     this._convertProducer(yaccParser.producers)
     this._convertOperator(yaccParser.operatorDecl)
     this._construrctLR0DFA()
-    console.log(this)
   }
 
   get symbols() {
@@ -44,10 +45,12 @@ export class LR0Analyzer {
   get producers() {
     return this._producers
   }
+  get operators() {
+    return this._operators
+  }
 
   /**
    * 将产生式转换为单条存储的、数字->数字[]形式
-   * @test pass
    */
   private _convertProducer(stringProducers: YaccParserProducer[]) {
     for (let stringProducer of stringProducers) {
@@ -84,11 +87,7 @@ export class LR0Analyzer {
    */
   private _convertOperator(operatorDecl: YaccParserOperator[]) {
     for (let decl of operatorDecl) {
-      let id = decl.literal
-        ? this._getSymbolId({ type: 'ascii', content: decl.literal })
-        : decl.tokenName
-        ? this._getSymbolId({ type: 'token', content: decl.tokenName })
-        : -1
+      let id = decl.tokenName ? this._getSymbolId({ type: 'token', content: decl.tokenName }) : -1
       assert(id != -1, 'Operator declaration not found. This should never occur.')
       this._operators.push(new LR0Operator(id, decl.assoc, decl.precedence))
     }
@@ -96,7 +95,6 @@ export class LR0Analyzer {
 
   /**
    * 为文法符号（终结符、非终结符、特殊符号）分配编号
-   * @test pass
    */
   private _distributeId(yaccParser: YaccParser) {
     // 处理方式参考《Flex与Bison》P165
@@ -178,6 +176,10 @@ export class LR0Analyzer {
     return J
   }
 
+  getSymbolString(id: number) {
+    return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content
+  }
+
   /**
    * 获取指定非终结符为左侧的所有产生式
    */
@@ -187,6 +189,9 @@ export class LR0Analyzer {
     return ret
   }
 
+  /**
+   * 构造LR0自动机
+   */
   _construrctLR0DFA() {
     // 将C初始化为 {CLOSURE}({|S'->S, $|})
     let newStartSymbolContent = this._symbols[this._startSymbol].content + "'"

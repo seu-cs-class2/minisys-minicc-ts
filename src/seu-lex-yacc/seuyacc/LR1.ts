@@ -2,7 +2,7 @@
  * DEPRECATED!
  * 构造LR1的时间代价太大，不适合大规模文法的分析表构造。
  * 我们换用从LR0构造LALR的高效方法（龙书4.7.5节）
- * 
+ *
  * LR1语法分析
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
@@ -88,11 +88,7 @@ export class LR1Analyzer {
 
   private _convertOperator(operatorDecl: YaccParserOperator[]) {
     for (let decl of operatorDecl) {
-      let id = decl.literal
-        ? this._getSymbolId({ type: 'ascii', content: decl.literal })
-        : decl.tokenName
-        ? this._getSymbolId({ type: 'token', content: decl.tokenName })
-        : -1
+      let id = decl.tokenName ? this._getSymbolId({ type: 'token', content: decl.tokenName }) : -1
       assert(id != -1, 'Operator declaration not found. This should never occur.')
       this._operators.push(new LR1Operator(id, decl.assoc, decl.precedence))
     }
