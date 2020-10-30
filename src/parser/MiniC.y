@@ -1,6 +1,4 @@
 %{
-	// nothing
-	// 注：WHITESPACE并不会存在于`lexSourceCode`方法生成的Token序列中
   // 本语法定义文件基于“计算机系统综合课程设计”补充讲义121定义
 %}
 
@@ -9,8 +7,7 @@
 %token CONSTANT RIGHT_OP LEFT_OP AND_OP OR_OP LE_OP GE_OP EQ_OP NE_OP
 %token SEMICOLON LBRACE RBRACE COMMA COLON ASSIGN LPAREN RPAREN
 %token LBRACKET RBRACKET DOT BITAND_OP NOT_OP BITINV_OP MINUS PLUS MULTIPLY SLASH PERCENT
-%token LT_OP GT_OP BITXOR_OP BITOR_OP DOLLAR
-%token _WHITESPACE _EPSILON _UNMATCH
+%token LT_OP GT_OP BITXOR_OP BITOR_OP DOLLAR _WHITESPACE
 
 %left OR_OP
 %left AND_OP
@@ -57,7 +54,7 @@ fun_decl
 
 params
 	: param_list { $$ = newNode('params', $1); }
-	| VOID { $$ = newNode('params'); }
+	| VOID { $$ = newNode('params', $1); }
 	;
 
 param_list
@@ -100,14 +97,14 @@ continue_stmt
 	;
 
 break_stmt
-	: BREAK SEMICOLON { $$ = newNode(break_stmt); }
+	: BREAK SEMICOLON { $$ = newNode('break_stmt'); }
 	;
 
 expr_stmt
 	: IDENTIFIER ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3); }
 	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3, $5); }
-	| DOLLAR expr ASSIGN SEMICOLON
-	| IDENTIFIER LPAREN args RPAREN SEMICOLON
+	| DOLLAR expr ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $2, $4); }
+	| IDENTIFIER LPAREN args RPAREN SEMICOLON { $$ = newNode('expr_stmt', $1, $3); }
 	;
 
 local_decls
@@ -144,8 +141,8 @@ expr
 	| DOLLAR expr { $$ = newNode('expr', $1, $2); }
 	| LPAREN expr RPAREN { $$ = newNode('expr', $2); }
 	| IDENTIFIER { $$ = newNode('expr', $1); }
-	| IDENTIFIER LBRACKET expr RBRACKET
-	| IDENTIFIER LPAREN args RPAREN
+	| IDENTIFIER LBRACKET expr RBRACKET { $$ = newNode('expr', $1, $3, 'arr?'); }
+	| IDENTIFIER LPAREN args RPAREN { $$ = newNode('exprt', $1, $3, 'func?'); }
 	| CONSTANT { $$ = newNode('expr', $1); }
 	| expr BITAND_OP expr { $$ = newNode('expr', $1, $2, $3); }
 	| expr BITXOR_OP expr { $$ = newNode('expr', $1, $2, $3); }
@@ -156,8 +153,8 @@ expr
 	;
 
 args
-	: args COMMA expr
-	| expr
+	: args COMMA expr { $$ = newNode('args', $1, $3); }
+	| expr { $$ = newNode('args', $1); }
 	;
 
 %%
