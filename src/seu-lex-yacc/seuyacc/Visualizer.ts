@@ -9,6 +9,7 @@ import * as childProcess from 'child_process'
 import { LALRDFA, LR0DFA, LR1DFA } from './Grammar'
 import { LR1Analyzer } from './LR1'
 import { LR0Analyzer } from './LR0'
+import { LALRAnalyzer } from './LALR'
 
 /**
  * 可视化LR1分析表（ACTIONGOTOTable）
@@ -214,7 +215,7 @@ export function visualizeLALRACTIONGOTOTable(lr1Analyzer: LR1Analyzer, viewNow =
 /**
  * 可视化GOTO图（LALRDFA）
  */
-export function visualizeLALRGOTOGraph(lalrdfa: LALRDFA, lr1Analyzer: LR1Analyzer, viewNow = true) {
+export function visualizeLALRGOTOGraph(lalrdfa: LALRDFA, lr1Analyzer: LALRAnalyzer, viewNow = true) {
   let dumpObject: {
     nodes: {
       key: string

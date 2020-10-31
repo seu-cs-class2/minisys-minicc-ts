@@ -48,6 +48,9 @@ export class LR0Analyzer {
   get operators() {
     return this._operators
   }
+  get startSymbol() {
+    return this._startSymbol
+  }
 
   /**
    * 将产生式转换为单条存储的、数字->数字[]形式
