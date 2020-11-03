@@ -12,5 +12,5 @@ import { YaccParser } from './seu-lex-yacc/seuyacc/YaccParser'
 
 const lalr = new LALRAnalyzer(new LR0Analyzer(new YaccParser('F:\\minisys-minicc-ts\\Yacc.y')))
 // console.log(lalr)
-visualizeGOTOGraph(lalr.lr0dfa, lalr.lr0Analyzer)
-// visualizeGOTOGraph(lalr.dfa, lalr)
+// visualizeGOTOGraph(lalr.lr0dfa, lalr.lr0Analyzer)
+visualizeGOTOGraph(lalr.dfa, lalr)

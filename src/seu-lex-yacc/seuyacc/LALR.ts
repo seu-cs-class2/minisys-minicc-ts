@@ -1,7 +1,10 @@
 /**
- * LALR
+ * LALR语法分析
+ *
+ * 2020-10 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
+import { assert } from '../utils'
 import {
   GrammarSymbol,
   LALRDFA,
@@ -10,13 +13,12 @@ import {
   LALRProducer,
   LALRState,
   LR0DFA,
+  LR0Item,
   LR0State,
   LR1Item,
   SpSymbol,
 } from './Grammar'
 import { LR0Analyzer } from './LR0'
-
-// FIXME: 目前从LR0中删除非内核项对LR0Analyzer有破坏性
 
 export class LALRAnalyzer {
   private _symbols: GrammarSymbol[]
@@ -110,7 +112,7 @@ export class LALRAnalyzer {
     this._startSymbol = lr0Analyzer.startSymbol
     this._first = []
     this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
-    this._preCalFirst()
+    this._preCalculateFIRST()
     this._constructLALRDFA()
   }
 
@@ -156,7 +158,7 @@ export class LALRAnalyzer {
   /**
    * 预先计算各符号的FIRST集（不动点法）
    */
-  _preCalFirst() {
+  _preCalculateFIRST() {
     let changed = true
     for (let index in this._symbols) this._first.push(this._symbols[index].type == 'nonterminal' ? [] : [Number(index)])
     while (changed) {
@@ -246,10 +248,7 @@ export class LALRAnalyzer {
     // 构造G的LR0项目集族的内核 - 从现有的LR0中删除非内核项
     this._lr0dfa.states.forEach((state, idx) => {
       // 增广开始项固定保留
-      if (idx === 0) {
-        state.forceSetItems([state.items[0]])
-        return
-      }
+      if (idx === 0) return
       const kernelizedItems = state.items.filter(item => item.dotPosition > 0)
       state.forceSetItems(kernelizedItems)
     })
@@ -261,82 +260,98 @@ export class LALRAnalyzer {
    */
   _constructLALRDFA() {
     // 构造G的LR0项目集族的内核 - 从现有的LR0中删除非内核项
-    this._kernelize()
+    // this._kernelize()
 
     // 将算法4.62应用于每个LR0项集的内核和每个文法符号X
-    const propagationTable: number[][] = Array(this._lr0dfa.states.length)
-      .fill(0)
-      .map(_ => Array(0)) // 状态号→传播到的状态号
-    const lookaheadTable: number[][] = Array(this._lr0dfa.states.length)
-      .fill(0)
-      .map(_ => Array(0)) // 状态号→向前看符号
-    lookaheadTable[this._lr0dfa.startStateId].push(this._getSymbolId(SpSymbol.END))
 
-    /**
-     * 向前看符号确定法（符号传播、自发生成）
-     * 龙书算法4.62
-     */
-    const _determineLookahead = (K: LR0State, X: GrammarSymbol) => {
-      // for K中的每一个项A→α`β
-      for (let item of K.items) {
-        if (item.dotAtLast()) continue // 点号到最后的排除
-        const currentSymbol = this._producers[item.producer].rhs[item.dotPosition]
-        if (!this._symbolTypeIs(currentSymbol, 'nonterminal')) continue // 不是非终结符打头的排除
-        // J := CLOSURE({[A→α`β,#]})
-        let J = this.CLOSURE(
-          new LALRState([new LALRItem(item.rawProducer, item.producer, this._getSymbolId(SpSymbol.END))])
-        )
-        for (let item of J.items) {
-          // if [B→γ`Xδ,a]在J中，并且a不等于#
-          // FIXME: _symbolTypeIs后面那坨能不能短一点啊
-          if (
-            !item.dotAtLast() &&
-            !this._symbolTypeIs(this._producers[item.producer].rhs[item.dotPosition], 'nonterminal') &&
-            item.lookahead !== this._getSymbolId(SpSymbol.END)
-          ) {
-            // 断定GOTO(I,X)中的项B→γX`δ的向前看符号a是自发生成的
-            const next = this._getNext(K, this._symbols[this.producers[item.producer].rhs[item.dotPosition]])
-            !lookaheadTable[next].includes(item.lookahead) && lookaheadTable[next].push(item.lookahead)
-          } else if (
-            !item.dotAtLast() &&
-            !this._symbolTypeIs(this._producers[item.producer].rhs[item.dotPosition], 'nonterminal') &&
-            item.lookahead === this._getSymbolId(SpSymbol.END)
-          ) {
-            // 断定向前看符号从I中的项A→α`β传播到了GOTO(I,X)中的项B→γX`δ之上
-            const next = this._getNext(K, this._symbols[this.producers[item.producer].rhs[item.dotPosition]])
-            !propagationTable[this._lr0dfa.states.indexOf(K)].includes(next) &&
-              propagationTable[this._lr0dfa.states.indexOf(K)].push(next)
+    interface PropRule {
+      fromState: number
+      fromItem: number
+      toState: number
+      toItem: number
+    }
+    const propRules: PropRule[] = []
+    function newPropRule(rule: PropRule) {
+      const check = propRules.some(v => JSON.stringify(v) == JSON.stringify(rule))
+      if (!check) propRules.push(rule)
+    }
+
+    const lookaheadTable: number[][][] = Array(this._lr0dfa.states.length)
+      .fill(0)
+      .map(_ => Array(0))
+    // [状态号][状态内项目号] -> 展望符[]
+    this._lr0dfa.states.forEach((state, idx) => {
+      lookaheadTable[idx] = Array(state.items.length)
+        .fill(0)
+        .map(_ => Array(0))
+    })
+    lookaheadTable[this._lr0dfa.startStateId].forEach(item => {
+      item.push(this._getSymbolId(SpSymbol.END))
+    })
+
+    // S' -> S
+    const augmentItem = this._lr0dfa.states[0].items[0]
+
+    console.log('stage1')
+
+    for (let state of this._lr0dfa.states) {
+      for (let item of state.items) {
+        // 在kernelize后该句判断似乎无用
+        if (!LR0Item.same(augmentItem, item) && item.dotPosition == 0) continue
+        const radioactiveSymbol: GrammarSymbol = { type: 'sptoken', content: 'SP_RADIOACTIVE' }
+        const radioactiveSymbolIndex = -5
+        let temp = new LALRState([
+          new LR1Item(item.rawProducer, item.producer, radioactiveSymbolIndex, item.dotPosition),
+        ])
+        let closure = this.CLOSURE(temp)
+        for (let closureItem of closure.items) {
+          if (closureItem.dotAtLast()) continue
+          let symbol = this._lr0Analyzer.producers[closureItem.producer].rhs[closureItem.dotPosition]
+          let xI = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].find(x => x.alpha == symbol)!.to
+          assert(xI, 'Bad xI.')
+          let xt = LALRItem.copy(closureItem, true)
+          let xti = this._lr0dfa.states[xI].items.findIndex(x => {
+            return x.rawProducer == xt.rawProducer && x.producer == xt.producer && x.dotPosition == xt.dotPosition
+          })
+          if (closureItem.lookahead === radioactiveSymbolIndex) {
+            newPropRule({
+              fromState: this._lr0dfa.states.indexOf(state),
+              fromItem: state.items.indexOf(item),
+              toState: xI,
+              toItem: xti,
+            })
+          }
+          if (closureItem.lookahead !== radioactiveSymbolIndex) {
+            lookaheadTable[xI][xti].push(closureItem.lookahead)
           }
         }
       }
     }
 
-    for (let state of this._lr0dfa.states) for (let symbol of this._symbols) _determineLookahead(state, symbol)
+    console.log('stage2')
 
-    // 不动点法传播
-    let changed
-    do {
-      changed = false
-      for (let i = 0; i < propagationTable.length; i++) {
-        for (let propTarget of propagationTable[i]) {
-          const originLength = lookaheadTable[propTarget].length
-          lookaheadTable[propTarget] = [...new Set(lookaheadTable[propTarget].concat(lookaheadTable[i]))]
-          const afterLength = lookaheadTable[propTarget].length
-          changed = changed || originLength < afterLength
-        }
+    // prop
+    while (true) {
+      let unfix = false
+      for (let rule of propRules) {
+        let source = lookaheadTable[rule.fromState][rule.fromItem]
+        let target = lookaheadTable[rule.toState][rule.toItem]
+        let beforeLen = target.length
+        lookaheadTable[rule.toState][rule.toItem] = [...new Set([...target, ...source].filter(x => x >= 0))]
+        let afterLen = lookaheadTable[rule.toState][rule.toItem].length
+        unfix = unfix || afterLen > beforeLen
       }
-    } while (changed)
+      if (!unfix) break
+    }
 
-    console.log(lookaheadTable)
-    console.log('===========================')
-    console.log(propagationTable)
+    console.log('stage3')
 
     // 形成LALRDFA
     this._dfa = new LALRDFA(this._lr0dfa.startStateId)
-    this._lr0dfa.states.forEach((state, idx) => {
+    this._lr0dfa.states.forEach((state, idx1) => {
       let items: LALRItem[] = []
-      state.items.forEach(item => {
-        for (let lookahead of lookaheadTable[idx])
+      state.items.forEach((item, idx2) => {
+        for (let lookahead of lookaheadTable[idx1][idx2])
           items.push(new LALRItem(item.rawProducer, item.producer, lookahead, item.dotPosition))
       })
       this._dfa.addState(new LALRState(items))
@@ -345,6 +360,10 @@ export class LALRAnalyzer {
       records.forEach(({ to, alpha }) => {
         this._dfa.link(idx, to, alpha)
       })
+    })
+
+    this._dfa.states.forEach(state => {
+      state = this.CLOSURE(state)
     })
   }
 }
