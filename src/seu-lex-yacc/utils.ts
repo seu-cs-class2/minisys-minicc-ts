@@ -1,6 +1,6 @@
 /**
  * 工具函数
- * by z0gSh1u, Withod
+ * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 
 // ASCII打印字符范围
@@ -67,9 +67,7 @@ export function cookString(str: string): string {
  * Ensure `condition`. Else throw Error `hint`.
  */
 export function assert(condition: unknown, hint: string): void {
-  if (!condition) {
-    throw new Error(hint)
-  }
+  if (!condition) throw new Error(hint)
 }
 
 /**
