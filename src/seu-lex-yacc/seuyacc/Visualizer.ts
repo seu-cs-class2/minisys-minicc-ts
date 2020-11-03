@@ -61,7 +61,7 @@ export function visualizeLR1ACTIONGOTOTable(analyzer: LR1Analyzer, viewNow = tru
   const dumpObject = { ACTIONHead, GOTOHead, ACTIONTable, GOTOTable }
   const dumpJSON = JSON.stringify(dumpObject, null, 2)
   const VisualizerPath = path.join(__dirname, '../enhance/TableVisualizer')
-  fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulex_data = ${dumpJSON}`)
+  fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulexyacc_data = ${dumpJSON}`)
   // 启动浏览器显示
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)
 }
@@ -149,7 +149,7 @@ export function visualizeGOTOGraph(
   let dagreJSON = JSON.stringify(dumpObject, null, 2)
   const VisualizerPath = path.join(__dirname, '../enhance/FAVisualizer')
   const shape = 'rect'
-  fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulex_shape = '${shape}'; var data = ${dagreJSON}`)
+  fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`)
   // 启动浏览器显示
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)
 }

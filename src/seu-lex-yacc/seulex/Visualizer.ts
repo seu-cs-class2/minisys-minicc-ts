@@ -69,7 +69,7 @@ export function visualizeFA(fa: FiniteAutomata, viewNow = true) {
   const shape = 'circle'
   fs.writeFileSync(
     path.join(VisualizerPath, './data.js'),
-    `window._seulex_shape = '${shape}'; let data = ${dagreJSON}`
+    `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`
   )
   // 启动浏览器显示
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)
