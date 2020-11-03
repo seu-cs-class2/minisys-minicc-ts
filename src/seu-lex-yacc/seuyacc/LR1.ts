@@ -55,12 +55,12 @@ export class LR1Analyzer {
       this._convertProducer(yaccParser.producers)
       this._convertOperator(yaccParser.operatorDecl)
       this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
-      console.log('\n[ constructLR1DFA, this might take a long time... ]')
-      this._preCalFirst()
+      process.stdout.write('\n[ constructLR1DFA, this might take a long time... ]\n')
+      this._preCalculateFIRST()
       this._constructLR1DFA()
-      console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]')
+      process.stdout.write('\n[ constructACTIONGOTOTable, this might take a long time... ]\n')
       this._constructACTIONGOTOTable()
-      console.log('\n')
+      process.stdout.write('\n')
     }
   }
 
@@ -86,9 +86,12 @@ export class LR1Analyzer {
     return this._GOTOReverseLookup
   }
 
+  /**
+   * 将YaccParser解析的运算符转换为LR1Operator
+   */
   private _convertOperator(operatorDecl: YaccParserOperator[]) {
     for (let decl of operatorDecl) {
-      let id = decl.tokenName ? this._getSymbolId({ type: 'token', content: decl.tokenName }) : -1
+      const id = decl.tokenName ? this._getSymbolId({ type: 'token', content: decl.tokenName }) : -1
       assert(id != -1, 'Operator declaration not found. This should never occur.')
       this._operators.push(new LR1Operator(id, decl.assoc, decl.precedence))
     }
@@ -96,7 +99,6 @@ export class LR1Analyzer {
 
   /**
    * 为文法符号（终结符、非终结符、特殊符号）分配编号
-   * @test pass
    */
   private _distributeId(yaccParser: YaccParser) {
     // 处理方式参考《Flex与Bison》P165
@@ -118,7 +120,7 @@ export class LR1Analyzer {
   /**
    * 获取编号后的符号的编号
    */
-  _getSymbolId(grammarSymbol: { type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'; content: string }) {
+  private _getSymbolId(grammarSymbol: { type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'; content: string }) {
     for (let i = 0; i < this._symbols.length; i++)
       if (
         (!grammarSymbol.type ? true : this._symbols[i].type === grammarSymbol.type) &&
@@ -135,21 +137,26 @@ export class LR1Analyzer {
     return this._symbols[id].type === type
   }
 
+  /**
+   * 获取符号的字面值
+   */
   getSymbolString(id: number) {
     return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content
   }
 
+  /**
+   * 格式化打印产生式
+   */
   formatPrintProducer(producer: LR1Producer) {
-    let lhs = this._symbols[producer.lhs].content
-    let rhs = ``
-    for (let r of producer.rhs) rhs += this.getSymbolString(r) + ' '
+    const lhs = this._symbols[producer.lhs].content
+    const rhs = producer.rhs.map(this.getSymbolString, this).join(' ')
     return lhs + ' -> ' + rhs
   }
 
   /**
    * 预先计算各符号的FIRST集（不动点法）
    */
-  _preCalFirst() {
+  private _preCalculateFIRST() {
     let changed = true
     for (let index in this.symbols) this._first.push(this._symbols[index].type == 'nonterminal' ? [] : [Number(index)])
     while (changed) {
@@ -178,7 +185,7 @@ export class LR1Analyzer {
   /**
    * 求取FIRST集
    */
-  FIRST(symbols: number[]): number[] {
+  private FIRST(symbols: number[]): number[] {
     let ret: number[] = []
     let i = 0,
       hasEpsilon = false
@@ -210,7 +217,6 @@ export class LR1Analyzer {
 
   /**
    * 将产生式转换为单条存储的、数字->数字[]形式
-   * @test pass
    */
   private _convertProducer(stringProducers: YaccParserProducer[]) {
     for (let stringProducer of stringProducers) {
@@ -242,7 +248,10 @@ export class LR1Analyzer {
     }
   }
 
-  _constructLR1DFA() {
+  /**
+   * 构造LR1DFA
+   */
+  private _constructLR1DFA() {
     // 将C初始化为 {CLOSURE}({|S'->S, $|})
     let newStartSymbolContent = this._symbols[this._startSymbol].content + "'"
     while (this._symbols.some(symbol => symbol.content === newStartSymbolContent)) newStartSymbolContent += "'"
@@ -335,7 +344,7 @@ export class LR1Analyzer {
    * 生成语法分析表
    * 见龙书算法4.56
    */
-  _constructACTIONGOTOTable() {
+  private _constructACTIONGOTOTable() {
     let dfaStates = this._dfa.states
     // 初始化ACTIONTable
     for (let i = 0; i < dfaStates.length; i++) {

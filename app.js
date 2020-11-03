@@ -2,4 +2,4 @@ const welcome =
 `
   
 `
-console.log(welcome)
+process.stdout.write(welcome)

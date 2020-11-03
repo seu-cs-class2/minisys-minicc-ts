@@ -1,7 +1,6 @@
 /**
- * 太快了！LR0太快了！
- *
  * LR0语法分析
+ *
  * 2020-10 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
@@ -86,7 +85,7 @@ export class LR0Analyzer {
   }
 
   /**
-   * 将.y文件解析器解析的Operator转换为LR0Operator
+   * 将YaccParser解析的运算符转换为LR0Operator
    */
   private _convertOperator(operatorDecl: YaccParserOperator[]) {
     for (let decl of operatorDecl) {
@@ -119,7 +118,7 @@ export class LR0Analyzer {
   /**
    * 获取编号后的符号的编号
    */
-  _getSymbolId(grammarSymbol: { type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'; content: string }) {
+  private _getSymbolId(grammarSymbol: { type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'; content: string }) {
     for (let i = 0; i < this._symbols.length; i++)
       if (
         (!grammarSymbol.type ? true : this._symbols[i].type === grammarSymbol.type) &&
@@ -184,6 +183,15 @@ export class LR0Analyzer {
   }
 
   /**
+   * 格式化打印产生式
+   */
+  formatPrintProducer(producer: LR0Producer) {
+    const lhs = this._symbols[producer.lhs].content
+    const rhs = producer.rhs.map(this.getSymbolString, this).join(' ')
+    return lhs + ' -> ' + rhs
+  }
+
+  /**
    * 获取指定非终结符为左侧的所有产生式
    */
   private _producersOf(nonterminal: number) {
@@ -195,7 +203,7 @@ export class LR0Analyzer {
   /**
    * 构造LR0自动机
    */
-  _construrctLR0DFA() {
+  private _construrctLR0DFA() {
     // 将C初始化为 {CLOSURE}({|S'->S, $|})
     let newStartSymbolContent = this._symbols[this._startSymbol].content + "'"
     while (this._symbols.some(symbol => symbol.content === newStartSymbolContent)) newStartSymbolContent += "'"
