@@ -99,8 +99,8 @@ class ItemBase {
   dotGo() {
     this._dotPosition += 1
   }
-  static copy(item: ItemBase, go = false) {
-    return new ItemBase(item._rawProducer, item._producer, item._dotPosition + (go ? 1 : 0))
+  static copy(item: ItemBase, dotGo = false) {
+    return new ItemBase(item._rawProducer, item._producer, item._dotPosition + (dotGo ? 1 : 0))
   }
   static same(i1: ItemBase, i2: ItemBase) {
     return i1._dotPosition === i2._dotPosition && i1._producer === i2._producer

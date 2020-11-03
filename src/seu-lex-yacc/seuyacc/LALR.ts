@@ -244,38 +244,77 @@ export class LALRAnalyzer {
     return res
   }
 
-  _kernelize() {
-    // 构造G的LR0项目集族的内核 - 从现有的LR0中删除非内核项
+  /**
+   * 求取GOTO(I, X)
+   */
+  private GOTO_LR0(I: LR0State, X: number) {
+    let J = new LR0State([])
+    for (let item of I.items) {
+      // for I中的每一个项
+      if (item.dotAtLast()) continue
+      if (this._producers[item.producer].rhs[item.dotPosition] === X) {
+        J.addItem(LR0Item.copy(item, true))
+      }
+    }
+    return this.CLOSURE_LR0(J)
+  }
+
+  /**
+   * 求取CLOSURE（LR0）
+   * 龙书图4-32
+   */
+  private CLOSURE_LR0(I: LR0State) {
+    let J = LR0State.copy(I)
+    while (true) {
+      let lenBefore = J.items.length
+      // for J中的每一个项A→α`Bβ
+      for (let oneItemOfJ of J.items) {
+        if (oneItemOfJ.dotAtLast()) continue // 点号到最后，不能扩展
+        let currentSymbol = this._producers[oneItemOfJ.producer].rhs[oneItemOfJ.dotPosition]
+        if (!this._symbolTypeIs(currentSymbol, 'nonterminal')) continue // 非终结符打头才有CLOSURE
+        // for G中的每个产生式B→γ
+        let extendProducers = []
+        for (let producerInG of this._producers) producerInG.lhs === currentSymbol && extendProducers.push(producerInG) // 左手边是当前符号的，就可以作为扩展用
+        for (let extendProducer of extendProducers) {
+          let newItem = new LR0Item(extendProducer, this._producers.indexOf(extendProducer), 0)
+          // if 项B→`γ不在J中
+          J.items.every(item => !LR0Item.same(item, newItem)) && J.addItem(newItem)
+        }
+      }
+      let lenAfter = J.items.length
+      if (lenBefore === lenAfter) break
+    }
+    return J
+  }
+
+  /**
+   * 从LR0构造LALR
+   * // FIXME
+   * 龙书算法4.63
+   */
+  _constructLALRDFA() {
+    // 1) 构造G的LR0项目集族的内核
+    // 从现有的LR0中删除非内核项
     this._lr0dfa.states.forEach((state, idx) => {
       // 增广开始项固定保留
       if (idx === 0) return
       const kernelizedItems = state.items.filter(item => item.dotPosition > 0)
       state.forceSetItems(kernelizedItems)
     })
-  }
 
-  /**
-   * 从LR0构造LALR
-   * 龙书算法4.63
-   */
-  _constructLALRDFA() {
-    // 构造G的LR0项目集族的内核 - 从现有的LR0中删除非内核项
-    // this._kernelize()
-
-    // 将算法4.62应用于每个LR0项集的内核和每个文法符号X
-
+    // 2) 将算法4.62应用于每个内核和文法符号（发现传播的和自发生成的向前看符号）
     interface PropRule {
       fromState: number
       fromItem: number
       toState: number
       toItem: number
     }
+    // 传播法则
     const propRules: PropRule[] = []
     function newPropRule(rule: PropRule) {
       const check = propRules.some(v => JSON.stringify(v) == JSON.stringify(rule))
       if (!check) propRules.push(rule)
     }
-
     const lookaheadTable: number[][][] = Array(this._lr0dfa.states.length)
       .fill(0)
       .map(_ => Array(0))
@@ -285,68 +324,64 @@ export class LALRAnalyzer {
         .fill(0)
         .map(_ => Array(0))
     })
+    // 作为一个特殊情况，向前看符号$对于初始项目集族中的项而言是自发生成的
     lookaheadTable[this._lr0dfa.startStateId].forEach(item => {
       item.push(this._getSymbolId(SpSymbol.END))
     })
-
-    // S' -> S
-    const augmentItem = this._lr0dfa.states[0].items[0]
-
-    console.log('stage1')
-
-    for (let state of this._lr0dfa.states) {
-      for (let item of state.items) {
-        // 在kernelize后该句判断似乎无用
-        if (!LR0Item.same(augmentItem, item) && item.dotPosition == 0) continue
-        const radioactiveSymbol: GrammarSymbol = { type: 'sptoken', content: 'SP_RADIOACTIVE' }
-        const radioactiveSymbolIndex = -5
-        let temp = new LALRState([
-          new LR1Item(item.rawProducer, item.producer, radioactiveSymbolIndex, item.dotPosition),
-        ])
-        let closure = this.CLOSURE(temp)
-        for (let closureItem of closure.items) {
-          if (closureItem.dotAtLast()) continue
-          let symbol = this._lr0Analyzer.producers[closureItem.producer].rhs[closureItem.dotPosition]
-          let xI = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].find(x => x.alpha == symbol)!.to
-          assert(xI, 'Bad xI.')
-          let xt = LALRItem.copy(closureItem, true)
-          let xti = this._lr0dfa.states[xI].items.findIndex(x => {
-            return x.rawProducer == xt.rawProducer && x.producer == xt.producer && x.dotPosition == xt.dotPosition
-          })
-          if (closureItem.lookahead === radioactiveSymbolIndex) {
-            newPropRule({
-              fromState: this._lr0dfa.states.indexOf(state),
-              fromItem: state.items.indexOf(item),
-              toState: xI,
-              toItem: xti,
-            })
+    // 令#为一个不在当前文法中的符号
+    const sharp = -10086
+    for (let K of this._lr0dfa.states) {
+      // for K中的每一个项A→α`β
+      for (let KItem of K.items) {
+        // J = CLOSURE( { [A→α`β, #] } )
+        let J = this.CLOSURE(new LALRState([new LALRItem(KItem.rawProducer, KItem.producer, sharp, KItem.dotPosition)]))
+        for (let JItem of J.items) {
+          if (JItem.dotAtLast()) continue
+          let X = this._producers[JItem.producer].rhs[JItem.dotPosition]
+          // FIXME: 此处没有必要求GOTO_LR0，是不是直接取消耗掉符号X后转移到的状态即可？
+          // let gotoIX = this.GOTO_LR0(K, X)
+          let targetState = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(K)].find(x => x.alpha == X)!.to
+          let targetItem = this._lr0dfa.states[targetState].items.findIndex(x =>
+            LR0Item.same(x, new LR0Item(JItem.rawProducer, JItem.producer, JItem.dotPosition + 1))
+          )
+          // if ( [B→γ`Xδ,a]在J中，且a不等于# )
+          if (JItem.lookahead !== sharp) {
+            // 发现了新的自发生成符号
+            !lookaheadTable[targetState][targetItem].includes(JItem.lookahead) &&
+              lookaheadTable[targetState][targetItem].push(JItem.lookahead)
           }
-          if (closureItem.lookahead !== radioactiveSymbolIndex) {
-            lookaheadTable[xI][xti].push(closureItem.lookahead)
+          // if ( [B→γ`Xδ,#]在J中 )
+          if (JItem.lookahead === sharp) {
+            // 发现了新的传播规则
+            newPropRule({
+              fromState: this._lr0dfa.states.indexOf(K),
+              fromItem: K.items.indexOf(KItem),
+              toState: targetState,
+              toItem: targetItem,
+            })
           }
         }
       }
     }
 
-    console.log('stage2')
+    console.log(propRules)
+    console.log(lookaheadTable)
 
-    // prop
+    // 3) 不动点法进行传播
     while (true) {
       let unfix = false
       for (let rule of propRules) {
         let source = lookaheadTable[rule.fromState][rule.fromItem]
         let target = lookaheadTable[rule.toState][rule.toItem]
         let beforeLen = target.length
-        lookaheadTable[rule.toState][rule.toItem] = [...new Set([...target, ...source].filter(x => x >= 0))]
+        lookaheadTable[rule.toState][rule.toItem] = [...new Set([...target, ...source].filter(x => x !== sharp))]
         let afterLen = lookaheadTable[rule.toState][rule.toItem].length
         unfix = unfix || afterLen > beforeLen
       }
       if (!unfix) break
     }
 
-    console.log('stage3')
-
-    // 形成LALRDFA
+    // 4) 形成LALRDFA
     this._dfa = new LALRDFA(this._lr0dfa.startStateId)
     this._lr0dfa.states.forEach((state, idx1) => {
       let items: LALRItem[] = []
@@ -360,10 +395,6 @@ export class LALRAnalyzer {
       records.forEach(({ to, alpha }) => {
         this._dfa.link(idx, to, alpha)
       })
-    })
-
-    this._dfa.states.forEach(state => {
-      state = this.CLOSURE(state)
     })
   }
 }
