@@ -338,8 +338,9 @@ export class LALRAnalyzer {
         for (let JItem of J.items) {
           if (JItem.dotAtLast()) continue
           let X = this._producers[JItem.producer].rhs[JItem.dotPosition]
-          // FIXME: 此处没有必要求GOTO_LR0，是不是直接取消耗掉符号X后转移到的状态即可？
+          // FIXME: Which is right?
           // let gotoIX = this.GOTO_LR0(K, X)
+          // let targetState = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(gotoIX)].find(x => x.alpha == X)!.to
           let targetState = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(K)].find(x => x.alpha == X)!.to
           let targetItem = this._lr0dfa.states[targetState].items.findIndex(x =>
             LR0Item.same(x, new LR0Item(JItem.rawProducer, JItem.producer, JItem.dotPosition + 1))
