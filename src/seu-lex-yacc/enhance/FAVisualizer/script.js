@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let value = {
       rx: 3,
       ry: 3,
-      shape: window._seulex_shape,
+      shape: window._seulexyacc_shape,
       label: node.label,
       labelStyle: `fill: ${defaultFg}`,
       style: `fill: ${bg || defaultBg}; stroke: ${defaultFg}`,

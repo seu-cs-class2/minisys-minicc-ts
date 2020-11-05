@@ -1,6 +1,10 @@
 /**
- * LR语法分析
- * 2020-05 @ https://github.com/Withod/seu-lex-yacc
+ * DEPRECATED!
+ * 构造LR1的时间代价太大，不适合大规模文法的分析表构造。
+ * 我们换用从LR0构造LALR的高效方法（龙书4.7.5节）
+ *
+ * LR1语法分析
+ * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 
 import { YaccParser } from './YaccParser'
@@ -13,22 +17,17 @@ import {
   LR1State,
   LR1Operator,
   YaccParserOperator,
+  GrammarSymbol,
 } from './Grammar'
 import { assert, cookString, ASCII_MIN, ASCII_MAX } from '../utils'
 import { ProgressBar } from '../enhance/progressbar'
 import * as fs from 'fs'
-
-export type GrammarSymbol = {
-  type: 'ascii' | 'token' | 'nonterminal' | 'sptoken'
-  content: string
-}
 
 export type ACTIONTableCell = {
   type: 'shift' | 'reduce' | 'acc' | 'none'
   data: number // state or producer
 }
 
-type GOTOCacheKey = { i: LR1State; a: number } // i：dfaStates，a：字母下标
 export class LR1Analyzer {
   private _symbols: GrammarSymbol[]
   private _operators: LR1Operator[]
@@ -40,10 +39,9 @@ export class LR1Analyzer {
   private _ACTIONReverseLookup!: number[]
   private _GOTOReverseLookup!: number[]
   private _first: number[][]
-  private _epsilon: number
-  private GOTOCache: Map<GOTOCacheKey, LR1State>
+  private _epsilon!: number
 
-  constructor(yaccParser: YaccParser) {
+  constructor(yaccParser?: YaccParser) {
     this._symbols = []
     this._producers = []
     this._operators = []
@@ -51,18 +49,19 @@ export class LR1Analyzer {
     this._GOTOTable = []
     this._ACTIONReverseLookup = []
     this._GOTOReverseLookup = []
-    this.GOTOCache = new Map<GOTOCacheKey, LR1State>()
     this._first = []
-    this._distributeId(yaccParser)
-    this._convertProducer(yaccParser.producers)
-    this._convertOperator(yaccParser.operatorDecl)
-    this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
-    console.log('\n[ constructLR1DFA, this might take a long time... ]')
-    this._preCalFirst()
-    this._constructLR1DFA()
-    console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]')
-    this._constructACTIONGOTOTable()
-    console.log('\n')
+    if (yaccParser) {
+      this._distributeId(yaccParser)
+      this._convertProducer(yaccParser.producers)
+      this._convertOperator(yaccParser.operatorDecl)
+      this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
+      process.stdout.write('\n[ constructLR1DFA, this might take a long time... ]\n')
+      this._preCalculateFIRST()
+      this._constructLR1DFA()
+      process.stdout.write('\n[ constructACTIONGOTOTable, this might take a long time... ]\n')
+      this._constructACTIONGOTOTable()
+      process.stdout.write('\n')
+    }
   }
 
   get symbols() {
@@ -87,13 +86,12 @@ export class LR1Analyzer {
     return this._GOTOReverseLookup
   }
 
+  /**
+   * 将YaccParser解析的运算符转换为LR1Operator
+   */
   private _convertOperator(operatorDecl: YaccParserOperator[]) {
     for (let decl of operatorDecl) {
-      let id = decl.literal
-        ? this._getSymbolId({ type: 'ascii', content: decl.literal })
-        : decl.tokenName
-        ? this._getSymbolId({ type: 'token', content: decl.tokenName })
-        : -1
+      const id = decl.tokenName ? this._getSymbolId({ type: 'token', content: decl.tokenName }) : -1
       assert(id != -1, 'Operator declaration not found. This should never occur.')
       this._operators.push(new LR1Operator(id, decl.assoc, decl.precedence))
     }
@@ -101,7 +99,6 @@ export class LR1Analyzer {
 
   /**
    * 为文法符号（终结符、非终结符、特殊符号）分配编号
-   * @test pass
    */
   private _distributeId(yaccParser: YaccParser) {
     // 处理方式参考《Flex与Bison》P165
@@ -123,7 +120,7 @@ export class LR1Analyzer {
   /**
    * 获取编号后的符号的编号
    */
-  _getSymbolId(grammarSymbol: { type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'; content: string }) {
+  private _getSymbolId(grammarSymbol: { type?: 'ascii' | 'token' | 'nonterminal' | 'sptoken'; content: string }) {
     for (let i = 0; i < this._symbols.length; i++)
       if (
         (!grammarSymbol.type ? true : this._symbols[i].type === grammarSymbol.type) &&
@@ -140,21 +137,26 @@ export class LR1Analyzer {
     return this._symbols[id].type === type
   }
 
+  /**
+   * 获取符号的字面值
+   */
   getSymbolString(id: number) {
     return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content
   }
 
+  /**
+   * 格式化打印产生式
+   */
   formatPrintProducer(producer: LR1Producer) {
-    let lhs = this._symbols[producer.lhs].content
-    let rhs = ``
-    for (let r of producer.rhs) rhs += this.getSymbolString(r) + ' '
+    const lhs = this._symbols[producer.lhs].content
+    const rhs = producer.rhs.map(this.getSymbolString, this).join(' ')
     return lhs + ' -> ' + rhs
   }
 
   /**
    * 预先计算各符号的FIRST集（不动点法）
    */
-  _preCalFirst() {
+  private _preCalculateFIRST() {
     let changed = true
     for (let index in this.symbols) this._first.push(this._symbols[index].type == 'nonterminal' ? [] : [Number(index)])
     while (changed) {
@@ -183,7 +185,7 @@ export class LR1Analyzer {
   /**
    * 求取FIRST集
    */
-  FIRST(symbols: number[]): number[] {
+  private FIRST(symbols: number[]): number[] {
     let ret: number[] = []
     let i = 0,
       hasEpsilon = false
@@ -215,7 +217,6 @@ export class LR1Analyzer {
 
   /**
    * 将产生式转换为单条存储的、数字->数字[]形式
-   * @test pass
    */
   private _convertProducer(stringProducers: YaccParserProducer[]) {
     for (let stringProducer of stringProducers) {
@@ -237,7 +238,7 @@ export class LR1Analyzer {
               b = this._getSymbolId({ type: 'token', content: tmp })
             id = id ? id : a != -1 ? a : b != -1 ? b : -1
           }
-          assert(id != -1, `symbol not found in symbols. This error should never occur. symbol=${tmp}`)
+          assert(id != -1, `Symbol not found in symbols. This error should never occur. symbol=${tmp}`)
           rhs.push(id)
         }
         this._producers.push(
@@ -247,7 +248,10 @@ export class LR1Analyzer {
     }
   }
 
-  _constructLR1DFA() {
+  /**
+   * 构造LR1DFA
+   */
+  private _constructLR1DFA() {
     // 将C初始化为 {CLOSURE}({|S'->S, $|})
     let newStartSymbolContent = this._symbols[this._startSymbol].content + "'"
     while (this._symbols.some(symbol => symbol.content === newStartSymbolContent)) newStartSymbolContent += "'"
@@ -264,16 +268,11 @@ export class LR1Analyzer {
     let dfa = new LR1DFA(0)
     dfa.addState(I0)
     let stack = [0]
-    let pb = new ProgressBar()
     while (stack.length) {
       let I = dfa.states[stack.pop() as number] // for C中的每个项集I
       for (let X = 0; X < this._symbols.length; X++) {
         // for 每个文法符号X
         let gotoIX = this.GOTO(I, X)
-        pb.render({
-          completed: this.GOTOCache.size,
-          total: dfa.states.length * this.symbols.length,
-        })
         if (gotoIX.items.length === 0) continue // gotoIX要非空
         const sameStateCheck = dfa.states.findIndex(x => LR1State.same(x, gotoIX)) // 存在一致状态要处理
         if (sameStateCheck !== -1) {
@@ -293,7 +292,7 @@ export class LR1Analyzer {
    * 求取GOTO(I, X)
    * 见龙书算法4.53
    */
-  private _GOTO(I: LR1State, X: number) {
+  private GOTO(I: LR1State, X: number) {
     let J = new LR1State([])
     for (let item of I.items) {
       // for I中的每一个项
@@ -303,23 +302,6 @@ export class LR1Analyzer {
       }
     }
     return this.CLOSURE(J)
-  }
-
-  /**
-   * 缓存包装版本的GOTO
-   * @param i 状态
-   * @param a 符号下标
-   */
-  private GOTO(i: LR1State, a: number) {
-    let cached = this.GOTOCache.get({ i, a })
-    let goto: LR1State
-    if (!cached) {
-      goto = this._GOTO(i, a)
-      this.GOTOCache.set({ i, a }, goto)
-    } else {
-      goto = cached
-    }
-    return goto
   }
 
   /**
@@ -350,7 +332,7 @@ export class LR1Analyzer {
         for (let lookahead of newLookaheads) {
           let newItem = new LR1Item(extendProducer, this._producers.indexOf(extendProducer), lookahead)
           if (res.items.some(item => LR1Item.same(item, newItem))) continue // 重复的情况不再添加，避免出现一样的Item
-          !allItemsOfI.includes(newItem) && allItemsOfI.push(newItem) // 继续扩展
+          allItemsOfI.every(item => !LR1Item.same(item, newItem)) && allItemsOfI.push(newItem) // 继续扩展
           res.addItem(newItem)
         }
       }
@@ -362,7 +344,7 @@ export class LR1Analyzer {
    * 生成语法分析表
    * 见龙书算法4.56
    */
-  _constructACTIONGOTOTable() {
+  private _constructACTIONGOTOTable() {
     let dfaStates = this._dfa.states
     // 初始化ACTIONTable
     for (let i = 0; i < dfaStates.length; i++) {
@@ -476,8 +458,12 @@ export class LR1Analyzer {
           if (LR1State.same(this.GOTO(dfaStates[i], A), dfaStates[j])) this._GOTOTable[i][lookup(A)] = j
   }
 
-  dump(savePath: string) {
-    let obj: any = {}
+  /**
+   * 序列化保存LR1Analyzer
+   */
+  dump(desc: string, savePath: string) {
+    // @ts-ignore
+    let obj: any = { desc }
     // symbols
     obj['symbols'] = this._symbols
     // operators
@@ -502,7 +488,65 @@ export class LR1Analyzer {
     fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
   }
 
-  static load(savePath: string) {
-    return
+  /**
+   * 加载导出的LR1Analyzer
+   */
+  static load(dumpPath: string) {
+    const obj = JSON.parse(fs.readFileSync(dumpPath).toString()) as LR1DumpObject
+    const lr1 = new LR1Analyzer(void 'empty')
+    // symbols
+    lr1._symbols = obj.symbols
+    // operators
+    obj.operators.forEach(operator => {
+      // @ts-ignore
+      lr1._operators.push(new LR1Operator(operator._symbolId, operator._assoc, operator._precedence))
+    })
+    // producers
+    obj.producers.forEach(producer => {
+      // @ts-ignore
+      lr1._producers.push(new LR1Producer(producer._lhs, producer._rhs, producer._action))
+    })
+    // startSymbol
+    lr1._startSymbol = obj.startSymbol
+    // dfa
+    // @ts-ignore
+    lr1._dfa = new LR1DFA(obj.dfa._startStateId)
+    // @ts-ignore
+    obj.dfa._states.forEach(state => {
+      lr1._dfa.addState(state)
+    })
+    // @ts-ignore
+    obj.dfa._adjList.forEach((records, i) => {
+      records.forEach(record => {
+        lr1._dfa.link(i, record.to, record.alpha)
+      })
+    })
+    // ACTIONTable
+    lr1._ACTIONTable = obj.ACTIONTable
+    // GOTOTable
+    lr1._GOTOTable = obj.GOTOTable
+    // Reverse Lookup
+    lr1._ACTIONReverseLookup = obj.ACTIONReverseLookup
+    lr1._GOTOReverseLookup = obj.GOTOReverseLookup
+    // first
+    lr1._first = obj.first
+    // epsilon
+    lr1._epsilon = obj.epsilon
+    return lr1
   }
+}
+
+export type LR1DumpObject = {
+  desc: string
+  symbols: GrammarSymbol[]
+  operators: LR1Operator[]
+  producers: LR1Producer[]
+  startSymbol: number
+  dfa: LR1DFA
+  ACTIONTable: ACTIONTableCell[][]
+  GOTOTable: number[][]
+  ACTIONReverseLookup: number[]
+  GOTOReverseLookup: number[]
+  first: number[][]
+  epsilon: number
 }

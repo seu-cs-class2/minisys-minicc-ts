@@ -1,7 +1,11 @@
 "use strict";
 /**
- * LR语法分析
- * 2020-05 @ https://github.com/Withod/seu-lex-yacc
+ * DEPRECATED!
+ * 构造LR1的时间代价太大，不适合大规模文法的分析表构造。
+ * 我们换用从LR0构造LALR的高效方法（龙书4.7.5节）
+ *
+ * LR1语法分析
+ * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -37,18 +41,19 @@ class LR1Analyzer {
         this._GOTOTable = [];
         this._ACTIONReverseLookup = [];
         this._GOTOReverseLookup = [];
-        this.GOTOCache = new Map();
         this._first = [];
-        this._distributeId(yaccParser);
-        this._convertProducer(yaccParser.producers);
-        this._convertOperator(yaccParser.operatorDecl);
-        this._epsilon = this._getSymbolId(Grammar_1.SpSymbol.EPSILON);
-        console.log('\n[ constructLR1DFA, this might take a long time... ]');
-        this._preCalFirst();
-        this._constructLR1DFA();
-        console.log('\n[ constructACTIONGOTOTable, this might take a long time... ]');
-        this._constructACTIONGOTOTable();
-        console.log('\n');
+        if (yaccParser) {
+            this._distributeId(yaccParser);
+            this._convertProducer(yaccParser.producers);
+            this._convertOperator(yaccParser.operatorDecl);
+            this._epsilon = this._getSymbolId(Grammar_1.SpSymbol.EPSILON);
+            process.stdout.write('\n[ constructLR1DFA, this might take a long time... ]\n');
+            this._preCalculateFIRST();
+            this._constructLR1DFA();
+            process.stdout.write('\n[ constructACTIONGOTOTable, this might take a long time... ]\n');
+            this._constructACTIONGOTOTable();
+            process.stdout.write('\n');
+        }
     }
     get symbols() {
         return this._symbols;
@@ -71,20 +76,18 @@ class LR1Analyzer {
     get GOTOReverseLookup() {
         return this._GOTOReverseLookup;
     }
+    /**
+     * 将YaccParser解析的运算符转换为LR1Operator
+     */
     _convertOperator(operatorDecl) {
         for (let decl of operatorDecl) {
-            let id = decl.literal
-                ? this._getSymbolId({ type: 'ascii', content: decl.literal })
-                : decl.tokenName
-                    ? this._getSymbolId({ type: 'token', content: decl.tokenName })
-                    : -1;
+            const id = decl.tokenName ? this._getSymbolId({ type: 'token', content: decl.tokenName }) : -1;
             utils_1.assert(id != -1, 'Operator declaration not found. This should never occur.');
             this._operators.push(new Grammar_1.LR1Operator(id, decl.assoc, decl.precedence));
         }
     }
     /**
      * 为文法符号（终结符、非终结符、特殊符号）分配编号
-     * @test pass
      */
     _distributeId(yaccParser) {
         // 处理方式参考《Flex与Bison》P165
@@ -123,20 +126,24 @@ class LR1Analyzer {
     _symbolTypeIs(id, type) {
         return this._symbols[id].type === type;
     }
+    /**
+     * 获取符号的字面值
+     */
     getSymbolString(id) {
         return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content;
     }
+    /**
+     * 格式化打印产生式
+     */
     formatPrintProducer(producer) {
-        let lhs = this._symbols[producer.lhs].content;
-        let rhs = ``;
-        for (let r of producer.rhs)
-            rhs += this.getSymbolString(r) + ' ';
+        const lhs = this._symbols[producer.lhs].content;
+        const rhs = producer.rhs.map(this.getSymbolString, this).join(' ');
         return lhs + ' -> ' + rhs;
     }
     /**
      * 预先计算各符号的FIRST集（不动点法）
      */
-    _preCalFirst() {
+    _preCalculateFIRST() {
         let changed = true;
         for (let index in this.symbols)
             this._first.push(this._symbols[index].type == 'nonterminal' ? [] : [Number(index)]);
@@ -201,7 +208,6 @@ class LR1Analyzer {
     }
     /**
      * 将产生式转换为单条存储的、数字->数字[]形式
-     * @test pass
      */
     _convertProducer(stringProducers) {
         for (let stringProducer of stringProducers) {
@@ -221,13 +227,16 @@ class LR1Analyzer {
                         let a = this._getSymbolId({ type: 'nonterminal', content: tmp }), b = this._getSymbolId({ type: 'token', content: tmp });
                         id = id ? id : a != -1 ? a : b != -1 ? b : -1;
                     }
-                    utils_1.assert(id != -1, `symbol not found in symbols. This error should never occur. symbol=${tmp}`);
+                    utils_1.assert(id != -1, `Symbol not found in symbols. This error should never occur. symbol=${tmp}`);
                     rhs.push(id);
                 }
                 this._producers.push(new Grammar_1.LR1Producer(lhs, rhs, `reduceTo("${stringProducer.lhs}"); \n${stringProducer.actions[index]}`));
             }
         }
     }
+    /**
+     * 构造LR1DFA
+     */
     _constructLR1DFA() {
         // 将C初始化为 {CLOSURE}({|S'->S, $|})
         let newStartSymbolContent = this._symbols[this._startSymbol].content + "'";
@@ -242,16 +251,11 @@ class LR1Analyzer {
         let dfa = new Grammar_1.LR1DFA(0);
         dfa.addState(I0);
         let stack = [0];
-        let pb = new progressbar_1.ProgressBar();
         while (stack.length) {
             let I = dfa.states[stack.pop()]; // for C中的每个项集I
             for (let X = 0; X < this._symbols.length; X++) {
                 // for 每个文法符号X
                 let gotoIX = this.GOTO(I, X);
-                pb.render({
-                    completed: this.GOTOCache.size,
-                    total: dfa.states.length * this.symbols.length,
-                });
                 if (gotoIX.items.length === 0)
                     continue; // gotoIX要非空
                 const sameStateCheck = dfa.states.findIndex(x => Grammar_1.LR1State.same(x, gotoIX)); // 存在一致状态要处理
@@ -272,7 +276,7 @@ class LR1Analyzer {
      * 求取GOTO(I, X)
      * 见龙书算法4.53
      */
-    _GOTO(I, X) {
+    GOTO(I, X) {
         let J = new Grammar_1.LR1State([]);
         for (let item of I.items) {
             // for I中的每一个项
@@ -283,23 +287,6 @@ class LR1Analyzer {
             }
         }
         return this.CLOSURE(J);
-    }
-    /**
-     * 缓存包装版本的GOTO
-     * @param i 状态
-     * @param a 符号下标
-     */
-    GOTO(i, a) {
-        let cached = this.GOTOCache.get({ i, a });
-        let goto;
-        if (!cached) {
-            goto = this._GOTO(i, a);
-            this.GOTOCache.set({ i, a }, goto);
-        }
-        else {
-            goto = cached;
-        }
-        return goto;
     }
     /**
      * 求取CLOSURE(I)（I为某状态）
@@ -332,7 +319,7 @@ class LR1Analyzer {
                     let newItem = new Grammar_1.LR1Item(extendProducer, this._producers.indexOf(extendProducer), lookahead);
                     if (res.items.some(item => Grammar_1.LR1Item.same(item, newItem)))
                         continue; // 重复的情况不再添加，避免出现一样的Item
-                    !allItemsOfI.includes(newItem) && allItemsOfI.push(newItem); // 继续扩展
+                    allItemsOfI.every(item => !Grammar_1.LR1Item.same(item, newItem)) && allItemsOfI.push(newItem); // 继续扩展
                     res.addItem(newItem);
                 }
             }
@@ -465,8 +452,12 @@ class LR1Analyzer {
                     if (Grammar_1.LR1State.same(this.GOTO(dfaStates[i], A), dfaStates[j]))
                         this._GOTOTable[i][lookup(A)] = j;
     }
-    dump(savePath) {
-        let obj = {};
+    /**
+     * 序列化保存LR1Analyzer
+     */
+    dump(desc, savePath) {
+        // @ts-ignore
+        let obj = { desc };
         // symbols
         obj['symbols'] = this._symbols;
         // operators
@@ -490,8 +481,51 @@ class LR1Analyzer {
         obj['epsilon'] = this._epsilon;
         fs.writeFileSync(savePath, JSON.stringify(obj, null, 2));
     }
-    static load(savePath) {
-        return;
+    /**
+     * 加载导出的LR1Analyzer
+     */
+    static load(dumpPath) {
+        const obj = JSON.parse(fs.readFileSync(dumpPath).toString());
+        const lr1 = new LR1Analyzer(void 'empty');
+        // symbols
+        lr1._symbols = obj.symbols;
+        // operators
+        obj.operators.forEach(operator => {
+            // @ts-ignore
+            lr1._operators.push(new Grammar_1.LR1Operator(operator._symbolId, operator._assoc, operator._precedence));
+        });
+        // producers
+        obj.producers.forEach(producer => {
+            // @ts-ignore
+            lr1._producers.push(new Grammar_1.LR1Producer(producer._lhs, producer._rhs, producer._action));
+        });
+        // startSymbol
+        lr1._startSymbol = obj.startSymbol;
+        // dfa
+        // @ts-ignore
+        lr1._dfa = new Grammar_1.LR1DFA(obj.dfa._startStateId);
+        // @ts-ignore
+        obj.dfa._states.forEach(state => {
+            lr1._dfa.addState(state);
+        });
+        // @ts-ignore
+        obj.dfa._adjList.forEach((records, i) => {
+            records.forEach(record => {
+                lr1._dfa.link(i, record.to, record.alpha);
+            });
+        });
+        // ACTIONTable
+        lr1._ACTIONTable = obj.ACTIONTable;
+        // GOTOTable
+        lr1._GOTOTable = obj.GOTOTable;
+        // Reverse Lookup
+        lr1._ACTIONReverseLookup = obj.ACTIONReverseLookup;
+        lr1._GOTOReverseLookup = obj.GOTOReverseLookup;
+        // first
+        lr1._first = obj.first;
+        // epsilon
+        lr1._epsilon = obj.epsilon;
+        return lr1;
     }
 }
 exports.LR1Analyzer = LR1Analyzer;

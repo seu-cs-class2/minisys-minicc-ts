@@ -1,10 +1,5 @@
 ;(function () {
-  function html2Escape(sHtml) {
-    return sHtml.replace(/[<>&"]/g, function (c) {
-      return { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]
-    })
-  }
-  let data = window._seulex_data
+  let data = window._seulexyacc_data
   function genHead() {
     let ret = `
     <table class="table">

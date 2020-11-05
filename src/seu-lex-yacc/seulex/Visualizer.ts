@@ -65,11 +65,11 @@ export function visualizeFA(fa: FiniteAutomata, viewNow = true) {
   }
   // 计算布局并导出
   let dagreJSON = JSON.stringify(dumpObject, null, 2)
-  const VisualizerPath = path.join(__dirname, '../../enhance/FAVisualizer')
+  const VisualizerPath = path.join(__dirname, '../enhance/FAVisualizer')
   const shape = 'circle'
   fs.writeFileSync(
     path.join(VisualizerPath, './data.js'),
-    `window._seulex_shape = '${shape}'; let data = ${dagreJSON}`
+    `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`
   )
   // 启动浏览器显示
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)

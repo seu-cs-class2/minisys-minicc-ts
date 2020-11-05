@@ -83,22 +83,13 @@ export class YaccParser {
           currentPrecedence += 1
           const assoc = words[0].substring(1) as 'left' | 'right'
           for (let i = 1; i < words.length; i++) {
-            let temp = words[i],
-              literalOnly = false
+            let temp = words[i]
             if (temp[0] == "'") {
               assert(temp[temp.length - 1] == "'", `Quote not closed: ${temp}`)
               temp = cookString(temp.substring(1, temp.length - 1))
-              literalOnly = true
             }
-            assert(
-              !this._operatorDecl.some(x => x.tokenName == temp || x.literal == temp),
-              `Operator redefined: ${temp}`
-            )
-            this._operatorDecl.push(
-              literalOnly
-                ? { literal: temp, assoc, precedence: currentPrecedence }
-                : { tokenName: temp, assoc, precedence: currentPrecedence }
-            )
+            assert(!this._operatorDecl.some(x => x.tokenName == temp), `Operator redefined: ${temp}`)
+            this._operatorDecl.push({ tokenName: temp, assoc, precedence: currentPrecedence })
           }
           break
         case '%start':
@@ -135,6 +126,8 @@ export class YaccParser {
         rhs.push(m3[2])
         actions.push(m3[3] ? m3[3].substring(1, m3[3].length - 1).trim() : '')
       }
+      lhs = lhs.trim()
+      rhs = rhs.map(v => v.trim())
       this._producers.push(new YaccParserProducer(lhs, rhs, actions))
     }
   }

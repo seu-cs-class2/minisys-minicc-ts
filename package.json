@@ -30,11 +30,13 @@
     "@typescript-eslint/eslint-plugin": "^2.29.0",
     "@typescript-eslint/parser": "^2.29.0",
     "colors": "^1.4.0",
+    "cross-env": "^7.0.2",
     "dagre-d3": "^0.6.4",
     "eslint": "^6.8.0",
     "jsdom": "^16.2.2",
     "minimist": "^1.2.5",
-    "single-line-log": "^1.1.2"
+    "single-line-log": "^1.1.2",
+    "ts-node": "^9.0.0"
   },
   "husky": {
     "hooks": {

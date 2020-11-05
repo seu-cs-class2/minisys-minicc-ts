@@ -1,16 +1,16 @@
 "use strict";
 /**
- * 借助DFA对源代码进行词法分析
+ * 借助 DFA 对源代码进行词法分析
  * 2020-10 @ https://github.com/seu-cs-class2/minisys-minicc-ts
- * 【在此版本中，我们删掉了Lex生成C代码的行为，转而直接在TS中借助DFA完成词法分析】
- * 【因此要求.l文件的动作代码必须形如 { return (TOKEN_NAME); }】
+ * --- 我们删掉了 Lex 生成 C 代码的行为，转而直接借助 DFA 完成词法分析
+ * --- 要求 .l 文件的动作代码必须形如 { return (TOKEN_NAME); }
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.lexSourceCode = void 0;
-const utils_1 = require("../utils");
-const FA_1 = require("./FA");
+const utils_1 = require("../seu-lex-yacc/utils");
+const FA_1 = require("../seu-lex-yacc/seulex/FA");
 /**
- * 借助DFA对源代码进行词法分析
+ * 借助DFA对源代码进行词法分析，返回Token序列
  */
 function lexSourceCode(code, dfa) {
     utils_1.assert(dfa.startStates.length === 1, 'Too many DFA start states.');

@@ -1,7 +1,7 @@
 "use strict";
 /**
  * 工具函数
- * by z0gSh1u, Withod
+ * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isAlpha = exports.splitAndKeep = exports.getMatchedRanges = exports.inRange = exports.inStr = exports.stdoutPrint = exports.assert = exports.cookString = exports.ESCAPE_CONVERT = exports.ESCAPE_REVERSE = exports.PATTERN_ENDOF_PRODUCER = exports.PATTERN_CONTINUED_PRODUCER = exports.PATTERN_INITIAL_PRODUCER = exports.PATTERN_BLOCK_PRODUCER = exports.PATTERN_RANGE_NOTSLASH = exports.PATTERN_INSIDEQUOTE_NOTSLASH = exports.SUPPORTED_ESCAPE = exports.ASCII_MAX = exports.ASCII_MIN = void 0;
@@ -73,9 +73,8 @@ exports.cookString = cookString;
  * Ensure `condition`. Else throw Error `hint`.
  */
 function assert(condition, hint) {
-    if (!condition) {
+    if (!condition)
         throw new Error(hint);
-    }
 }
 exports.assert = assert;
 /**

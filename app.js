@@ -1,5 +1,5 @@
 const welcome = 
 `
-  
+  Visit https://github.com/seu-cs-class2/minisys-minicc-ts .
 `
-console.log(welcome)
+process.stdout.write(welcome)
