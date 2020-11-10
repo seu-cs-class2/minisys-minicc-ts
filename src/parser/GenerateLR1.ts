@@ -12,11 +12,11 @@ const args = require('minimist')(process.argv.slice(2))
 // args looks like { _: [ 'example/md.l' ], v: true }
 assert(args._.length == 2, '[usage]: node GenerateLR1.js <path_to_.y> <path_output>')
 const dotYPath = args._[0]
-const dotYName = path.basename(dotYPath)
+const dotYName = path.basename(dotYPath).replace('.y', '')
 const outJSONPath = args._[1]
 
 const lr1 = new LR1Analyzer(new YaccParser(dotYPath))
 lr1.dump(
   `Generated from ${dotYName} @ ${new Date().toLocaleDateString()}`,
-  path.join(outJSONPath, dotYName + '-Yacc.json')
+  path.join(outJSONPath, dotYName + '-LR1Parse.json')
 )

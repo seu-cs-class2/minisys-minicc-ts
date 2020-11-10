@@ -6,10 +6,10 @@
   "scripts": {
     "tsc:watch": "tsc -p tsconfig.json --watch",
     "tsc:full": "tsc",
+    "build": "node ./script/build.js",
     "clean": "node ./script/clean.js",
     "lint": "eslint src --fix --ext .ts",
-    "test": "jest",
-    "build": "npm run clean && npm run tsc:full"
+    "test": "jest"
   },
   "license": "MIT",
   "devDependencies": {
