@@ -16,6 +16,7 @@ class LR0Analyzer {
         this._distributeId(yaccParser);
         this._convertProducer(yaccParser.producers);
         this._convertOperator(yaccParser.operatorDecl);
+        console.log('[LR0] Start LR0 DFA construction...');
         this._construrctLR0DFA();
     }
     get symbols() {

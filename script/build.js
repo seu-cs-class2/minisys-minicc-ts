@@ -1,0 +1,11 @@
+const childProcess = require('child_process')
+const fs = require('fs')
+const path = require('path')
+const cpdir = require('copy-dir')
+
+childProcess.execSync('npm run clean', { stdio: 'inherit' })
+fs.mkdirSync(path.join(__dirname, '../dist/seu-lex-yacc'))
+fs.mkdirSync(path.join(__dirname, '../dist/seu-lex-yacc/enhance'))
+cpdir.sync(path.join(__dirname, '../src/seu-lex-yacc/enhance'), path.join(__dirname, '../dist/seu-lex-yacc/enhance'))
+childProcess.execSync('npm run tsc:full', { stdio: 'inherit' })
+process.stdout.write('Build complete. \n')

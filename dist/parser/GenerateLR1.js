@@ -1,4 +1,7 @@
 "use strict";
+/**
+ * 从.y文件生成序列化的LR1Analyzer
+ */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
@@ -22,6 +25,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const LR1_1 = require("../seu-lex-yacc/seuyacc/LR1");
 const YaccParser_1 = require("../seu-lex-yacc/seuyacc/YaccParser");
 const path = __importStar(require("path"));
-const lr1 = new LR1_1.LR1Analyzer(new YaccParser_1.YaccParser(path.join(__dirname, '../../src/parser/MiniC.y')));
-lr1.dump(`Generated from MiniC.y @ ${new Date().toLocaleDateString()}`, path.join(__dirname, '../../src/parser/MiniC-Parse.json'));
-lr1.dump(`Generated from MiniC.y @ ${new Date().toLocaleDateString()}`, path.join(__dirname, '../../dist/parser/MiniC-Parse.json'));
+const utils_1 = require("../seu-lex-yacc/utils");
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const args = require('minimist')(process.argv.slice(2));
+// args looks like { _: [ 'example/md.l' ], v: true }
+utils_1.assert(args._.length == 2, '[usage]: node GenerateLR1.js <path_to_.y> <path_output>');
+const dotYPath = args._[0];
+const dotYName = path.basename(dotYPath).replace('.y', '');
+const outJSONPath = args._[1];
+const lr1 = new LR1_1.LR1Analyzer(new YaccParser_1.YaccParser(dotYPath));
+lr1.dump(`Generated from ${dotYName} @ ${new Date().toLocaleDateString()}`, path.join(outJSONPath, dotYName + '-LR1Parse.json'));

@@ -114,10 +114,10 @@ function lexSourceCode(code, dfa) {
             latAccState = -1;
         }
         else {
-            throw new Error(`无法识别的字符。行号=${yylineno}，指针=${curPtr}`);
+            utils_1.assert(false, `无法识别的字符。行号=${yylineno}，指针=${curPtr}`);
         }
     }
-    while (yylex() !== 0)
+    while (yylex())
         ;
     return tokens;
 }

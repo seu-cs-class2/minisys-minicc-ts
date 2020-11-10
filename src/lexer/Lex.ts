@@ -118,11 +118,11 @@ export function lexSourceCode(code: string, dfa: DFA) {
       latAccPtr = 0
       latAccState = -1
     } else {
-      throw new Error(`无法识别的字符。行号=${yylineno}，指针=${curPtr}`)
+      assert(false, `无法识别的字符。行号=${yylineno}，指针=${curPtr}`)
     }
   }
 
-  while (yylex() !== 0);
+  while (yylex());
 
   return tokens
 }
