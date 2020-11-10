@@ -85,7 +85,7 @@ function visualizeLR1ACTIONGOTOTable(analyzer, viewNow = true) {
     const dumpObject = { ACTIONHead, GOTOHead, ACTIONTable, GOTOTable };
     const dumpJSON = JSON.stringify(dumpObject, null, 2);
     const VisualizerPath = path_1.default.join(__dirname, '../enhance/TableVisualizer');
-    fs_1.default.writeFileSync(path_1.default.join(VisualizerPath, './data.js'), `window._seulex_data = ${dumpJSON}`);
+    fs_1.default.writeFileSync(path_1.default.join(VisualizerPath, './data.js'), `window._seulexyacc_data = ${dumpJSON}`);
     // 启动浏览器显示
     viewNow && childProcess.exec(`start ${path_1.default.join(VisualizerPath, './index.html')} `);
 }
@@ -159,7 +159,7 @@ function visualizeGOTOGraph(dfa, analyzer, viewNow = true) {
     let dagreJSON = JSON.stringify(dumpObject, null, 2);
     const VisualizerPath = path_1.default.join(__dirname, '../enhance/FAVisualizer');
     const shape = 'rect';
-    fs_1.default.writeFileSync(path_1.default.join(VisualizerPath, './data.js'), `window._seulex_shape = '${shape}'; var data = ${dagreJSON}`);
+    fs_1.default.writeFileSync(path_1.default.join(VisualizerPath, './data.js'), `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`);
     // 启动浏览器显示
     viewNow && childProcess.exec(`start ${path_1.default.join(VisualizerPath, './index.html')} `);
 }
