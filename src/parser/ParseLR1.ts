@@ -84,7 +84,7 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
         return symbol
       case 'reduce':
         let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target]
-        //TODO: 动作代码执行
+        // TODO: 动作代码执行
         let str = analyzer.symbols[producer.lhs].content + ' -> '
         producer.rhs.forEach( v => {
           str += analyzer.symbols[v].content + ' '

@@ -4,7 +4,6 @@
  * 2020-10 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
-import { assert } from '../utils'
 import {
   GrammarSymbol,
   LALRDFA,

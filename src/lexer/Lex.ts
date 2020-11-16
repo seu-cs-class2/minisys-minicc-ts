@@ -124,9 +124,11 @@ export function lexSourceCode(code: string, dfa: DFA) {
   }
 
   while (yylex());
+  
   tokens.push({
     name: 'SP_END',
     literal: ''
   })
+
   return tokens
 }
