@@ -120,9 +120,13 @@ export function lexSourceCode(code: string, dfa: DFA) {
     } else {
       assert(false, `无法识别的字符。行号=${yylineno}，指针=${curPtr}`)
     }
+    return 1
   }
 
   while (yylex());
-
+  tokens.push({
+    name: 'SP_END',
+    literal: ''
+  })
   return tokens
 }
