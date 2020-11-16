@@ -116,6 +116,7 @@ function lexSourceCode(code, dfa) {
         else {
             utils_1.assert(false, `无法识别的字符。行号=${yylineno}，指针=${curPtr}`);
         }
+        return 1;
     }
     while (yylex())
         ;

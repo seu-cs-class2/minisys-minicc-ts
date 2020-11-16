@@ -20,7 +20,7 @@ interface TableCell {
 /**
  * 语法分析
  */
-function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
+export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
   // Token编号表，Token名->Token编号
   const tokenIds = (function () {
     let map = new Map<string, number>()
@@ -75,7 +75,30 @@ function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
   // 状态栈
   const stateStack: number[] = [analyzer.dfa.startStateId]
   function dealWith(symbol: number) {
-    
+    if (symbol === WHITESPACE_SYMBOL_ID) return symbol
+    switch(table[stateStack.slice(-1)[0]][symbol].action) {
+      case 'nonterminal':
+      case 'shift':
+        stateStack.push(table[stateStack.slice(-1)[0]][symbol].target)
+        console.log(analyzer.symbols[symbol].content)
+        return symbol
+      case 'reduce':
+        let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target]
+        //TODO: 动作代码执行
+        let str = analyzer.symbols[producer.lhs].content + ' -> '
+        producer.rhs.forEach( v => {
+          str += analyzer.symbols[v].content + ' '
+        })
+        console.log(str)
+        let i = producer.rhs.length
+        while (i--) stateStack.pop()
+        return producer.lhs
+      case 'acc':
+        return -1
+      default:
+        //WTF is this?
+        throw Error(`语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${table[stateStack.slice(-1)[0]][symbol].action}`)
+    }
   }
 
   let currentTokenIndex = 0
@@ -83,6 +106,17 @@ function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
     return tokens[currentTokenIndex++]
   }
 
+  let token = tokenIds.get(_yylex().name)
+  while (token) {
+    let ret = dealWith(token)
+    while (token != ret) {
+      if (ret == -1) return true
+      dealWith(ret)
+      ret = dealWith(token)
+    }
+    token = tokenIds.get(_yylex().name)
+  }
+  return false
 }
 
 
