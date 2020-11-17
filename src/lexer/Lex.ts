@@ -125,6 +125,7 @@ export function lexSourceCode(code: string, dfa: DFA) {
 
   while (yylex());
   
+  // 手动添加END Token
   tokens.push({
     name: 'SP_END',
     literal: ''
