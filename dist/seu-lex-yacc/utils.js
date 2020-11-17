@@ -4,7 +4,7 @@
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isAlpha = exports.splitAndKeep = exports.getMatchedRanges = exports.inRange = exports.inStr = exports.stdoutPrint = exports.assert = exports.cookString = exports.ESCAPE_CONVERT = exports.ESCAPE_REVERSE = exports.PATTERN_ENDOF_PRODUCER = exports.PATTERN_CONTINUED_PRODUCER = exports.PATTERN_INITIAL_PRODUCER = exports.PATTERN_BLOCK_PRODUCER = exports.PATTERN_RANGE_NOTSLASH = exports.PATTERN_INSIDEQUOTE_NOTSLASH = exports.SUPPORTED_ESCAPE = exports.ASCII_MAX = exports.ASCII_MIN = void 0;
+exports.isAlpha = exports.splitAndKeep = exports.getMatchedRanges = exports.inRange = exports.inStr = exports.stdoutPrint = exports.assert = exports.UNMATCH_TOKENNAME = exports.WHITESPACE_TOKENNAME = exports.cookString = exports.ESCAPE_CONVERT = exports.ESCAPE_REVERSE = exports.PATTERN_ENDOF_PRODUCER = exports.PATTERN_CONTINUED_PRODUCER = exports.PATTERN_INITIAL_PRODUCER = exports.PATTERN_BLOCK_PRODUCER = exports.PATTERN_RANGE_NOTSLASH = exports.PATTERN_INSIDEQUOTE_NOTSLASH = exports.SUPPORTED_ESCAPE = exports.ASCII_MAX = exports.ASCII_MIN = void 0;
 // ASCII打印字符范围
 exports.ASCII_MIN = 32;
 exports.ASCII_MAX = 126;
@@ -69,6 +69,9 @@ function cookString(str) {
     return ret;
 }
 exports.cookString = cookString;
+// _WHITESPACE, _UNMATCH
+exports.WHITESPACE_TOKENNAME = '_WHITESPACE';
+exports.UNMATCH_TOKENNAME = '_UNMATCH';
 /**
  * Ensure `condition`. Else throw Error `hint`.
  */

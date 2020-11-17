@@ -6,6 +6,7 @@
 
 import { Token } from '../lexer/Lex'
 import { LR1Analyzer } from '../seu-lex-yacc/seuyacc/LR1'
+import { assert, UNMATCH_TOKENNAME } from '../seu-lex-yacc/utils'
 
 export const WHITESPACE_SYMBOL_ID = -10
 
@@ -21,6 +22,12 @@ interface TableCell {
  * 语法分析
  */
 export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
+  // 预处理
+  assert(
+    tokens.every(v => v.name !== UNMATCH_TOKENNAME),
+    'Token序列中存在未匹配的非法符号'
+  )
+
   // Token编号表，Token名->Token编号
   const tokenIds = (function () {
     let map = new Map<string, number>()
@@ -28,6 +35,7 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
       if (analyzer.symbols[i].type == 'sptoken' || analyzer.symbols[i].type == 'token')
         map.set(analyzer.symbols[i].content, i)
     map.set('WHITESPACE', WHITESPACE_SYMBOL_ID)
+    map.set('_WHITESPACE', WHITESPACE_SYMBOL_ID)
     return map
   })()
 
@@ -64,7 +72,7 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
           }
           nonnonCnt++
         }
-        // @ts-ignore 
+        // @ts-ignore
         row.push({ action, target })
       }
       table.push(row)
@@ -76,7 +84,7 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
   const stateStack: number[] = [analyzer.dfa.startStateId]
   function dealWith(symbol: number) {
     if (symbol === WHITESPACE_SYMBOL_ID) return symbol
-    switch(table[stateStack.slice(-1)[0]][symbol].action) {
+    switch (table[stateStack.slice(-1)[0]][symbol].action) {
       case 'nonterminal':
       case 'shift':
         stateStack.push(table[stateStack.slice(-1)[0]][symbol].target)
@@ -86,7 +94,7 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
         let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target]
         // TODO: 动作代码执行
         let str = analyzer.symbols[producer.lhs].content + ' -> '
-        producer.rhs.forEach( v => {
+        producer.rhs.forEach(v => {
           str += analyzer.symbols[v].content + ' '
         })
         console.log(str)
@@ -97,7 +105,11 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
         return -1
       default:
         //WTF is this?
-        throw Error(`语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${table[stateStack.slice(-1)[0]][symbol].action}`)
+        throw Error(
+          `语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${
+            table[stateStack.slice(-1)[0]][symbol].action
+          }`
+        )
     }
   }
 
@@ -118,5 +130,3 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
   }
   return false
 }
-
-

@@ -57,7 +57,7 @@ H     0x([a-z0-9])+
 "|"			        	{ return(BITOR_OP); }
 "$"               { return(DOLLAR); }
 [ \n\r\t]         { return (_WHITESPACE); }
-.			 	 	        { return(UNMATCH); }
+.			 	 	        { return(_UNMATCH); }
 
 %%
 

@@ -1,6 +1,6 @@
 // 词法分析使用示例
 // 1 - 空白符的Token名为_WHITESPACE
-// 2 - 非法符号的Token名为UNMATCH
+// 2 - 非法符号的Token名为_UNMATCH
 
 import { lexSourceCode } from './Lex'
 import { DFA } from '../seu-lex-yacc/seulex/DFA'

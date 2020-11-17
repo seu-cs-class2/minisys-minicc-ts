@@ -35,7 +35,7 @@ L			[a-zA-Z_]
 "="				{ return(ASSIGN); }
 "(" 			{ return(LPAREN); }
 ")"				{ return(RPAREN); }
-[ \n\r\t]  { return (WHITESPACE); }
-.         { return (WHITESPACE); }
+[ \n\r\t]  { return (_WHITESPACE); }
+.         { return (_UNMATCH); }
 
 %%

@@ -6,11 +6,14 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.yyparse = exports.WHITESPACE_SYMBOL_ID = void 0;
+const utils_1 = require("../seu-lex-yacc/utils");
 exports.WHITESPACE_SYMBOL_ID = -10;
 /**
  * 语法分析
  */
 function yyparse(tokens, analyzer) {
+    // 预处理
+    utils_1.assert(tokens.every(v => v.name !== utils_1.UNMATCH_TOKENNAME), 'Token序列中存在未匹配的非法符号');
     // Token编号表，Token名->Token编号
     const tokenIds = (function () {
         let map = new Map();
@@ -18,6 +21,7 @@ function yyparse(tokens, analyzer) {
             if (analyzer.symbols[i].type == 'sptoken' || analyzer.symbols[i].type == 'token')
                 map.set(analyzer.symbols[i].content, i);
         map.set('WHITESPACE', exports.WHITESPACE_SYMBOL_ID);
+        map.set('_WHITESPACE', exports.WHITESPACE_SYMBOL_ID);
         return map;
     })();
     // LR1语法分析表（合并ACTION和GOTO）
@@ -52,7 +56,7 @@ function yyparse(tokens, analyzer) {
                     }
                     nonnonCnt++;
                 }
-                // @ts-ignore 
+                // @ts-ignore
                 row.push({ action, target });
             }
             table.push(row);
@@ -64,16 +68,20 @@ function yyparse(tokens, analyzer) {
     function dealWith(symbol) {
         if (symbol === exports.WHITESPACE_SYMBOL_ID)
             return symbol;
-        console.log(analyzer.symbols[symbol].content);
         switch (table[stateStack.slice(-1)[0]][symbol].action) {
             case 'nonterminal':
             case 'shift':
                 stateStack.push(table[stateStack.slice(-1)[0]][symbol].target);
+                console.log(analyzer.symbols[symbol].content);
                 return symbol;
             case 'reduce':
                 let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target];
-                //TODO: 动作代码执行
-                console.log(`reduce by ${table[stateStack.slice(-1)[0]][symbol].target}\n`);
+                // TODO: 动作代码执行
+                let str = analyzer.symbols[producer.lhs].content + ' -> ';
+                producer.rhs.forEach(v => {
+                    str += analyzer.symbols[v].content + ' ';
+                });
+                console.log(str);
                 let i = producer.rhs.length;
                 while (i--)
                     stateStack.pop();

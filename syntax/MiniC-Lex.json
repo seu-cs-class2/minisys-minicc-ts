@@ -1,5 +1,5 @@
 {
-  "desc": "Generated from MiniC.l @ 10/25/2020",
+  "desc": "Generated from MiniC @ 11/17/2020",
   "alphabet": [
     "/",
     "[any]",
@@ -50388,7 +50388,7 @@
     {
       "accpetStateIndex": 2,
       "action": {
-        "code": "return(UNMATCH);",
+        "code": "return(_UNMATCH);",
         "order": 49
       }
     },

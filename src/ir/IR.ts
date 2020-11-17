@@ -1,1 +1,0 @@
-export type DataType = 'int' | 'char'

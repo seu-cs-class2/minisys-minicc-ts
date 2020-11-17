@@ -120,6 +120,11 @@ function lexSourceCode(code, dfa) {
     }
     while (yylex())
         ;
+    // 手动添加END Token
+    tokens.push({
+        name: 'SP_END',
+        literal: ''
+    });
     return tokens;
 }
 exports.lexSourceCode = lexSourceCode;
