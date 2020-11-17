@@ -242,7 +242,7 @@ export class LR1Analyzer {
           rhs.push(id)
         }
         this._producers.push(
-          new LR1Producer(lhs, rhs, `reduceTo("${stringProducer.lhs}"); \n${stringProducer.actions[index]}`)
+          new LR1Producer(lhs, rhs, `${stringProducer.actions[index]}`)
         )
       }
     }

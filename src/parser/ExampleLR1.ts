@@ -15,9 +15,9 @@ int main() {
   return 0;
 }
 `
-const lexDFA = DFA.fromFile(path.join(__dirname, '../syntax/TestC-Lex.json'))
+const lexDFA = DFA.fromFile(path.join(__dirname, '../../syntax/TestC-Lex.json'))
 const tokens = lexSourceCode(CCode, lexDFA)
 console.log(tokens)
 
-const lr1 = LR1Analyzer.load(path.join(__dirname, '../syntax/TestC-LR1Parse.json'))
+const lr1 = LR1Analyzer.load(path.join(__dirname, '../../syntax/TestC-LR1Parse.json'))
 parseTokensLR1(tokens, lr1)

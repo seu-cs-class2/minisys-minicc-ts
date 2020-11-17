@@ -91,11 +91,14 @@ export function parseTokensLR1(tokens: Token[], analyzer: LR1Analyzer) {
         return symbol
       case 'reduce':
         let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target]
+
         const execAction = () => {
           // TODO: 在此添加动作代码的执行逻辑
-          
+          const actionCode = producer.action // 动作代码
+          // TODO: 请gl添加获取$i的操作、保存$$的操作接口
           console.log(analyzer.formatPrintProducer(producer))
         }
+
         execAction()
         let i = producer.rhs.length
         while (i--) stateStack.pop()
