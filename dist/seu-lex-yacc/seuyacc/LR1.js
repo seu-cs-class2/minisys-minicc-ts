@@ -230,7 +230,7 @@ class LR1Analyzer {
                     utils_1.assert(id != -1, `Symbol not found in symbols. This error should never occur. symbol=${tmp}`);
                     rhs.push(id);
                 }
-                this._producers.push(new Grammar_1.LR1Producer(lhs, rhs, `reduceTo("${stringProducer.lhs}"); \n${stringProducer.actions[index]}`));
+                this._producers.push(new Grammar_1.LR1Producer(lhs, rhs, `${stringProducer.actions[index]}`));
             }
         }
     }

@@ -5,13 +5,13 @@
  * --- 我们删掉了 Yacc 生成 C 代码的行为，转而直接借助 LR1 分析表完成语法分析
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.yyparse = exports.WHITESPACE_SYMBOL_ID = void 0;
+exports.parseTokensLR1 = exports.WHITESPACE_SYMBOL_ID = void 0;
 const utils_1 = require("../seu-lex-yacc/utils");
 exports.WHITESPACE_SYMBOL_ID = -10;
 /**
  * 语法分析
  */
-function yyparse(tokens, analyzer) {
+function parseTokensLR1(tokens, analyzer) {
     // 预处理
     utils_1.assert(tokens.every(v => v.name !== utils_1.UNMATCH_TOKENNAME), 'Token序列中存在未匹配的非法符号');
     // Token编号表，Token名->Token编号
@@ -20,8 +20,7 @@ function yyparse(tokens, analyzer) {
         for (let i = 0; i < analyzer.symbols.length; i++)
             if (analyzer.symbols[i].type == 'sptoken' || analyzer.symbols[i].type == 'token')
                 map.set(analyzer.symbols[i].content, i);
-        map.set('WHITESPACE', exports.WHITESPACE_SYMBOL_ID);
-        map.set('_WHITESPACE', exports.WHITESPACE_SYMBOL_ID);
+        map.set(utils_1.WHITESPACE_TOKENNAME, exports.WHITESPACE_SYMBOL_ID);
         return map;
     })();
     // LR1语法分析表（合并ACTION和GOTO）
@@ -52,7 +51,7 @@ function yyparse(tokens, analyzer) {
                             action = 'acc';
                             break;
                         default:
-                            action = 'default'; // WTF is this?
+                            action = 'default'; // 不会到这里
                     }
                     nonnonCnt++;
                 }
@@ -65,6 +64,7 @@ function yyparse(tokens, analyzer) {
     })();
     // 状态栈
     const stateStack = [analyzer.dfa.startStateId];
+    // 处理当前情况遇到symbol
     function dealWith(symbol) {
         if (symbol === exports.WHITESPACE_SYMBOL_ID)
             return symbol;
@@ -72,16 +72,16 @@ function yyparse(tokens, analyzer) {
             case 'nonterminal':
             case 'shift':
                 stateStack.push(table[stateStack.slice(-1)[0]][symbol].target);
-                console.log(analyzer.symbols[symbol].content);
                 return symbol;
             case 'reduce':
                 let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target];
-                // TODO: 动作代码执行
-                let str = analyzer.symbols[producer.lhs].content + ' -> ';
-                producer.rhs.forEach(v => {
-                    str += analyzer.symbols[v].content + ' ';
-                });
-                console.log(str);
+                const execAction = () => {
+                    // TODO: 在此添加动作代码的执行逻辑
+                    const actionCode = producer.action; // 动作代码
+                    // TODO: 请gl添加获取$i的操作、保存$$的操作接口
+                    console.log(analyzer.formatPrintProducer(producer));
+                };
+                execAction();
                 let i = producer.rhs.length;
                 while (i--)
                     stateStack.pop();
@@ -89,8 +89,7 @@ function yyparse(tokens, analyzer) {
             case 'acc':
                 return -1;
             default:
-                //WTF is this?
-                throw Error(`语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${table[stateStack.slice(-1)[0]][symbol].action}`);
+                utils_1.assert(false, `语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${table[stateStack.slice(-1)[0]][symbol].action}`);
         }
     }
     let currentTokenIndex = 0;
@@ -110,4 +109,4 @@ function yyparse(tokens, analyzer) {
     }
     return false;
 }
-exports.yyparse = yyparse;
+exports.parseTokensLR1 = parseTokensLR1;
