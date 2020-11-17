@@ -6,7 +6,7 @@
 
 import { Token } from '../lexer/Lex'
 import { LR1Analyzer } from '../seu-lex-yacc/seuyacc/LR1'
-import { assert, UNMATCH_TOKENNAME } from '../seu-lex-yacc/utils'
+import { assert, UNMATCH_TOKENNAME, WHITESPACE_TOKENNAME } from '../seu-lex-yacc/utils'
 
 export const WHITESPACE_SYMBOL_ID = -10
 
@@ -21,7 +21,7 @@ interface TableCell {
 /**
  * 语法分析
  */
-export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
+export function parseTokensLR1(tokens: Token[], analyzer: LR1Analyzer) {
   // 预处理
   assert(
     tokens.every(v => v.name !== UNMATCH_TOKENNAME),
@@ -34,8 +34,7 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
     for (let i = 0; i < analyzer.symbols.length; i++)
       if (analyzer.symbols[i].type == 'sptoken' || analyzer.symbols[i].type == 'token')
         map.set(analyzer.symbols[i].content, i)
-    map.set('WHITESPACE', WHITESPACE_SYMBOL_ID)
-    map.set('_WHITESPACE', WHITESPACE_SYMBOL_ID)
+    map.set(WHITESPACE_TOKENNAME, WHITESPACE_SYMBOL_ID)
     return map
   })()
 
@@ -68,7 +67,7 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
               action = 'acc'
               break
             default:
-              action = 'default' // WTF is this?
+              action = 'default' // 不会到这里
           }
           nonnonCnt++
         }
@@ -82,30 +81,30 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
 
   // 状态栈
   const stateStack: number[] = [analyzer.dfa.startStateId]
+  // 处理当前情况遇到symbol
   function dealWith(symbol: number) {
     if (symbol === WHITESPACE_SYMBOL_ID) return symbol
     switch (table[stateStack.slice(-1)[0]][symbol].action) {
       case 'nonterminal':
       case 'shift':
         stateStack.push(table[stateStack.slice(-1)[0]][symbol].target)
-        console.log(analyzer.symbols[symbol].content)
         return symbol
       case 'reduce':
         let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target]
-        // TODO: 动作代码执行
-        let str = analyzer.symbols[producer.lhs].content + ' -> '
-        producer.rhs.forEach(v => {
-          str += analyzer.symbols[v].content + ' '
-        })
-        console.log(str)
+        const execAction = () => {
+          // TODO: 在此添加动作代码的执行逻辑
+          
+          console.log(analyzer.formatPrintProducer(producer))
+        }
+        execAction()
         let i = producer.rhs.length
         while (i--) stateStack.pop()
         return producer.lhs
       case 'acc':
         return -1
       default:
-        //WTF is this?
-        throw Error(
+        assert(
+          false,
           `语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${
             table[stateStack.slice(-1)[0]][symbol].action
           }`
@@ -123,10 +122,11 @@ export function yyparse(tokens: Token[], analyzer: LR1Analyzer) {
     let ret = dealWith(token)
     while (token != ret) {
       if (ret == -1) return true
-      dealWith(ret)
+      dealWith(ret!)
       ret = dealWith(token)
     }
     token = tokenIds.get(_yylex().name)
   }
+
   return false
 }
