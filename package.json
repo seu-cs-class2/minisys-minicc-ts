@@ -17,6 +17,7 @@
     "@commitlint/config-conventional": "^8.3.4",
     "@types/jest": "^25.2.1",
     "@types/node": "^13.13.4",
+    "cz-conventional-changelog": "^3.3.0",
     "husky": "^4.2.5",
     "jest": "^25.5.1",
     "lint-staged": "^10.1.7",
@@ -45,5 +46,10 @@
   },
   "repository": {
     "url": "https://github.com/seu-cs-class2/minisys-minicc-ts"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
   }
 }
