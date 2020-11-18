@@ -12,7 +12,7 @@
 %%
 
 program
-  : declarations { _ASTRoot = newNode('program', $1); }
+  : declarations { $$ = newNode('program', $1); }
 	;
 
 declarations

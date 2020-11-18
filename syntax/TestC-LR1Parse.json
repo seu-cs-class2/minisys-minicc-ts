@@ -1,5 +1,5 @@
 {
-  "desc": "Generated from TestC @ 11/17/2020",
+  "desc": "Generated from TestC @ 11/18/2020",
   "symbols": [
     {
       "type": "ascii",
@@ -705,7 +705,7 @@
       "_rhs": [
         156
       ],
-      "_action": "_ASTRoot = newNode('program', $1);"
+      "_action": "$$ = newNode('program', $1);"
     },
     {
       "_lhs": 156,
@@ -1135,7 +1135,7 @@
               "_rhs": [
                 156
               ],
-              "_action": "_ASTRoot = newNode('program', $1);"
+              "_action": "$$ = newNode('program', $1);"
             },
             "_producer": 0,
             "_dotPosition": 0,
@@ -1503,7 +1503,7 @@
               "_rhs": [
                 156
               ],
-              "_action": "_ASTRoot = newNode('program', $1);"
+              "_action": "$$ = newNode('program', $1);"
             },
             "_producer": 0,
             "_dotPosition": 1,

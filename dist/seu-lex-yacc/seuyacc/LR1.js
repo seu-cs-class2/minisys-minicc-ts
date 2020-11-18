@@ -140,6 +140,10 @@ class LR1Analyzer {
         const rhs = producer.rhs.map(this.getSymbolString, this).join(' ');
         return lhs + ' -> ' + rhs;
     }
+    getLHS(producer) {
+        const lhs = this._symbols[producer.lhs].content;
+        return lhs;
+    }
     /**
      * 预先计算各符号的FIRST集（不动点法）
      */

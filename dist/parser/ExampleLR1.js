@@ -25,17 +25,17 @@ const DFA_1 = require("../seu-lex-yacc/seulex/DFA");
 const path = __importStar(require("path"));
 const LR1_1 = require("../seu-lex-yacc/seuyacc/LR1");
 const ParseLR1_1 = require("./ParseLR1");
+const AST_1 = require("../ir/AST");
 const CCode = String.raw `
 int main() {
   int a = 10;
-  int b = 100; // change = to # to get an UNMATCH
-  float c = a + b / 2.5;
+  int b = 100;
   printf("\2f", c);
   return 0;
 }
 `;
 const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/TestC-Lex.json'));
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
-console.log(tokens);
 const lr1 = LR1_1.LR1Analyzer.load(path.join(__dirname, '../../syntax/TestC-LR1Parse.json'));
-ParseLR1_1.parseTokensLR1(tokens, lr1);
+const final = ParseLR1_1.parseTokensLR1(tokens, lr1);
+AST_1.visualizeAST(final);
