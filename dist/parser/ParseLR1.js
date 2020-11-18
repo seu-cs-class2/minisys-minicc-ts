@@ -82,7 +82,7 @@ function parseTokensLR1(tokens, analyzer) {
      * @param literal 所要存储的$$的值
      */
     function setDollar2(name, node) {
-        curSymbol = { type: 'nonterminal', name, node };
+        curSymbol = { type: 'nonterminal', name, node }; // `node` this name just means a `payload`
     }
     // 状态栈
     const stateStack = [analyzer.dfa.startStateId];
@@ -110,10 +110,10 @@ function parseTokensLR1(tokens, analyzer) {
                 // 执行动作代码
                 const execAction = () => {
                     let actionCode = producer.action; // 动作代码
-                    actionCode = actionCode.substr(actionCode.indexOf('newNode'));
+                    let $$;
                     actionCode = actionCode.replace(/\$(\d+)/g, 'getDollar($1)');
-                    const node = eval(actionCode);
-                    setDollar2(analyzer.getLHS(producer) + '_DOLLAR2', node.node);
+                    eval(actionCode);
+                    setDollar2(analyzer.getLHS(producer) + '_DOLLAR2', $$.node);
                 };
                 execAction();
                 // 查表逻辑

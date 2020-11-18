@@ -108,7 +108,7 @@ export function parseTokensLR1(tokens: Token[], analyzer: LR1Analyzer): ASTNode 
    * @param literal 所要存储的$$的值
    */
   function setDollar2(name: string, node: ASTNode) {
-    curSymbol = { type: 'nonterminal', name, node }
+    curSymbol = { type: 'nonterminal', name, node } // `node` this name just means a `payload`
   }
 
   // 状态栈
@@ -137,10 +137,10 @@ export function parseTokensLR1(tokens: Token[], analyzer: LR1Analyzer): ASTNode 
         // 执行动作代码
         const execAction = () => {
           let actionCode = producer.action // 动作代码
-          actionCode = actionCode.substr(actionCode.indexOf('newNode'))
+          let $$: any
           actionCode = actionCode.replace(/\$(\d+)/g, 'getDollar($1)')
-          const node = eval(actionCode) as SymbolStackElement
-          setDollar2(analyzer.getLHS(producer) + '_DOLLAR2', node.node)
+          eval(actionCode)
+          setDollar2(analyzer.getLHS(producer) + '_DOLLAR2', $$.node)
         }
         execAction()
         // 查表逻辑
