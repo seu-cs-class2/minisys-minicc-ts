@@ -65,7 +65,7 @@ function parseTokensLR1(tokens, analyzer) {
     // 属性值栈
     const literalStack = [];
     let curRhsLen = 0;
-    let curLiteral = { name: '', literal: '' };
+    let curLiteral;
     /**
      * 以Token的形式获取当前归约产生式右侧符号的属性值
      * @param num 符号在产生式右侧的序号，例如取$2则num传2
@@ -95,13 +95,22 @@ function parseTokensLR1(tokens, analyzer) {
                 stateStack.push(table[stateStack.slice(-1)[0]][symbol].target);
                 return symbol;
             case 'reduce':
-                let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target];
+                const producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target];
                 curRhsLen = producer.rhs.length;
                 curLiteral = literalStack.slice(-curRhsLen)[0];
+                // context
+                function newNode(name, ...args) {
+                    console.log(name);
+                    console.log(args.join('|'));
+                    return name + '__NODE';
+                }
                 const execAction = () => {
                     // TODO: 在此添加动作代码的执行逻辑
-                    const actionCode = producer.action; // 动作代码
-                    // TODO: 请gl添加获取$i的操作、保存$$的操作接口
+                    let actionCode = producer.action; // 动作代码
+                    actionCode = actionCode.substr(5);
+                    actionCode = actionCode.replace(/\$(\d+)/g, 'getLiteral($1)');
+                    let node = eval(actionCode);
+                    setLiteral(node);
                     console.log(analyzer.formatPrintProducer(producer));
                 };
                 execAction();

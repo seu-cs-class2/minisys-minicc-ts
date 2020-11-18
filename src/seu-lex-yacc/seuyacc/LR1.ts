@@ -153,6 +153,11 @@ export class LR1Analyzer {
     return lhs + ' -> ' + rhs
   }
 
+  getLHS(producer: LR1Producer) {
+    const lhs = this._symbols[producer.lhs].content
+    return lhs
+  }
+
   /**
    * 预先计算各符号的FIRST集（不动点法）
    */
@@ -241,9 +246,7 @@ export class LR1Analyzer {
           assert(id != -1, `Symbol not found in symbols. This error should never occur. symbol=${tmp}`)
           rhs.push(id)
         }
-        this._producers.push(
-          new LR1Producer(lhs, rhs, `${stringProducer.actions[index]}`)
-        )
+        this._producers.push(new LR1Producer(lhs, rhs, `${stringProducer.actions[index]}`))
       }
     }
   }
