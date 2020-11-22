@@ -6,14 +6,16 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.parseTokensLR1 = exports.WHITESPACE_SYMBOL_ID = void 0;
+const AST_1 = require("../ir/AST");
 const utils_1 = require("../seu-lex-yacc/utils");
 exports.WHITESPACE_SYMBOL_ID = -10;
 /**
- * 语法分析
+ * 进行基于LR1的语法分析，返回语法树根节点
  */
 function parseTokensLR1(tokens, analyzer) {
     // 预处理
     utils_1.assert(tokens.every(v => v.name !== utils_1.UNMATCH_TOKENNAME), 'Token序列中存在未匹配的非法符号');
+    tokens = tokens.filter(v => v.name !== utils_1.WHITESPACE_TOKENNAME);
     // Token编号表，Token名->Token编号
     const tokenIds = (function () {
         let map = new Map();
@@ -62,25 +64,25 @@ function parseTokensLR1(tokens, analyzer) {
         }
         return table;
     })();
-    // 属性值栈
-    const literalStack = [];
+    // 属性值处理逻辑
+    const symbolStack = [];
     let curRhsLen = 0;
-    let curLiteral = { name: '', literal: '' };
+    let curSymbol;
     /**
      * 以Token的形式获取当前归约产生式右侧符号的属性值
      * @param num 符号在产生式右侧的序号，例如取$2则num传2
      */
-    function getLiteral(num) {
+    function getDollar(num) {
         utils_1.assert(num > 0 && num <= curRhsLen, `动作代码中存在错误的属性值引用：$${num}`);
-        return literalStack.slice(num - curRhsLen - 1)[0];
+        return symbolStack.slice(num - curRhsLen - 1)[0];
     }
     /**
      * 暂存当前产生式左侧符号的属性值（即$$）
      * 调用该函数后不会立刻改变属性值栈，而是在完成此次归约后真正存储
      * @param literal 所要存储的$$的值
      */
-    function setLiteral(literal) {
-        curLiteral = { name: 'nonterminal', literal: literal };
+    function setDollar2(name, node) {
+        curSymbol = { type: 'nonterminal', name, node }; // `node` this name just means a `payload`
     }
     // 状态栈
     const stateStack = [analyzer.dfa.startStateId];
@@ -90,24 +92,34 @@ function parseTokensLR1(tokens, analyzer) {
             return symbol;
         switch (table[stateStack.slice(-1)[0]][symbol].action) {
             case 'shift':
-                literalStack.push(tokens[symbol]);
+                const prevToken = tokens[currentTokenIndex - 1];
+                symbolStack.push({
+                    type: 'token',
+                    name: prevToken.name,
+                    node: new AST_1.ASTNode(prevToken.name, 'token', prevToken.literal),
+                });
             case 'nonterminal':
                 stateStack.push(table[stateStack.slice(-1)[0]][symbol].target);
                 return symbol;
             case 'reduce':
-                let producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target];
+                const producer = analyzer.producers[table[stateStack.slice(-1)[0]][symbol].target];
                 curRhsLen = producer.rhs.length;
-                curLiteral = literalStack.slice(-curRhsLen)[0];
+                curSymbol = symbolStack.slice(-curRhsLen)[0];
+                // 准备动作代码执行的上下文
+                const newNode = AST_1.$newNode;
+                // 执行动作代码
                 const execAction = () => {
-                    // TODO: 在此添加动作代码的执行逻辑
-                    const actionCode = producer.action; // 动作代码
-                    // TODO: 请gl添加获取$i的操作、保存$$的操作接口
-                    console.log(analyzer.formatPrintProducer(producer));
+                    let actionCode = producer.action; // 动作代码
+                    let $$;
+                    actionCode = actionCode.replace(/\$(\d+)/g, 'getDollar($1)');
+                    eval(actionCode);
+                    setDollar2(analyzer.getLHS(producer) + '_DOLLAR2', $$.node);
                 };
                 execAction();
+                // 查表逻辑
                 while (curRhsLen--)
-                    stateStack.pop(), literalStack.pop();
-                literalStack.push(curLiteral);
+                    stateStack.pop(), symbolStack.pop();
+                symbolStack.push(curSymbol);
                 return producer.lhs;
             case 'acc':
                 return -1;
@@ -123,13 +135,15 @@ function parseTokensLR1(tokens, analyzer) {
     while (token) {
         let ret = dealWith(token);
         while (token != ret) {
-            if (ret == -1)
-                return true;
+            if (ret == -1) {
+                utils_1.assert(symbolStack.length == 1, 'acc时符号栈元素过多。');
+                return symbolStack[0].node;
+            }
             dealWith(ret);
             ret = dealWith(token);
         }
         token = tokenIds.get(_yylex().name);
     }
-    return false;
+    return null;
 }
 exports.parseTokensLR1 = parseTokensLR1;

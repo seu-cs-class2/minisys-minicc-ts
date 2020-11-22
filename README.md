@@ -44,11 +44,11 @@
 
   - [ ] 从 LR0 构造 LALR
 
-  - [ ] 动作代码的执行（AST 的构造）
+  - [x] 动作代码的执行（AST 的构造）
 
-    *请查看 `src\parser\ParseLR1.ts` 的 TODO*
+    *已完成基于 LR1 的部分*
 
-  - [ ] AST 可视化
+  - [x] AST 可视化
 
 - 中间代码生成
 
