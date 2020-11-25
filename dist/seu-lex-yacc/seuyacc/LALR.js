@@ -341,7 +341,7 @@ class LALRAnalyzer {
                 for (let lookahead of lookaheadTable[idx1][idx2])
                     items.push(new Grammar_1.LALRItem(item.rawProducer, item.producer, lookahead, item.dotPosition));
             });
-            this._dfa.addState(new Grammar_1.LALRState(items));
+            this._dfa.addState(this.CLOSURE(new Grammar_1.LALRState(items)));
         });
         this._lr0dfa.adjList.forEach((records, idx) => {
             records.forEach(({ to, alpha }) => {
