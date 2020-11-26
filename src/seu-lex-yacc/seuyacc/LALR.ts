@@ -7,26 +7,36 @@
 import {
   GrammarSymbol,
   LALRDFA,
-  LALRItem,
   LALROperator,
   LALRProducer,
   LALRState,
   LR0DFA,
   LR0Item,
   LR0State,
-  LR1Item,
+  LALRItem,
   SpSymbol,
 } from './Grammar'
 import { LR0Analyzer } from './LR0'
+import { ProgressBar } from '../enhance/progressbar'
+import * as fs from 'fs'
+
+export type ACTIONTableCell = {
+  type: 'shift' | 'reduce' | 'acc' | 'none'
+  data: number // state or producer
+}
 
 export class LALRAnalyzer {
   private _symbols: GrammarSymbol[]
   private _operators: LALROperator[]
   private _producers: LALRProducer[]
   private _startSymbol: number
-  private _lr0Analyzer: LR0Analyzer
-  private _lr0dfa: LR0DFA
+  private _lr0Analyzer!: LR0Analyzer
+  private _lr0dfa!: LR0DFA
   private _dfa!: LALRDFA
+  private _ACTIONTable!: ACTIONTableCell[][]
+  private _GOTOTable!: number[][]
+  private _ACTIONReverseLookup!: number[]
+  private _GOTOReverseLookup!: number[]
   private _first: number[][]
   private _epsilon!: number
 
@@ -102,19 +112,33 @@ export class LALRAnalyzer {
     this._epsilon = epsilon
   }
 
-  constructor(lr0Analyzer: LR0Analyzer) {
-    this._symbols = lr0Analyzer.symbols
-    this._producers = lr0Analyzer.producers
-    this._operators = lr0Analyzer.operators
-    this._lr0Analyzer = lr0Analyzer
-    this._lr0dfa = lr0Analyzer.dfa
-    this._startSymbol = lr0Analyzer.startSymbol
+  constructor(lr0Analyzer?: LR0Analyzer) {
+    this._symbols = []
+    this._producers = []
+    this._operators = []
+    this._ACTIONTable = []
+    this._GOTOTable = []
+    this._ACTIONReverseLookup = []
+    this._GOTOReverseLookup = []
     this._first = []
-    this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
-    console.log('[LALR] Computing FIRST set...')
-    this._preCalculateFIRST()
-    console.log('[LALR] Start LALR DFA construction...')
-    this._constructLALRDFA()
+    this._startSymbol = 0
+    this._first = []
+    if (lr0Analyzer) {
+      this._symbols = lr0Analyzer.symbols
+      this._producers = lr0Analyzer.producers
+      this._operators = lr0Analyzer.operators
+      this._lr0Analyzer = lr0Analyzer
+      this._lr0dfa = lr0Analyzer.dfa
+      this._startSymbol = lr0Analyzer.startSymbol
+      this._first = []
+      this._epsilon = this._getSymbolId(SpSymbol.EPSILON)
+      console.log('[LALR] Computing FIRST set...')
+      this._preCalculateFIRST()
+      console.log('[LALR] Start LALR DFA construction...')
+      this._constructLALRDFA()
+      console.log('[LALR] Start LALR ACTIONGOTOTable construction...')
+      this._constructACTIONGOTOTable()
+    }
   }
 
   _getNext(state: LR0State, symbol: GrammarSymbol) {
@@ -235,7 +259,7 @@ export class LALRAnalyzer {
         }
         // for FIRST(βa)中的每个终结符号b
         for (let lookahead of newLookaheads) {
-          let newItem = new LR1Item(extendProducer, this._producers.indexOf(extendProducer), lookahead)
+          let newItem = new LALRItem(extendProducer, this._producers.indexOf(extendProducer), lookahead)
           if (res.items.some(item => LALRItem.same(item, newItem))) continue // 重复的情况不再添加，避免出现一样的Item
           allItemsOfI.every(item => !LALRItem.same(item, newItem)) && allItemsOfI.push(newItem) // 继续扩展
           res.addItem(newItem)
@@ -246,51 +270,7 @@ export class LALRAnalyzer {
   }
 
   /**
-   * 求取GOTO(I, X)
-   */
-  private GOTO_LR0(I: LR0State, X: number) {
-    let J = new LR0State([])
-    for (let item of I.items) {
-      // for I中的每一个项
-      if (item.dotAtLast()) continue
-      if (this._producers[item.producer].rhs[item.dotPosition] === X) {
-        J.addItem(LR0Item.copy(item, true))
-      }
-    }
-    return this.CLOSURE_LR0(J)
-  }
-
-  /**
-   * 求取CLOSURE（LR0）
-   * 龙书图4-32
-   */
-  private CLOSURE_LR0(I: LR0State) {
-    let J = LR0State.copy(I)
-    while (true) {
-      let lenBefore = J.items.length
-      // for J中的每一个项A→α`Bβ
-      for (let oneItemOfJ of J.items) {
-        if (oneItemOfJ.dotAtLast()) continue // 点号到最后，不能扩展
-        let currentSymbol = this._producers[oneItemOfJ.producer].rhs[oneItemOfJ.dotPosition]
-        if (!this._symbolTypeIs(currentSymbol, 'nonterminal')) continue // 非终结符打头才有CLOSURE
-        // for G中的每个产生式B→γ
-        let extendProducers = []
-        for (let producerInG of this._producers) producerInG.lhs === currentSymbol && extendProducers.push(producerInG) // 左手边是当前符号的，就可以作为扩展用
-        for (let extendProducer of extendProducers) {
-          let newItem = new LR0Item(extendProducer, this._producers.indexOf(extendProducer), 0)
-          // if 项B→`γ不在J中
-          J.items.every(item => !LR0Item.same(item, newItem)) && J.addItem(newItem)
-        }
-      }
-      let lenAfter = J.items.length
-      if (lenBefore === lenAfter) break
-    }
-    return J
-  }
-
-  /**
    * 从LR0构造LALR
-   * // FIXME
    * 龙书算法4.63
    */
   _constructLALRDFA() {
@@ -363,9 +343,6 @@ export class LALRAnalyzer {
       }
     }
 
-    // console.log(propRules)
-    // console.log(lookaheadTable)
-
     // 3) 不动点法进行传播
     while (true) {
       let unfix = false
@@ -396,4 +373,230 @@ export class LALRAnalyzer {
       })
     })
   }
+
+  /**
+   * 求取GOTO(I, X)
+   * 见龙书算法4.53
+   */
+  private GOTO(I: LALRState, X: number) {
+    let J = new LALRState([])
+    for (let item of I.items) {
+      // for I中的每一个项
+      if (item.dotAtLast()) continue
+      if (this._producers[item.producer].rhs[item.dotPosition] === X) {
+        J.addItem(LALRItem.copy(item, true))
+      }
+    }
+    return this.CLOSURE(J)
+  }
+
+  /**
+   * 生成语法分析表
+   * 见龙书算法4.56
+   */
+  private _constructACTIONGOTOTable() {
+    let dfaStates = this._dfa.states
+    // 初始化ACTIONTable
+    for (let i = 0; i < dfaStates.length; i++) {
+      let row: ACTIONTableCell[] = []
+      for (let j = 0; j < this._symbols.length; j++) {
+        if (this._symbolTypeIs(j, 'nonterminal')) continue
+        row.push({ type: 'none', data: -1 })
+      }
+      this._ACTIONTable.push(row)
+    }
+    // 初始化GOTOTable
+    for (let i = 0; i < dfaStates.length; i++) {
+      let row = []
+      for (let j = 0; j < this._symbols.length; j++) {
+        this._symbolTypeIs(j, 'nonterminal') && row.push(-1) // GOTO nowhere
+      }
+      this._GOTOTable.push(row)
+    }
+    // 初始化倒查表（由于前两个函数通过continue的方式排除不合适的符号，造成编号的错乱，故需要两张倒查表）
+    // FIXME: 这个解决方式有亿点点蠢
+    for (let j = 0; j < this._symbols.length; j++) {
+      !this._symbolTypeIs(j, 'nonterminal') && this._ACTIONReverseLookup.push(j)
+      this._symbolTypeIs(j, 'nonterminal') && this._GOTOReverseLookup.push(j)
+    }
+    // ===========================
+    // ===== 填充ACTIONTable =====
+    // ===========================
+    let lookup = Array.prototype.indexOf.bind(this._ACTIONReverseLookup)
+    let pb = new ProgressBar()
+    // 在该过程中，我们强制处理了所有冲突，保证文法是LR(1)的
+    for (let i = 0; i < dfaStates.length; i++) {
+      pb.render({ completed: i, total: dfaStates.length })
+      // 处理移进的情况
+      // ① [A->α`aβ, b], GOTO(Ii, a) = Ij, ACTION[i, a] = shift(j)
+      for (let item of dfaStates[i].items) {
+        if (item.dotAtLast()) continue // 没有aβ
+        let a = this._producers[item.producer].rhs[item.dotPosition]
+        if (this._symbolTypeIs(a, 'nonterminal')) continue
+        let goto = this.GOTO(dfaStates[i], a)
+        for (let j = 0; j < dfaStates.length; j++)
+          if (LALRState.same(goto, dfaStates[j])) {
+            this._ACTIONTable[i][lookup(a)] = { type: 'shift', data: j }
+          }
+      }
+      // 处理规约的情况
+      // ② [A->α`, a], A!=S', ACTION[i, a] = reduce(A->α)
+      for (let item of dfaStates[i].items) {
+        if (!item.dotAtLast()) continue // 点到最后才可能规约
+        if (item.producer === this._producers.length - 1) continue // 增广产生式也不处理
+        if (this._symbolTypeIs(item.lookahead, 'nonterminal')) continue // 展望非终结符的归GOTO表管
+        let shouldReplace = false
+        if (this._ACTIONTable[i][lookup(item.lookahead)].type === 'shift') {
+          // 处理移进-规约冲突
+          // 展望符的优先级就是移进的优先级
+          let shiftOperator = this._operators.find(x => x.symbolId == item.lookahead)
+          let shiftPrecedence = shiftOperator?.precedence as number
+          // 最后一个终结符的优先级就是规约的优先级
+          let reduceOperator
+          for (let i = item.dotPosition - 1; i >= 0; i--) {
+            let symbol = this._producers[item.producer].rhs[i]
+            if (!this._symbolTypeIs(symbol, 'nonterminal')) {
+              reduceOperator = this._operators.find(x => x.symbolId == symbol)
+              break
+            }
+          }
+          let reducePrecedence = reduceOperator?.precedence as number
+          if (!reduceOperator || !shiftOperator || reducePrecedence == -1 || shiftPrecedence == -1) {
+            // 没有完整地定义优先级，就保持原有的移进
+          } else {
+            if (reducePrecedence == shiftPrecedence) {
+              if (reduceOperator.assoc == 'left')
+                // 同级的运算符必然具备相同的结合性（因为在.y同一行声明）
+                shouldReplace = true // 左结合就规约
+            } else if (reducePrecedence > shiftPrecedence) {
+              shouldReplace = true // 规约优先级更高，替换为规约
+            }
+          }
+        } else if (this._ACTIONTable[i][lookup(item.lookahead)].type === 'reduce') {
+          // 处理规约-规约冲突，越早定义的产生式优先级越高
+          // 不可能出现同级产生式
+          if (this._ACTIONTable[i][lookup(item.lookahead)].data < item.producer) {
+            shouldReplace = true
+          }
+        } else {
+          // 没有冲突
+          this._ACTIONTable[i][lookup(item.lookahead)] = { type: 'reduce', data: item.producer } // 使用item.producer号产生式规约
+        }
+        if (shouldReplace) {
+          this._ACTIONTable[i][lookup(item.lookahead)] = { type: 'reduce', data: item.producer } // 使用item.producer号产生式规约
+        }
+      }
+      // 处理接受的情况
+      // ③ [S'->S`, $], ACTION[i, $] = acc
+      for (let item of dfaStates[i].items) {
+        if (
+          item.producer === this._producers.length - 1 &&
+          item.dotAtLast() &&
+          item.lookahead === this._getSymbolId(SpSymbol.END)
+        ) {
+          this._ACTIONTable[i][lookup(this._getSymbolId(SpSymbol.END))] = { type: 'acc', data: 0 }
+        }
+      }
+    }
+    // ===========================
+    // ====== 填充GOTOTable ======
+    // ===========================
+    lookup = Array.prototype.indexOf.bind(this._GOTOReverseLookup)
+    for (let i = 0; i < dfaStates.length; i++)
+      for (let A = 0; A < this._symbols.length; A++)
+        for (let j = 0; j < dfaStates.length; j++)
+          if (LALRState.same(this.GOTO(dfaStates[i], A), dfaStates[j])) this._GOTOTable[i][lookup(A)] = j
+  }
+
+  /**
+   * 序列化保存LALRAnalyzer
+   */
+  dump(desc: string, savePath: string) {
+    // @ts-ignore
+    let obj: any = { desc }
+    // symbols
+    obj['symbols'] = this._symbols
+    // operators
+    obj['operators'] = this._operators
+    // producers
+    obj['producers'] = this._producers
+    // startSymbol
+    obj['startSymbol'] = this._startSymbol
+    // LALRDFA
+    obj['dfa'] = this._dfa
+    // ACTIONTable
+    obj['ACTIONTable'] = this._ACTIONTable
+    // GOTOTable
+    obj['GOTOTable'] = this._GOTOTable
+    // Reverse Lookup
+    obj['ACTIONReverseLookup'] = this._ACTIONReverseLookup
+    obj['GOTOReverseLookup'] = this._GOTOReverseLookup
+    // first
+    obj['first'] = this._first
+    // epsilon
+    obj['epsilon'] = this._epsilon
+    fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
+  }
+
+  /**
+   * 加载导出的LALRAnalyzer
+   */
+  static load(dumpPath: string) {
+    const obj = JSON.parse(fs.readFileSync(dumpPath).toString()) as LALRDumpObject
+    const lalr = new LALRAnalyzer(void 'empty')
+    // symbols
+    lalr._symbols = obj.symbols
+    // operators
+    obj.operators.forEach(operator => {
+      // @ts-ignore
+      lalr._operators.push(new LALROperator(operator._symbolId, operator._assoc, operator._precedence))
+    })
+    // producers
+    obj.producers.forEach(producer => {
+      // @ts-ignore
+      lalr._producers.push(new LALRProducer(producer._lhs, producer._rhs, producer._action))
+    })
+    // startSymbol
+    lalr._startSymbol = obj.startSymbol
+    // dfa
+    // @ts-ignore
+    lalr._dfa = new LALRDFA(obj.dfa._startStateId)
+    // @ts-ignore
+    obj.dfa._states.forEach(state => {
+      lalr._dfa.addState(state)
+    })
+    // @ts-ignore
+    obj.dfa._adjList.forEach((records, i) => {
+      records.forEach(record => {
+        lalr._dfa.link(i, record.to, record.alpha)
+      })
+    })
+    // ACTIONTable
+    lalr._ACTIONTable = obj.ACTIONTable
+    // GOTOTable
+    lalr._GOTOTable = obj.GOTOTable
+    // Reverse Lookup
+    lalr._ACTIONReverseLookup = obj.ACTIONReverseLookup
+    lalr._GOTOReverseLookup = obj.GOTOReverseLookup
+    // first
+    lalr._first = obj.first
+    // epsilon
+    lalr._epsilon = obj.epsilon
+    return lalr
+  }
+}
+
+export type LALRDumpObject = {
+  desc: string
+  symbols: GrammarSymbol[]
+  operators: LALROperator[]
+  producers: LALRProducer[]
+  startSymbol: number
+  dfa: LALRDFA
+  ACTIONTable: ACTIONTableCell[][]
+  GOTOTable: number[][]
+  ACTIONReverseLookup: number[]
+  GOTOReverseLookup: number[]
+  first: number[][]
+  epsilon: number
 }

@@ -25,7 +25,7 @@
 %%
 
 program
-	: decl_list	{ _YYASTRoot = newNode('program', $1); }
+	: decl_list	{ $$ = newNode('program', $1); }
 	;
 
 decl_list
@@ -113,7 +113,7 @@ local_decls
 
 local_decl
 	: type_spec IDENTIFIER SEMICOLON { $$ = newNode('local_decl', $1, $2); }
-	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON { $$ = newNode('local_decl', ) }
+	| type_spec IDENTIFIER LBRACKET CONSTANT RBRACKET SEMICOLON { $$ = newNode('local_decl', $1, $2, $4); }
 	;
 
 return_stmt
@@ -141,8 +141,8 @@ expr
 	| DOLLAR expr { $$ = newNode('expr', $1, $2); }
 	| LPAREN expr RPAREN { $$ = newNode('expr', $2); }
 	| IDENTIFIER { $$ = newNode('expr', $1); }
-	| IDENTIFIER LBRACKET expr RBRACKET { $$ = newNode('expr', $1, $3, 'arr?'); }
-	| IDENTIFIER LPAREN args RPAREN { $$ = newNode('exprt', $1, $3, 'func?'); }
+	| IDENTIFIER LBRACKET expr RBRACKET { $$ = newNode('expr', $1, $3, 'arr'); }
+	| IDENTIFIER LPAREN args RPAREN { $$ = newNode('expr', $1, $3, 'func'); }
 	| CONSTANT { $$ = newNode('expr', $1); }
 	| expr BITAND_OP expr { $$ = newNode('expr', $1, $2, $3); }
 	| expr BITXOR_OP expr { $$ = newNode('expr', $1, $2, $3); }

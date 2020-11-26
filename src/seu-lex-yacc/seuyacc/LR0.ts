@@ -79,7 +79,7 @@ export class LR0Analyzer {
           rhs.push(id)
         }
         this._producers.push(
-          new LR0Producer(lhs, rhs, `reduceTo("${stringProducer.lhs}"); \n${stringProducer.actions[index]}`)
+          new LR0Producer(lhs, rhs, `${stringProducer.actions[index]}`)
         )
       }
     }
