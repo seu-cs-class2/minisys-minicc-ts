@@ -111,10 +111,26 @@ class LALRAnalyzer {
     set epsilon(epsilon) {
         this._epsilon = epsilon;
     }
+    get ACTIONTable() {
+        return this._ACTIONTable;
+    }
+    get GOTOTable() {
+        return this._GOTOTable;
+    }
+    get ACTIONReverseLookup() {
+        return this._ACTIONReverseLookup;
+    }
+    get GOTOReverseLookup() {
+        return this._GOTOReverseLookup;
+    }
     _getNext(state, symbol) {
         const alpha = this._getSymbolId(symbol);
         const target = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].findIndex(x => x.alpha === alpha);
         return target;
+    }
+    getLHS(producer) {
+        const lhs = this._symbols[producer.lhs].content;
+        return lhs;
     }
     /**
      * 获取编号后的符号的编号

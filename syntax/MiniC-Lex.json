@@ -1,5 +1,5 @@
 {
-  "desc": "Generated from MiniC @ 11/17/2020",
+  "desc": "Generated from MiniC @ 11/26/2020",
   "alphabet": [
     "/",
     "[any]",
@@ -51025,7 +51025,7 @@
     {
       "accpetStateIndex": 93,
       "action": {
-        "code": "return(COMMENT);",
+        "code": "return(_COMMENT);",
         "order": 0
       }
     },
@@ -51739,14 +51739,14 @@
     {
       "accpetStateIndex": 196,
       "action": {
-        "code": "return(COMMENT);",
+        "code": "return(_COMMENT);",
         "order": 0
       }
     },
     {
       "accpetStateIndex": 197,
       "action": {
-        "code": "return(COMMENT);",
+        "code": "return(_COMMENT);",
         "order": 0
       }
     },

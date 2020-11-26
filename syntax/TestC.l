@@ -6,7 +6,7 @@ L			[a-zA-Z_]
 %}
 
 %%
-"//"(.*)(\n)?  { return(COMMENT); }
+"//"(.*)(\n)?  { return(_COMMENT); }
 "auto"			{ return(AUTO); }
 "break"			{ return(BREAK); }
 "case"			{ return(CASE); }

@@ -62,9 +62,10 @@ export function cookString(str: string): string {
   })
   return ret
 }
-// _WHITESPACE, _UNMATCH
+// _WHITESPACE, _UNMATCH, _COMMENT
 export const WHITESPACE_TOKENNAME = '_WHITESPACE'
 export const UNMATCH_TOKENNAME = '_UNMATCH'
+export const COMMENT_TOKENNAME = '_COMMENT'
 
 /**
  * Ensure `condition`. Else throw Error `hint`.

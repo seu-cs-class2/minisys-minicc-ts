@@ -1,5 +1,5 @@
 {
-  "desc": "Generated from TestC @ 11/18/2020",
+  "desc": "Generated from TestC @ 11/26/2020",
   "alphabet": [
     "/",
     "[any]",
@@ -105823,7 +105823,7 @@
     {
       "accpetStateIndex": 94,
       "action": {
-        "code": "return(COMMENT);",
+        "code": "return(_COMMENT);",
         "order": 0
       }
     },
@@ -106803,14 +106803,14 @@
     {
       "accpetStateIndex": 331,
       "action": {
-        "code": "return(COMMENT);",
+        "code": "return(_COMMENT);",
         "order": 0
       }
     },
     {
       "accpetStateIndex": 332,
       "action": {
-        "code": "return(COMMENT);",
+        "code": "return(_COMMENT);",
         "order": 0
       }
     },

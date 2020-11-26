@@ -1,9 +1,5 @@
-# re-generate MiniC-Lex.json and MiniC-Parse.json using seu-lex-yacc
-
-MemoryToUse=4096
-
 echo "--- Start generating MiniC-Lex.json"
-node --inspect --max_old_space_size=${MemoryToUse} ../dist/lexer/Generate.js
-echo "--- Start generating MiniC-Parse.json"
-node --inspect --max_old_space_size=${MemoryToUse} ../dist/parser/Generate.js
+node ../dist/lexer/Generate.js ../syntax/MiniC.l ../syntax
+echo "--- Start generating MiniC-LALRParse.json"
+node ../dist/parser/GenerateLALR.js ../syntax/MiniC.y ../syntax
 echo "--- re-generate work done"

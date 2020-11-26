@@ -112,6 +112,19 @@ export class LALRAnalyzer {
     this._epsilon = epsilon
   }
 
+  get ACTIONTable() {
+    return this._ACTIONTable
+  }
+  get GOTOTable() {
+    return this._GOTOTable
+  }
+  get ACTIONReverseLookup() {
+    return this._ACTIONReverseLookup
+  }
+  get GOTOReverseLookup() {
+    return this._GOTOReverseLookup
+  }
+
   constructor(lr0Analyzer?: LR0Analyzer) {
     this._symbols = []
     this._producers = []
@@ -145,6 +158,11 @@ export class LALRAnalyzer {
     const alpha = this._getSymbolId(symbol)
     const target = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].findIndex(x => x.alpha === alpha)
     return target
+  }
+
+  getLHS(producer: LALRProducer) {
+    const lhs = this._symbols[producer.lhs].content
+    return lhs
   }
 
   /**
