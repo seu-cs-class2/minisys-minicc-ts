@@ -49,7 +49,7 @@ type_spec
 	;
 
 fun_decl
-	: type_spec IDENTIFIER LPAREN params RPAREN LBRACE local_decls stmt_list RBRACE { $$ = newNode('fun_decl', $1, $4, $7, $8); }
+	: type_spec IDENTIFIER LPAREN params RPAREN LBRACE local_decls stmt_list RBRACE { $$ = newNode('fun_decl', $1, $2, $4, $7, $8); }
 	;
 
 params
@@ -68,6 +68,7 @@ param
 
 stmt_list
 	: stmt_list stmt { $$ = newNode('stmt_list', $1, $2); }
+	| stmt { $$ = newNode('stmt_list', $1); }
 	;
 
 stmt
@@ -101,14 +102,15 @@ break_stmt
 	;
 
 expr_stmt
-	: IDENTIFIER ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3); }
-	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3, $5); }
-	| DOLLAR expr ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $2, $4); }
+	: IDENTIFIER ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $2, $3); }
+	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3, $5, $6); }
+	| DOLLAR expr ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $2, $3, $4); }
 	| IDENTIFIER LPAREN args RPAREN SEMICOLON { $$ = newNode('expr_stmt', $1, $3); }
 	;
 
 local_decls
 	: local_decls local_decl { $$ = newNode('local_decls', $1, $2); }
+	| local_decl { $$ = newNode('local_decls', $1); }
 	;
 
 local_decl
@@ -139,10 +141,10 @@ expr
 	| MINUS expr { $$ = newNode('expr', $1, $2); }
 	| PLUS expr { $$ = newNode('expr', $1, $2); }
 	| DOLLAR expr { $$ = newNode('expr', $1, $2); }
-	| LPAREN expr RPAREN { $$ = newNode('expr', $2); }
+	| LPAREN expr RPAREN { $$ = newNode('expr', $1, $2, $3); }
 	| IDENTIFIER { $$ = newNode('expr', $1); }
-	| IDENTIFIER LBRACKET expr RBRACKET { $$ = newNode('expr', $1, $3, 'arr'); }
-	| IDENTIFIER LPAREN args RPAREN { $$ = newNode('expr', $1, $3, 'func'); }
+	| IDENTIFIER LBRACKET expr RBRACKET { $$ = newNode('expr', $1, $3); }
+	| IDENTIFIER LPAREN args RPAREN { $$ = newNode('expr', $1, $3); }
 	| CONSTANT { $$ = newNode('expr', $1); }
 	| expr BITAND_OP expr { $$ = newNode('expr', $1, $2, $3); }
 	| expr BITXOR_OP expr { $$ = newNode('expr', $1, $2, $3); }
