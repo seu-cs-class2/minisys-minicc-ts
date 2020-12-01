@@ -516,7 +516,25 @@ export class LR1Analyzer {
     lr1._dfa = new LR1DFA(obj.dfa._startStateId)
     // @ts-ignore
     obj.dfa._states.forEach(state => {
-      lr1._dfa.addState(state)
+      const itemsCopy: LR1Item[] = []
+      // @ts-ignore
+      state._items.forEach(item => {
+        // @ts-ignore
+        itemsCopy.push(
+          new LR1Item(
+            // @ts-ignore
+            new LR1Producer(item._rawProducer._lhs, item._rawProducer._rhs, item._rawProducer._action),
+            // @ts-ignore
+            item._producer,
+            // @ts-ignore
+            item._lookahead,
+            // @ts-ignore
+            item._dotPosition
+          )
+        )
+      })
+      const stateCopy = new LR1State(itemsCopy)
+      lr1._dfa.addState(stateCopy)
     })
     // @ts-ignore
     obj.dfa._adjList.forEach((records, i) => {

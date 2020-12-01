@@ -128,6 +128,14 @@ class LALRAnalyzer {
         const target = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].findIndex(x => x.alpha === alpha);
         return target;
     }
+    /**
+     * 格式化打印产生式
+     */
+    formatPrintProducer(producer) {
+        const lhs = this._symbols[producer.lhs].content;
+        const rhs = producer.rhs.map(this.getSymbolString, this).join(' ');
+        return lhs + ' -> ' + rhs;
+    }
     getLHS(producer) {
         const lhs = this._symbols[producer.lhs].content;
         return lhs;
@@ -547,7 +555,22 @@ class LALRAnalyzer {
         lalr._dfa = new Grammar_1.LALRDFA(obj.dfa._startStateId);
         // @ts-ignore
         obj.dfa._states.forEach(state => {
-            lalr._dfa.addState(state);
+            const itemsCopy = [];
+            // @ts-ignore
+            state._items.forEach(item => {
+                // @ts-ignore
+                itemsCopy.push(new Grammar_1.LALRItem(
+                // @ts-ignore
+                new Grammar_1.LALRProducer(item._rawProducer._lhs, item._rawProducer._rhs, item._rawProducer._action), 
+                // @ts-ignore
+                item._producer, 
+                // @ts-ignore
+                item._lookahead, 
+                // @ts-ignore
+                item._dotPosition));
+            });
+            const stateCopy = new Grammar_1.LALRState(itemsCopy);
+            lalr._dfa.addState(stateCopy);
         });
         // @ts-ignore
         obj.dfa._adjList.forEach((records, i) => {

@@ -108,10 +108,10 @@ function parseTokensLALR(tokens, analyzer) {
                 curSymbol = symbolStack.slice(-curRhsLen)[0];
                 // 准备动作代码执行的上下文
                 const newNode = AST_1.$newNode;
+                let $$;
                 // 执行动作代码
                 const execAction = () => {
                     let actionCode = producer.action; // 动作代码
-                    let $$;
                     actionCode = actionCode.replace(/\$(\d+)/g, 'getDollar($1)');
                     eval(actionCode);
                     setDollar2(analyzer.getLHS(producer) + '_DOLLAR2', $$.node);
