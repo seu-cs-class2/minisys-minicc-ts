@@ -28,36 +28,30 @@
 
   - [x] 改造 seulex，在 TypeScript 内完成词法分析
 
-    *见 `src\lexer\Lex.ts`*
-
   - [x] DFA 序列化功能
 
 - 语法分析
 
   - [x] 改造 seuyacc，在 TypeScript 内完成语法分析
 
-    *已完成 LR1 部分，见 `src\parser\ParseLR1.ts`*
-
   - [x] 分析表序列化功能
-
-    *已完成 LR1 部分*
 
   - [x] 从 LR0 构造 LALR
 
   - [x] 动作代码的执行（AST 的构造）
-
-    *已完成基于 LR1 的部分*
 
   - [x] AST 可视化
 
 - 中间代码生成
 
   - [ ] 从 AST 到 IR 的转换
+
   - [ ] IR 的优化
 
 - 目标代码生成
 
   - [ ] 从 IR 到 ASM 的转换
+
   - [ ] ASM 的优化
 
 ## 文档
