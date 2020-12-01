@@ -1,6 +1,6 @@
 /**
  * DFA（确定有限状态自动机）
- * 2020-05 @ https://github.com/Withod/seu-lex-yacc
+ * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 
 import { FiniteAutomata, State, SpAlpha, getSpAlpha, Action, Transform } from './FA'

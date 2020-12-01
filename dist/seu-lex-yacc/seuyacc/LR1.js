@@ -140,6 +140,9 @@ class LR1Analyzer {
         const rhs = producer.rhs.map(this.getSymbolString, this).join(' ');
         return lhs + ' -> ' + rhs;
     }
+    /**
+     * 取左手边
+     */
     getLHS(producer) {
         const lhs = this._symbols[producer.lhs].content;
         return lhs;

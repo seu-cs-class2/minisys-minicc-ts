@@ -64,15 +64,27 @@ class ItemBase {
     get rawProducer() {
         return this._rawProducer;
     }
+    /**
+     * 点号是否在最后
+     */
     dotAtLast() {
         return this._dotPosition === this._rawProducer.rhs.length;
     }
+    /**
+     * 点号移进
+     */
     dotGo() {
         this._dotPosition += 1;
     }
+    /**
+     * 深拷贝
+     */
     static copy(item, dotGo = false) {
         return new ItemBase(item._rawProducer, item._producer, item._dotPosition + (dotGo ? 1 : 0));
     }
+    /**
+     * 判断相同
+     */
     static same(i1, i2) {
         return i1._dotPosition === i2._dotPosition && i1._producer === i2._producer;
     }
@@ -84,15 +96,27 @@ class StateBase {
     get items() {
         return this._items;
     }
+    /**
+     * 添加item
+     */
     addItem(item) {
         this._items.push(item);
     }
+    /**
+     * 强制修改items
+     */
     forceSetItems(items) {
         this._items = [...items];
     }
+    /**
+     * 深拷贝
+     */
     static copy(state) {
         return new StateBase(state._items.map(x => ItemBase.copy(x)));
     }
+    /**
+     * 判断相同
+     */
     static same(s1, s2) {
         return (s1._items.every(x => s2._items.some(y => ItemBase.same(x, y))) &&
             s2._items.every(x => s1._items.some(y => ItemBase.same(x, y))));
@@ -116,10 +140,16 @@ class DFABase {
     get adjList() {
         return this._adjList;
     }
+    /**
+     * 添加state
+     */
     addState(state) {
         this._states.push(state);
         this._adjList.push([]);
     }
+    /**
+     * 建边
+     */
     link(from, to, alpha) {
         this._adjList[from].push({ to, alpha });
     }
@@ -173,9 +203,15 @@ class LR1Item extends ItemBase {
     get lookahead() {
         return this._lookahead;
     }
+    /**
+     * 深拷贝
+     */
     static copy(item, go = false) {
         return new LR1Item(item._rawProducer, item._producer, item._lookahead, item._dotPosition + (go ? 1 : 0));
     }
+    /**
+     * 判断相同
+     */
     static same(i1, i2) {
         return i1._dotPosition === i2._dotPosition && i1._lookahead === i2._lookahead && i1._producer === i2._producer;
     }
@@ -192,15 +228,27 @@ class LR1State extends StateBase {
     get items() {
         return this._items;
     }
+    /**
+     * 添加item
+     */
     addItem(item) {
         super.addItem(item);
     }
+    /**
+     * 强制修改items
+     */
     forceSetItems(items) {
         super.forceSetItems(items);
     }
+    /**
+     * 深拷贝
+     */
     static copy(state) {
         return new LR1State(state._items.map(x => LR1Item.copy(x)));
     }
+    /**
+     * 判断相同
+     */
     static same(s1, s2) {
         return (s1._items.every(x => s2._items.some(y => LR1Item.same(x, y))) &&
             s2._items.every(x => s1._items.some(y => LR1Item.same(x, y))));
@@ -217,6 +265,9 @@ class LR1DFA extends DFABase {
     get states() {
         return this._states;
     }
+    /**
+     * 添加state
+     */
     addState(state) {
         super.addState(state);
     }

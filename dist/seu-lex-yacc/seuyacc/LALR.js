@@ -123,6 +123,9 @@ class LALRAnalyzer {
     get GOTOReverseLookup() {
         return this._GOTOReverseLookup;
     }
+    /**
+     * 在state下接收到symbol能到达的目标状态
+     */
     _getNext(state, symbol) {
         const alpha = this._getSymbolId(symbol);
         const target = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].findIndex(x => x.alpha === alpha);
@@ -136,11 +139,17 @@ class LALRAnalyzer {
         const rhs = producer.rhs.map(this.getSymbolString, this).join(' ');
         return lhs + ' -> ' + rhs;
     }
+    /**
+     * 打印某状态
+     */
     watchState(stateIdx) {
         const prods = this.dfa.states[stateIdx].items.map(v => this.formatPrintProducer(this.producers[v.producer]));
         this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i] + ` [${this.getSymbolString(v.lookahead)}]`));
         return prods.join('\n');
     }
+    /**
+     * 取左手边
+     */
     getLHS(producer) {
         const lhs = this._symbols[producer.lhs].content;
         return lhs;
@@ -161,6 +170,9 @@ class LALRAnalyzer {
     _symbolTypeIs(id, type) {
         return this._symbols[id].type === type;
     }
+    /**
+     * 取符号字面
+     */
     getSymbolString(id) {
         return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content;
     }

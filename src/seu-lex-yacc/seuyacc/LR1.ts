@@ -153,6 +153,9 @@ export class LR1Analyzer {
     return lhs + ' -> ' + rhs
   }
 
+  /**
+   * 取左手边 
+   */
   getLHS(producer: LR1Producer) {
     const lhs = this._symbols[producer.lhs].content
     return lhs

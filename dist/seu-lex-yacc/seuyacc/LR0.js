@@ -158,6 +158,9 @@ class LR0Analyzer {
         }
         return J;
     }
+    /**
+     * 取符号字面
+     */
     getSymbolString(id) {
         return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content;
     }

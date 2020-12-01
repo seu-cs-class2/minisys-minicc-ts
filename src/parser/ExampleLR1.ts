@@ -16,8 +16,8 @@ int main(void) {
   func(a, c);
 }
 `
-const lexDFA = DFA.fromFile(path.join(__dirname, '../../syntax/MiniC-Lex.json'))
+const lexDFA = DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'))
 const tokens = lexSourceCode(CCode, lexDFA)
-const lr1 = LR1Analyzer.load(path.join(__dirname, '../../syntax/MiniMiniC-LR1Parse.json'))
+const lr1 = LR1Analyzer.load(path.join(__dirname, '../../syntax/MiniMiniC/MiniMiniC-LR1Parse.json'))
 const final = parseTokensLR1(tokens, lr1) as ASTNode
 visualizeAST(final)

@@ -154,6 +154,9 @@ export class LALRAnalyzer {
     }
   }
 
+  /**
+   * 在state下接收到symbol能到达的目标状态 
+   */
   _getNext(state: LR0State, symbol: GrammarSymbol) {
     const alpha = this._getSymbolId(symbol)
     const target = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].findIndex(x => x.alpha === alpha)
@@ -169,12 +172,18 @@ export class LALRAnalyzer {
     return lhs + ' -> ' + rhs
   }
 
+  /**
+   * 打印某状态
+   */
   watchState(stateIdx: number) {
     const prods = this.dfa.states[stateIdx].items.map(v => this.formatPrintProducer(this.producers[v.producer]))
     this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i] + ` [${this.getSymbolString(v.lookahead)}]`))
     return prods.join('\n')
   }
 
+  /**
+   * 取左手边
+   */
   getLHS(producer: LALRProducer) {
     const lhs = this._symbols[producer.lhs].content
     return lhs
@@ -200,6 +209,9 @@ export class LALRAnalyzer {
     return this._symbols[id].type === type
   }
 
+  /**
+   * 取符号字面
+   */
   getSymbolString(id: number) {
     return this._symbolTypeIs(id, 'ascii') ? `'${this._symbols[id].content}'` : this._symbols[id].content
   }

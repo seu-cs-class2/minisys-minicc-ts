@@ -1,7 +1,5 @@
 "use strict";
 // 词法分析使用示例
-// 1 - 空白符的Token名为_WHITESPACE
-// 2 - 非法符号的Token名为_UNMATCH
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
@@ -22,18 +20,22 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+// *** 预置Token名说明 ***
+// 1 - 空白符的Token名为_WHITESPACE
+// 2 - 非法符号的Token名为_UNMATCH
+// 3 - 注释的Token名为_COMMENT
 const Lex_1 = require("./Lex");
 const DFA_1 = require("../seu-lex-yacc/seulex/DFA");
 const path = __importStar(require("path"));
 const CCode = String.raw `
 int main() {
   int a = 10;
-  int b = 100; // change = to # to get an UNMATCH
+  int b = 100; // change = to # to get UNMATCH
   float c = a + b / 2.5;
   printf("\2f", c);
   return 0;
 }
 `;
-const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC-Lex.json'));
+const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'));
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
 console.log(tokens);

@@ -1,6 +1,7 @@
 "use strict";
 /**
  * 语法树相关
+ *
  * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {

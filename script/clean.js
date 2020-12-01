@@ -27,4 +27,4 @@ fs.writeFileSync(path.join(__dirname, '../src/seu-lex-yacc/enhance/FAVisualizer/
 fs.writeFileSync(path.join(__dirname, '../src/seu-lex-yacc/enhance/TableVisualizer/data.js'), '')
 fs.writeFileSync(path.join(__dirname, '../src/ir/ASTVisualizer/data.js'), '')
 
-console.log('Clean task finished.')
+process.stdout.write('Clean task finished. \n')

@@ -1,6 +1,6 @@
 "use strict";
 /**
- * 从.y文件生成序列化的LR1Analyzer
+ * 从.y文件生成序列化的LALRAnalyzer
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
@@ -30,9 +30,9 @@ const LR0_1 = require("../seu-lex-yacc/seuyacc/LR0");
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const args = require('minimist')(process.argv.slice(2));
 // args looks like { _: [ 'example/md.l' ], v: true }
-utils_1.assert(args._.length == 2, '[usage]: node GenerateLR1.js <path_to_.y> <path_output>');
+utils_1.assert(args._.length == 2, '[usage]: node GenerateLALR.js <path_to_.y> <path_output>');
 const dotYPath = args._[0];
 const dotYName = path.basename(dotYPath).replace('.y', '');
 const outJSONPath = args._[1];
-const lr1 = new LALR_1.LALRAnalyzer(new LR0_1.LR0Analyzer(new YaccParser_1.YaccParser(dotYPath)));
-lr1.dump(`Generated from ${dotYName} @ ${new Date().toLocaleDateString()}`, path.join(outJSONPath, dotYName + '-LALRParse.json'));
+const lalr = new LALR_1.LALRAnalyzer(new LR0_1.LR0Analyzer(new YaccParser_1.YaccParser(dotYPath)));
+lalr.dump(`Generated from ${dotYName} @ ${new Date().toLocaleDateString()}`, path.join(outJSONPath, dotYName + '-LALRParse.json'));

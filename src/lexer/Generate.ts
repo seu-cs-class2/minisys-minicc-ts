@@ -12,6 +12,7 @@ import { assert } from '../seu-lex-yacc/utils'
 const args = require('minimist')(process.argv.slice(2))
 // args looks like { _: [ 'example/md.l' ], v: true }
 assert(args._.length == 2, '[usage]: node Generate.js <path_to_.l> <path_output>')
+
 const dotLPath = args._[0]
 const dotLName = path.basename(dotLPath).replace('.l', '')
 const outJSONPath = args._[1]

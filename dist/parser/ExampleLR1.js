@@ -35,8 +35,8 @@ int main(void) {
   func(a, c);
 }
 `;
-const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC-Lex.json'));
+const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'));
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
-const lr1 = LR1_1.LR1Analyzer.load(path.join(__dirname, '../../syntax/MiniMiniC-LR1Parse.json'));
+const lr1 = LR1_1.LR1Analyzer.load(path.join(__dirname, '../../syntax/MiniMiniC/MiniMiniC-LR1Parse.json'));
 const final = ParseLR1_1.parseTokensLR1(tokens, lr1);
 AST_1.visualizeAST(final);

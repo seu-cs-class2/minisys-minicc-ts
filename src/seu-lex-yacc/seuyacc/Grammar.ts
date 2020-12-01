@@ -84,7 +84,6 @@ class ItemBase {
   get dotPosition() {
     return this._dotPosition
   }
-
   get rawProducer() {
     return this._rawProducer
   }
@@ -93,15 +92,27 @@ class ItemBase {
     this._producer = producer
     this._dotPosition = dotPosition
   }
+  /**
+   * 点号是否在最后
+   */
   dotAtLast() {
     return this._dotPosition === this._rawProducer.rhs.length
   }
+  /**
+   * 点号移进
+   */
   dotGo() {
     this._dotPosition += 1
   }
+  /**
+   * 深拷贝 
+   */
   static copy(item: ItemBase, dotGo = false) {
     return new ItemBase(item._rawProducer, item._producer, item._dotPosition + (dotGo ? 1 : 0))
   }
+  /**
+   * 判断相同
+   */
   static same(i1: ItemBase, i2: ItemBase) {
     return i1._dotPosition === i2._dotPosition && i1._producer === i2._producer
   }
@@ -115,15 +126,27 @@ class StateBase {
   get items() {
     return this._items
   }
+  /**
+   * 添加item
+   */
   addItem(item: ItemBase) {
     this._items.push(item)
   }
+  /**
+   * 强制修改items
+   */
   forceSetItems(items: ItemBase[]) {
     this._items = [...items]
   }
+  /**
+   * 深拷贝
+   */
   static copy(state: StateBase) {
     return new StateBase(state._items.map(x => ItemBase.copy(x)))
   }
+  /**
+   * 判断相同
+   */
   static same(s1: StateBase, s2: StateBase) {
     return (
       s1._items.every(x => s2._items.some(y => ItemBase.same(x, y))) &&
@@ -148,10 +171,16 @@ class DFABase {
   get adjList() {
     return this._adjList
   }
+  /**
+   * 添加state
+   */
   addState(state: StateBase) {
     this._states.push(state)
     this._adjList.push([])
   }
+  /**
+   * 建边 
+   */
   link(from: number, to: number, alpha: number) {
     this._adjList[from].push({ to, alpha })
   }
@@ -216,9 +245,15 @@ export class LR1Item extends ItemBase {
     super(rawProducer, producer, dotPosition)
     this._lookahead = lookahead
   }
+  /**
+   * 深拷贝
+   */
   static copy(item: LR1Item, go = false) {
     return new LR1Item(item._rawProducer, item._producer, item._lookahead, item._dotPosition + (go ? 1 : 0))
   }
+  /**
+   * 判断相同
+   */
   static same(i1: LR1Item, i2: LR1Item) {
     return i1._dotPosition === i2._dotPosition && i1._lookahead === i2._lookahead && i1._producer === i2._producer
   }
@@ -236,15 +271,27 @@ export class LR1State extends StateBase {
   get items() {
     return this._items
   }
+  /**
+   * 添加item
+   */
   addItem(item: LR1Item) {
     super.addItem(item)
   }
+  /**
+   * 强制修改items
+   */
   forceSetItems(items: LR1Item[]) {
     super.forceSetItems(items)
   }
+  /**
+   * 深拷贝
+   */
   static copy(state: LR1State) {
     return new LR1State(state._items.map(x => LR1Item.copy(x)))
   }
+  /**
+   * 判断相同
+   */
   static same(s1: LR1State, s2: LR1State) {
     return (
       s1._items.every(x => s2._items.some(y => LR1Item.same(x, y))) &&
@@ -261,6 +308,9 @@ export class LR1DFA extends DFABase {
   get states() {
     return this._states
   }
+  /**
+   * 添加state
+   */
   addState(state: LR1State) {
     super.addState(state)
   }

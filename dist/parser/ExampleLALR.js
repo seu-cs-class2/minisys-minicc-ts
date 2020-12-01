@@ -36,10 +36,10 @@ int main(void) {
   return 0;
 }
 `;
-const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC-Lex.json'));
+const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'));
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
 console.log(tokens.filter(v => v.name != utils_1.WHITESPACE_TOKENNAME));
-const lalr = LALR_1.LALRAnalyzer.load(path.join(__dirname, '../../syntax/MiniC-LALRParse.json'));
+const lalr = LALR_1.LALRAnalyzer.load(path.join(__dirname, '../../syntax/MiniC/MiniC-LALRParse.json'));
 console.log(lalr.watchState(24));
 const final = ParseLALR_1.parseTokensLALR(tokens, lalr);
 // visualizeAST(final)

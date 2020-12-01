@@ -2,8 +2,9 @@
 /**
  * 借助 DFA 对源代码进行词法分析
  * 2020-10 @ https://github.com/seu-cs-class2/minisys-minicc-ts
- * --- 我们删掉了 Lex 生成 C 代码的行为，转而直接借助 DFA 完成词法分析
- * --- 要求 .l 文件的动作代码必须形如 { return (TOKEN_NAME); }
+ * - 我们删掉了 Lex 生成 C 代码的行为，转而直接借助 DFA 完成词法分析
+ * - 要求 .l 文件的动作代码必须形如 { return (TOKEN_NAME); }
+ * - 无需手动处理yytext
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.lexSourceCode = void 0;
@@ -123,7 +124,7 @@ function lexSourceCode(code, dfa) {
     // 手动添加END Token
     tokens.push({
         name: 'SP_END',
-        literal: ''
+        literal: '',
     });
     return tokens;
 }

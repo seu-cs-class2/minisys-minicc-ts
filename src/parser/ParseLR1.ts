@@ -98,7 +98,7 @@ export function parseTokensLR1(tokens: Token[], analyzer: LR1Analyzer): ASTNode 
    * 以Token的形式获取当前归约产生式右侧符号的属性值
    * @param num 符号在产生式右侧的序号，例如取$2则num传2
    */
-  function getDollar(num: number) {
+  function $getDollar(num: number) {
     assert(num > 0 && num <= curRhsLen, `动作代码中存在错误的属性值引用：$${num}`)
     return symbolStack.slice(num - curRhsLen - 1)[0]
   }
@@ -134,10 +134,11 @@ export function parseTokensLR1(tokens: Token[], analyzer: LR1Analyzer): ASTNode 
         curSymbol = symbolStack.slice(-curRhsLen)[0]
         // 准备动作代码执行的上下文
         const newNode = $newNode
+        const getDollar = $getDollar
+        let $$: any
         // 执行动作代码
         const execAction = () => {
           let actionCode = producer.action // 动作代码
-          let $$: any
           actionCode = actionCode.replace(/\$(\d+)/g, 'getDollar($1)')
           eval(actionCode)
           setDollar2(analyzer.getLHS(producer) + '_DOLLAR2', $$.node)
