@@ -26,7 +26,7 @@ const path = __importStar(require("path"));
 const LALR_1 = require("../seu-lex-yacc/seuyacc/LALR");
 const ParseLALR_1 = require("./ParseLALR");
 const CCode = String.raw `
-int main() {
+int main(void) {
   int a = 10;
   int b = 100;
   func(a, c);
@@ -37,9 +37,6 @@ const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC-Lex.j
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
 console.log(tokens);
 const lalr = LALR_1.LALRAnalyzer.load(path.join(__dirname, '../../syntax/MiniC-LALRParse.json'));
-// console.dir(lalr.dfa.states[11], { depth: null })
-// console.log(lalr.dfa.states[11])
-// console.log(lalr.dfa.states[11].items)
-// console.log(lalr.dfa.states[11].items.map(v => lalr.formatPrintProducer(lalr.producers[v.producer])).join('\n'))
+console.log(lalr.watchState(24));
 const final = ParseLALR_1.parseTokensLALR(tokens, lalr);
 // visualizeAST(final)

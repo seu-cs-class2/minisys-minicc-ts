@@ -169,6 +169,12 @@ export class LALRAnalyzer {
     return lhs + ' -> ' + rhs
   }
 
+  watchState(stateIdx: number) {
+    const prods = this.dfa.states[stateIdx].items.map(v => this.formatPrintProducer(this.producers[v.producer]))
+    this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i]))
+    return prods.join('\n')
+  }
+
   getLHS(producer: LALRProducer) {
     const lhs = this._symbols[producer.lhs].content
     return lhs

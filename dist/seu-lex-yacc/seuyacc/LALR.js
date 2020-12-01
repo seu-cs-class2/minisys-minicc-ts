@@ -136,6 +136,11 @@ class LALRAnalyzer {
         const rhs = producer.rhs.map(this.getSymbolString, this).join(' ');
         return lhs + ' -> ' + rhs;
     }
+    watchState(stateIdx) {
+        const prods = this.dfa.states[stateIdx].items.map(v => this.formatPrintProducer(this.producers[v.producer]));
+        this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i]));
+        return prods.join('\n');
+    }
     getLHS(producer) {
         const lhs = this._symbols[producer.lhs].content;
         return lhs;
