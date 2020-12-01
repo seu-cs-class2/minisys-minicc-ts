@@ -111,9 +111,9 @@ SEU-LEX-YACC 是东南大学计算机学院的《编译原理课程设计》，�
 
   构造 LR0 DFA。主要目的是支持 LR0 到 LALR 的快速构造法。
 
-- LALR.ts **[WIP]**
+- LALR.ts
 
-  从 LR0 DFA 构造 LALR DFA 和分析表。这种方法的效率更高。此处代码仍在调试中。
+  从 LR0 DFA 构造 LALR DFA 和分析表。这种方法的效率更高。
 
 - Visualizer.ts
 
