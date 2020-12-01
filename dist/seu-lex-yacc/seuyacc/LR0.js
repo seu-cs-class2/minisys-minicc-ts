@@ -188,7 +188,7 @@ class LR0Analyzer {
         while (this._symbols.some(symbol => symbol.content === newStartSymbolContent))
             newStartSymbolContent += "'";
         this._symbols.push({ type: 'nonterminal', content: newStartSymbolContent });
-        this._producers.push(new Grammar_1.LR0Producer(this._symbols.length - 1, [this._startSymbol], `$$ = $1; reduceTo("${newStartSymbolContent}");`));
+        this._producers.push(new Grammar_1.LR0Producer(this._symbols.length - 1, [this._startSymbol], `$$ = $1;`));
         this._startSymbol = this._symbols.length - 1;
         let initProducer = this._producersOf(this._startSymbol)[0];
         let I0 = this.CLOSURE(new Grammar_1.LR0State([new Grammar_1.LR0Item(initProducer, this._producers.indexOf(initProducer))]));

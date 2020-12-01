@@ -1,5 +1,5 @@
 {
-  "desc": "Generated from TestC @ 11/26/2020",
+  "desc": "Generated from TestC @ 12/1/2020",
   "symbols": [
     {
       "type": "ascii",
@@ -1108,7 +1108,7 @@
       "_rhs": [
         155
       ],
-      "_action": "$$ = $1; reduceTo(\"program'\");"
+      "_action": "$$ = $1;"
     }
   ],
   "startSymbol": 173,
@@ -1123,7 +1123,7 @@
               "_rhs": [
                 155
               ],
-              "_action": "$$ = $1; reduceTo(\"program'\");"
+              "_action": "$$ = $1;"
             },
             "_producer": 48,
             "_dotPosition": 0,
@@ -1487,7 +1487,7 @@
               "_rhs": [
                 155
               ],
-              "_action": "$$ = $1; reduceTo(\"program'\");"
+              "_action": "$$ = $1;"
             },
             "_producer": 48,
             "_dotPosition": 1,

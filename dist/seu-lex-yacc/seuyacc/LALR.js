@@ -138,7 +138,7 @@ class LALRAnalyzer {
     }
     watchState(stateIdx) {
         const prods = this.dfa.states[stateIdx].items.map(v => this.formatPrintProducer(this.producers[v.producer]));
-        this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i]));
+        this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i] + ` [${this.getSymbolString(v.lookahead)}]`));
         return prods.join('\n');
     }
     getLHS(producer) {
@@ -560,7 +560,7 @@ class LALRAnalyzer {
         lalr._dfa = new Grammar_1.LALRDFA(obj.dfa._startStateId);
         // @ts-ignore
         obj.dfa._states.forEach(state => {
-            const itemsCopy = [];
+            let itemsCopy = [];
             // @ts-ignore
             state._items.forEach(item => {
                 // @ts-ignore

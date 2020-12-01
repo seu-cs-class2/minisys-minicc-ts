@@ -27,15 +27,16 @@ const LR1_1 = require("../seu-lex-yacc/seuyacc/LR1");
 const ParseLR1_1 = require("./ParseLR1");
 const AST_1 = require("../ir/AST");
 const CCode = String.raw `
-int main() {
-  int a = 10;
-  int b = 100;
-  printf("\2f", c);
-  return 0;
+int main(void) {
+  int a;
+  int b;
+  a = 10;
+  b = 20;
+  func(a, c);
 }
 `;
-const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/TestC-Lex.json'));
+const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC-Lex.json'));
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
-const lr1 = LR1_1.LR1Analyzer.load(path.join(__dirname, '../../syntax/TestC-LR1Parse.json'));
+const lr1 = LR1_1.LR1Analyzer.load(path.join(__dirname, '../../syntax/MiniMiniC-LR1Parse.json'));
 const final = ParseLR1_1.parseTokensLR1(tokens, lr1);
 AST_1.visualizeAST(final);

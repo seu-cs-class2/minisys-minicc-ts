@@ -171,7 +171,7 @@ export class LALRAnalyzer {
 
   watchState(stateIdx: number) {
     const prods = this.dfa.states[stateIdx].items.map(v => this.formatPrintProducer(this.producers[v.producer]))
-    this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i]))
+    this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i] + ` [${this.getSymbolString(v.lookahead)}]`))
     return prods.join('\n')
   }
 
@@ -596,7 +596,7 @@ export class LALRAnalyzer {
     lalr._dfa = new LALRDFA(obj.dfa._startStateId)
     // @ts-ignore
     obj.dfa._states.forEach(state => {
-      const itemsCopy: LALRItem[] = []
+      let itemsCopy: LALRItem[] = []
       // @ts-ignore
       state._items.forEach(item => {
         // @ts-ignore

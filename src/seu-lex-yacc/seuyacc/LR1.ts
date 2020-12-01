@@ -260,7 +260,7 @@ export class LR1Analyzer {
     while (this._symbols.some(symbol => symbol.content === newStartSymbolContent)) newStartSymbolContent += "'"
     this._symbols.push({ type: 'nonterminal', content: newStartSymbolContent })
     this._producers.push(
-      new LR1Producer(this._symbols.length - 1, [this._startSymbol], `$$ = $1; reduceTo("${newStartSymbolContent}");`)
+      new LR1Producer(this._symbols.length - 1, [this._startSymbol], `$$ = $1;`)
     )
     this._startSymbol = this._symbols.length - 1
     let initProducer = this._producersOf(this._startSymbol)[0]

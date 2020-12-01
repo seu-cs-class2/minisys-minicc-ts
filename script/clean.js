@@ -25,5 +25,6 @@ fs.mkdirSync(DIST_PATH)
 // data.js
 fs.writeFileSync(path.join(__dirname, '../src/seu-lex-yacc/enhance/FAVisualizer/data.js'), '')
 fs.writeFileSync(path.join(__dirname, '../src/seu-lex-yacc/enhance/TableVisualizer/data.js'), '')
+fs.writeFileSync(path.join(__dirname, '../src/ir/ASTVisualizer/data.js'), '')
 
 console.log('Clean task finished.')
