@@ -20,11 +20,9 @@ int main(void) {
 `
 const lexDFA = DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'))
 const tokens = lexSourceCode(CCode, lexDFA)
-console.log(tokens.filter(v=>v.name != WHITESPACE_TOKENNAME))
+console.log(tokens.filter(v => v.name != WHITESPACE_TOKENNAME))
 
 const lalr = LALRAnalyzer.load(path.join(__dirname, '../../syntax/MiniC/MiniC-LALRParse.json'))
 
-console.log(lalr.watchState(24))
-
 const final = parseTokensLALR(tokens, lalr) as ASTNode
-// visualizeAST(final)
+visualizeAST(final)

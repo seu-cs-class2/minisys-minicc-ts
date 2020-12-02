@@ -23,6 +23,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const Lex_1 = require("../lexer/Lex");
 const DFA_1 = require("../seu-lex-yacc/seulex/DFA");
 const path = __importStar(require("path"));
+const AST_1 = require("../ir/AST");
 const LALR_1 = require("../seu-lex-yacc/seuyacc/LALR");
 const ParseLALR_1 = require("./ParseLALR");
 const utils_1 = require("../seu-lex-yacc/utils");
@@ -40,6 +41,5 @@ const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
 console.log(tokens.filter(v => v.name != utils_1.WHITESPACE_TOKENNAME));
 const lalr = LALR_1.LALRAnalyzer.load(path.join(__dirname, '../../syntax/MiniC/MiniC-LALRParse.json'));
-console.log(lalr.watchState(24));
 const final = ParseLALR_1.parseTokensLALR(tokens, lalr);
-// visualizeAST(final)
+AST_1.visualizeAST(final);
