@@ -26,7 +26,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visualizeGOTOGraph = exports.visualizeLR1ACTIONGOTOTable = void 0;
+exports.visualizeGOTOGraph = exports.visualizeLALRACTIONGOTOTable = exports.visualizeLR1ACTIONGOTOTable = void 0;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const childProcess = __importStar(require("child_process"));
@@ -90,6 +90,11 @@ function visualizeLR1ACTIONGOTOTable(analyzer, viewNow = true) {
     viewNow && childProcess.exec(`start ${path_1.default.join(VisualizerPath, './index.html')} `);
 }
 exports.visualizeLR1ACTIONGOTOTable = visualizeLR1ACTIONGOTOTable;
+function visualizeLALRACTIONGOTOTable(analyzer, viewNow = true) {
+    // @ts-ignore
+    visualizeLR1ACTIONGOTOTable(analyzer, viewNow);
+}
+exports.visualizeLALRACTIONGOTOTable = visualizeLALRACTIONGOTOTable;
 /**
  * 可视化GOTO图（自动机）
  */

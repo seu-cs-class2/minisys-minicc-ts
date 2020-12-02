@@ -128,7 +128,7 @@ class LALRAnalyzer {
      */
     _getNext(state, symbol) {
         const alpha = this._getSymbolId(symbol);
-        const target = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].findIndex(x => x.alpha === alpha);
+        const target = this._dfa.adjList[this._dfa.states.findIndex(v => Grammar_1.LALRState.same(v, state))].find(v => v.alpha == alpha).to;
         return target;
     }
     /**
@@ -397,6 +397,7 @@ class LALRAnalyzer {
      * 见龙书算法4.56
      */
     _constructACTIONGOTOTable() {
+        console.log('_constructACTIONGOTOTable');
         let dfaStates = this._dfa.states;
         // 初始化ACTIONTable
         for (let i = 0; i < dfaStates.length; i++) {
@@ -438,11 +439,10 @@ class LALRAnalyzer {
                 let a = this._producers[item.producer].rhs[item.dotPosition];
                 if (this._symbolTypeIs(a, 'nonterminal'))
                     continue;
-                let goto = this.GOTO(dfaStates[i], a);
+                let goto = this._dfa.states[this._getNext(dfaStates[i], this.symbols[a])];
                 for (let j = 0; j < dfaStates.length; j++)
-                    if (Grammar_1.LALRState.same(goto, dfaStates[j])) {
+                    if (Grammar_1.LALRState.same(goto, dfaStates[j]))
                         this._ACTIONTable[i][lookup(a)] = { type: 'shift', data: j };
-                    }
             }
             // 处理规约的情况
             // ② [A->α`, a], A!=S', ACTION[i, a] = reduce(A->α)

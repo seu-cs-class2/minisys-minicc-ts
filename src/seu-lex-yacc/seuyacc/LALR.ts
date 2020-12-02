@@ -155,11 +155,13 @@ export class LALRAnalyzer {
   }
 
   /**
-   * 在state下接收到symbol能到达的目标状态 
+   * 在state下接收到symbol能到达的目标状态
    */
-  _getNext(state: LR0State, symbol: GrammarSymbol) {
+  private _getNext(state: LALRState, symbol: GrammarSymbol) {
     const alpha = this._getSymbolId(symbol)
-    const target = this._lr0dfa.adjList[this._lr0dfa.states.indexOf(state)].findIndex(x => x.alpha === alpha)
+    const target = this._dfa.adjList[this._dfa.states.findIndex(v => LALRState.same(v, state))].find(
+      v => v.alpha == alpha
+    )!.to
     return target
   }
 
@@ -177,7 +179,9 @@ export class LALRAnalyzer {
    */
   watchState(stateIdx: number) {
     const prods = this.dfa.states[stateIdx].items.map(v => this.formatPrintProducer(this.producers[v.producer]))
-    this.dfa.states[stateIdx].items.forEach((v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i] + ` [${this.getSymbolString(v.lookahead)}]`))
+    this.dfa.states[stateIdx].items.forEach(
+      (v, i) => (prods[i] = `[${v.dotPosition}] ` + prods[i] + ` [${this.getSymbolString(v.lookahead)}]`)
+    )
     return prods.join('\n')
   }
 
@@ -440,6 +444,8 @@ export class LALRAnalyzer {
    * 见龙书算法4.56
    */
   private _constructACTIONGOTOTable() {
+    console.log('_constructACTIONGOTOTable')
+
     let dfaStates = this._dfa.states
     // 初始化ACTIONTable
     for (let i = 0; i < dfaStates.length; i++) {
@@ -478,11 +484,10 @@ export class LALRAnalyzer {
         if (item.dotAtLast()) continue // 没有aβ
         let a = this._producers[item.producer].rhs[item.dotPosition]
         if (this._symbolTypeIs(a, 'nonterminal')) continue
-        let goto = this.GOTO(dfaStates[i], a)
+        let goto = this._dfa.states[this._getNext(dfaStates[i], this.symbols[a])]
         for (let j = 0; j < dfaStates.length; j++)
-          if (LALRState.same(goto, dfaStates[j])) {
+          if (LALRState.same(goto, dfaStates[j])) 
             this._ACTIONTable[i][lookup(a)] = { type: 'shift', data: j }
-          }
       }
       // 处理规约的情况
       // ② [A->α`, a], A!=S', ACTION[i, a] = reduce(A->α)
