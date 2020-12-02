@@ -66,6 +66,11 @@ export function visualizeLR1ACTIONGOTOTable(analyzer: LR1Analyzer, viewNow = tru
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)
 }
 
+export function visualizeLALRACTIONGOTOTable(analyzer: LALRAnalyzer, viewNow = true) {
+  // @ts-ignore
+  visualizeLR1ACTIONGOTOTable(analyzer, viewNow)
+}
+
 /**
  * 可视化GOTO图（自动机）
  */
@@ -149,7 +154,10 @@ export function visualizeGOTOGraph(
   let dagreJSON = JSON.stringify(dumpObject, null, 2)
   const VisualizerPath = path.join(__dirname, '../enhance/FAVisualizer')
   const shape = 'rect'
-  fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`)
+  fs.writeFileSync(
+    path.join(VisualizerPath, './data.js'),
+    `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`
+  )
   // 启动浏览器显示
   viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `)
 }
