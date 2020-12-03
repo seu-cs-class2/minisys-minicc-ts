@@ -1,13 +1,135 @@
 /**
  * 语法树相关
- * 
+ *
  * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
 import * as path from 'path'
 import * as fs from 'fs'
 import * as childProcess from 'child_process'
-import { SymbolStackElement } from '../parser/ParseLR1'
+import { SymbolStackElement } from '../parser/ParseLALR'
+
+/**
+ * 变量结点
+ */
+export class VarNode {
+  private _name: string // 变量名
+  private _type: string // 变量类型
+
+  get name() {
+    return this._name
+  }
+  set name(v: string) {
+    this._name = v
+  }
+  get type() {
+    return this._type
+  }
+  set type(v: string) {
+    this._type = v
+  }
+
+  constructor(name: string, type: string) {
+    this._name = name
+    this._type = type
+  }
+}
+
+/**
+ * 函数结点
+ */
+export class FuncNode {
+  private _name: string // 函数名
+  private _retType: string // 函数返回值类型
+  private _paramList: VarNode[] // 形参列表
+
+  get name() {
+    return this._name
+  }
+  set name(v: string) {
+    this._name = v
+  }
+  get retType() {
+    return this._retType
+  }
+  set retType(v: string) {
+    this._retType = v
+  }
+  get paramList() {
+    return this._paramList
+  }
+  set paramList(v: VarNode[]) {
+    this._paramList = v
+  }
+
+  constructor(name: string, retType: string, paramList: VarNode[]) {
+    this._name = name
+    this._retType = retType
+    this._paramList = paramList
+  }
+}
+
+/**
+ * 块级作用域
+ */
+export class Block {
+  private _funcName: string
+  private _func?: FuncNode
+  private _forFunc: boolean
+  private _vars: Map<string, VarNode>
+  private _labelName: string
+  private _breakable: boolean
+
+  get func() {
+    return this._func
+  }
+  set func(v: FuncNode | undefined) {
+    this._func = v
+  }
+  get funcName() {
+    return this._funcName
+  }
+  set funcName(v: string) {
+    this._funcName = v
+  }
+  get forFunc() {
+    return this._forFunc
+  }
+  set forFunc(v: boolean) {
+    this._forFunc = v
+  }
+  get vars() {
+    return this._vars
+  }
+  get labelName() {
+    return this._labelName
+  }
+  set labelName(v: string) {
+    this._labelName = v
+  }
+  get breakable() {
+    return this._breakable
+  }
+  set breakable(v: boolean) {
+    this._breakable = v
+  }
+
+  constructor(
+    funcName: string,
+    forFunc: boolean,
+    func: FuncNode | undefined,
+    vars: Map<string, VarNode>,
+    labelName: string,
+    breakable: boolean
+  ) {
+    this._funcName = funcName
+    this._func = func
+    this._forFunc = forFunc
+    this._vars = vars
+    this._labelName = labelName
+    this._breakable = breakable
+  }
+}
 
 /**
  * 语法树结点

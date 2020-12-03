@@ -24,10 +24,108 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visualizeAST = exports.$newNode = exports.ASTNode = void 0;
+exports.visualizeAST = exports.$newNode = exports.ASTNode = exports.Block = exports.FuncNode = exports.VarNode = void 0;
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const childProcess = __importStar(require("child_process"));
+/**
+ * 变量结点
+ */
+class VarNode {
+    constructor(name, type) {
+        this._name = name;
+        this._type = type;
+    }
+    get name() {
+        return this._name;
+    }
+    set name(v) {
+        this._name = v;
+    }
+    get type() {
+        return this._type;
+    }
+    set type(v) {
+        this._type = v;
+    }
+}
+exports.VarNode = VarNode;
+/**
+ * 函数结点
+ */
+class FuncNode {
+    constructor(name, retType, paramList) {
+        this._name = name;
+        this._retType = retType;
+        this._paramList = paramList;
+    }
+    get name() {
+        return this._name;
+    }
+    set name(v) {
+        this._name = v;
+    }
+    get retType() {
+        return this._retType;
+    }
+    set retType(v) {
+        this._retType = v;
+    }
+    get paramList() {
+        return this._paramList;
+    }
+    set paramList(v) {
+        this._paramList = v;
+    }
+}
+exports.FuncNode = FuncNode;
+/**
+ * 块级作用域
+ */
+class Block {
+    constructor(funcName, forFunc, func, vars, labelName, breakable) {
+        this._funcName = funcName;
+        this._func = func;
+        this._forFunc = forFunc;
+        this._vars = vars;
+        this._labelName = labelName;
+        this._breakable = breakable;
+    }
+    get func() {
+        return this._func;
+    }
+    set func(v) {
+        this._func = v;
+    }
+    get funcName() {
+        return this._funcName;
+    }
+    set funcName(v) {
+        this._funcName = v;
+    }
+    get forFunc() {
+        return this._forFunc;
+    }
+    set forFunc(v) {
+        this._forFunc = v;
+    }
+    get vars() {
+        return this._vars;
+    }
+    get labelName() {
+        return this._labelName;
+    }
+    set labelName(v) {
+        this._labelName = v;
+    }
+    get breakable() {
+        return this._breakable;
+    }
+    set breakable(v) {
+        this._breakable = v;
+    }
+}
+exports.Block = Block;
 /**
  * 语法树结点
  */
