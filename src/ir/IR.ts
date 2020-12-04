@@ -38,4 +38,8 @@ export class Quad {
     this._arg2 = arg2
     this._res = res
   }
+
+  toString() {
+    return `(${this._op}, ${this._arg1}, ${this._arg2}, ${this._res})`
+  }
 }

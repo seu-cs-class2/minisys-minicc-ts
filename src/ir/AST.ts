@@ -15,6 +15,14 @@ import { SymbolStackElement } from '../parser/ParseLALR'
 export class VarNode {
   private _name: string // 变量名
   private _type: string // 变量类型
+  private _id: string
+
+  get id() {
+    return this._id
+  }
+  set id(v: string) {
+    this._id = v
+  }
 
   get name() {
     return this._name
@@ -29,9 +37,10 @@ export class VarNode {
     this._type = v
   }
 
-  constructor(name: string, type: string) {
+  constructor(name: string, type: string, id: string) {
     this._name = name
     this._type = type
+    this._id = id
   }
 }
 
@@ -72,14 +81,26 @@ export class FuncNode {
 /**
  * 块级作用域
  */
+type BlockType = 'func' | 'compound'
 export class Block {
-  private _funcName: string
+  private _type: BlockType
+  private _vars: Map<string, VarNode> // 局部变量
+  // 函数信息
   private _func?: FuncNode
-  private _forFunc: boolean
-  private _vars: Map<string, VarNode>
-  private _labelName: string
-  private _breakable: boolean
+  private _funcName?: string
+  // compound statement信息
+  private _label?: string
+  private _breakable?: boolean
 
+  get type() {
+    return this._type
+  }
+  set type(v: BlockType) {
+    this._type = v
+  }
+  get vars() {
+    return this._vars
+  }
   get func() {
     return this._func
   }
@@ -89,44 +110,43 @@ export class Block {
   get funcName() {
     return this._funcName
   }
-  set funcName(v: string) {
+  set funcName(v: string | undefined) {
     this._funcName = v
   }
-  get forFunc() {
-    return this._forFunc
+  get label() {
+    return this._label
   }
-  set forFunc(v: boolean) {
-    this._forFunc = v
-  }
-  get vars() {
-    return this._vars
-  }
-  get labelName() {
-    return this._labelName
-  }
-  set labelName(v: string) {
-    this._labelName = v
+  set label(v: string | undefined) {
+    this._label = v
   }
   get breakable() {
     return this._breakable
   }
-  set breakable(v: boolean) {
+  set breakable(v: boolean | undefined) {
     this._breakable = v
   }
 
-  constructor(
-    funcName: string,
-    forFunc: boolean,
-    func: FuncNode | undefined,
+  static newFunc(funcName: string, func: FuncNode) {
+    return new Block('func', new Map(), funcName, func, void 0, void 0)
+  }
+
+  static newCompound(label: string, breakable: boolean) {
+    return new Block('compound', new Map(), void 0, void 0, label, breakable)
+  }
+
+  private constructor(
+    type: BlockType,
     vars: Map<string, VarNode>,
-    labelName: string,
-    breakable: boolean
+    funcName: string | undefined,
+    func: FuncNode | undefined,
+    label: string | undefined,
+    breakable: boolean | undefined
   ) {
-    this._funcName = funcName
-    this._func = func
-    this._forFunc = forFunc
+    this._type = type
     this._vars = vars
-    this._labelName = labelName
+    this._func = func
+    this._funcName = funcName
+    this._label = label
     this._breakable = breakable
   }
 }
@@ -174,6 +194,13 @@ export class ASTNode {
 
   addChild(node: ASTNode) {
     this._children.push(node)
+  }
+
+  fit(rhs: string) {
+    const seq = rhs.trim().split(' ')
+    if (seq.length == this._children.length)
+      for (let i = 0; i < seq.length; i++) if (seq[i] != this._children[i]._name) return false
+    return true
   }
 }
 
