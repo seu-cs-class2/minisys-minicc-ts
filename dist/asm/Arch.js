@@ -1,9 +1,12 @@
 "use strict";
 /**
  * Minisys架构相关
+ * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.registerNames = void 0;
 // prettier-ignore
-const registerNames = [
+exports.registerNames = [
     'zero', 'at',
     'v0', 'v1',
     'a0', 'a1', 'a2', 'a3',

@@ -11,6 +11,7 @@ exports.visualizeAST = exports.$newNode = exports.ASTNode = void 0;
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const child_process_1 = __importDefault(require("child_process"));
+const utils_1 = require("../seu-lex-yacc/utils");
 /**
  * 语法树结点
  */
@@ -56,11 +57,25 @@ class ASTNode {
      */
     match(rhs) {
         const seq = rhs.trim().split(' ');
-        if (seq.length == this._children.length)
-            for (let i = 0; i < seq.length; i++)
+        if (seq.length == this._children.length) {
+            for (let i = 0; i < seq.length; i++) {
                 if (seq[i] != this._children[i]._name)
                     return false;
+            }
+        }
+        else {
+            return false;
+        }
         return true;
+    }
+    /**
+     * one-based
+     * !!! 注意
+     * 这里取的是结点的children，取决于newNode时留了哪些参数，并不一定和产生式中相同
+     */
+    $(i) {
+        utils_1.assert(i <= this.children.length, `$i超出范围：${i} out-of ${this.children.length}`);
+        return this._children[i - 1];
     }
 }
 exports.ASTNode = ASTNode;

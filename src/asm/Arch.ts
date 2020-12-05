@@ -1,9 +1,10 @@
 /**
  * Minisys架构相关
+ * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
 // prettier-ignore
-const registerNames = [
+export const registerNames = [
   'zero', 'at',
   'v0', 'v1',
   'a0', 'a1', 'a2', 'a3',
