@@ -1,131 +1,16 @@
 "use strict";
 /**
  * 语法树相关
- *
  * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.visualizeAST = exports.$newNode = exports.ASTNode = exports.Block = exports.FuncNode = exports.VarNode = void 0;
-const path = __importStar(require("path"));
-const fs = __importStar(require("fs"));
-const childProcess = __importStar(require("child_process"));
-/**
- * 变量结点
- */
-class VarNode {
-    constructor(name, type) {
-        this._name = name;
-        this._type = type;
-    }
-    get name() {
-        return this._name;
-    }
-    set name(v) {
-        this._name = v;
-    }
-    get type() {
-        return this._type;
-    }
-    set type(v) {
-        this._type = v;
-    }
-}
-exports.VarNode = VarNode;
-/**
- * 函数结点
- */
-class FuncNode {
-    constructor(name, retType, paramList) {
-        this._name = name;
-        this._retType = retType;
-        this._paramList = paramList;
-    }
-    get name() {
-        return this._name;
-    }
-    set name(v) {
-        this._name = v;
-    }
-    get retType() {
-        return this._retType;
-    }
-    set retType(v) {
-        this._retType = v;
-    }
-    get paramList() {
-        return this._paramList;
-    }
-    set paramList(v) {
-        this._paramList = v;
-    }
-}
-exports.FuncNode = FuncNode;
-/**
- * 块级作用域
- */
-class Block {
-    constructor(funcName, forFunc, func, vars, labelName, breakable) {
-        this._funcName = funcName;
-        this._func = func;
-        this._forFunc = forFunc;
-        this._vars = vars;
-        this._labelName = labelName;
-        this._breakable = breakable;
-    }
-    get func() {
-        return this._func;
-    }
-    set func(v) {
-        this._func = v;
-    }
-    get funcName() {
-        return this._funcName;
-    }
-    set funcName(v) {
-        this._funcName = v;
-    }
-    get forFunc() {
-        return this._forFunc;
-    }
-    set forFunc(v) {
-        this._forFunc = v;
-    }
-    get vars() {
-        return this._vars;
-    }
-    get labelName() {
-        return this._labelName;
-    }
-    set labelName(v) {
-        this._labelName = v;
-    }
-    get breakable() {
-        return this._breakable;
-    }
-    set breakable(v) {
-        this._breakable = v;
-    }
-}
-exports.Block = Block;
+exports.visualizeAST = exports.$newNode = exports.ASTNode = void 0;
+const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const child_process_1 = __importDefault(require("child_process"));
 /**
  * 语法树结点
  */
@@ -160,13 +45,27 @@ class ASTNode {
     set children(val) {
         this._children = Array.from(val);
     }
+    /**
+     * 添加子节点
+     */
     addChild(node) {
         this._children.push(node);
+    }
+    /**
+     * 判断子节点name可匹配某串
+     */
+    match(rhs) {
+        const seq = rhs.trim().split(' ');
+        if (seq.length == this._children.length)
+            for (let i = 0; i < seq.length; i++)
+                if (seq[i] != this._children[i]._name)
+                    return false;
+        return true;
     }
 }
 exports.ASTNode = ASTNode;
 /**
- * .y语义动作执行中用到的创建非终结符的ASTNode的方法
+ * 创建非终结符的ASTNode (语义动作执行用)
  */
 function $newNode(name, ...args) {
     const node = new ASTNode(name, 'nonterminal', name);
@@ -213,10 +112,10 @@ function visualizeAST(astRoot, viewNow = true) {
     }
     // 计算布局并导出
     let dagreJSON = JSON.stringify(dumpObject, null, 2);
-    const VisualizerPath = path.join(__dirname, './ASTVisualizer');
+    const VisualizerPath = path_1.default.join(__dirname, './ASTVisualizer');
     const shape = 'rect';
-    fs.writeFileSync(path.join(VisualizerPath, './data.js'), `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`);
+    fs_1.default.writeFileSync(path_1.default.join(VisualizerPath, './data.js'), `window._seulexyacc_shape = '${shape}'; var data = ${dagreJSON}`);
     // 启动浏览器显示
-    viewNow && childProcess.exec(`start ${path.join(VisualizerPath, './index.html')} `);
+    viewNow && child_process_1.default.exec(`start ${path_1.default.join(VisualizerPath, './index.html')} `);
 }
 exports.visualizeAST = visualizeAST;

@@ -10,7 +10,8 @@
  */
 
 import { assert } from '../seu-lex-yacc/utils'
-import { ASTNode, Block, FuncNode, VarNode } from './AST'
+import { ASTNode } from './AST'
+import { IRBlock, IRVar, IRFunc, MiniCType } from './IR'
 import { Quad } from './IR'
 
 /**
@@ -22,64 +23,98 @@ function $(i: number): ASTNode {
   return eval(`node.children[${i - 1}]`)
 }
 
+// 收集所有变量、函数
+
 export class IRGenerator {
-  private _funcPool: Map<string, FuncNode> // 函数名→函数结点 映射
-  private _blockPool: Block[]
-  private _blockSp: number
+  // 函数名→函数结点 映射
+  private _funcs: Map<string, IRFunc>
+  // 块
+  private _blocks: IRBlock[]
+  private _blockPtr: number // 当前块指针，用于实现作用域
+  /**
+   * 获取当前所在的块
+   */
+  private _currentBlock() {
+    return this._blocks[this._blockPtr]
+  }
+  /**
+   * 在当前位置添加一个块，并进入该块的上下文
+   */
+  private _pushBlock(block: IRBlock) {
+    this._blocks.push(block)
+    this._blockPtr += 1
+  }
+  /**
+   * 前进一个块
+   */
+  private _nextBlock() {
+    this._blockPtr += 1
+  }
+  /**
+   * 回退一个块
+   */
+  private _backBlock() {
+    this._blockPtr -= 1
+  }
+  /**
+   * 获取函数对应的块
+   */
+  private _blockFor(funcName: string) {
+    return this._blocks.find(v => v.funcName == funcName)
+  }
+  // 全局变量
+  private _globalVars: IRVar[]
+  // 四元式
   private _quads: Quad[]
-
-  findVar(name: string): VarNode {
-    for (let i = this._blockSp; i >= 0; i--) {
-      if (this._blockPool[i].vars.has(name)) return this._blockPool[i].vars.get(name)!
-    }
-    assert(false, `未找到该变量：${name}`)
-    return new VarNode('', '', '-1')
-  }
-
-  _currentBlock() {
-    return this._blockPool[this._blockSp]
-  }
-
-  private _tempCount: number
-  _newTemp() {
-    return `_TMP${this._tempCount++}`
-  }
-
-  private _varCount: number
-  _newVar() {
-    return `_VAR${this._varCount++}`
-  }
-
-  newQuad(op: string, arg1: string, arg2: string, res: string) {
-    let quad = new Quad(op, arg1, arg2, res)
+  /**
+   * 新建四元式
+   */
+  private _newQuad(op: string, arg1: string, arg2: string, res: string) {
+    const quad = new Quad(op, arg1, arg2, res)
     this._quads.push(quad)
     return quad
   }
-
-  _blockFor(funcName: string) {
-    return this._blockPool.find(v => v.funcName == funcName)
+  // 变量计数
+  private _varCount: number
+  /**
+   * 获取新的变量ID
+   */
+  private _newVar() {
+    return '_var_' + this._varCount++
   }
-
-  _pushBlock(block: Block) {
-    this._blockPool.push(block)
-    this._blockSp += 1
+  /**
+   * 根据变量名结合作用域定位变量
+   */
+  private _findVar(name: string) {
+    // FIXME: 考虑层次
+    for (let i = this._blockPtr; i >= 0; i--) {
+      const res = this._blocks[i].vars.find(v => v.name == name)
+      if (res) return res
+    }
+    assert(false, `未找到该变量：${name}`)
+    return new IRVar('-1', '', 'none')
   }
-
-  _popBlock() {
-    this._blockSp -= 1
+  // 标签计数，每个复合语句块都分配一个标签
+  private _labelCount: number
+  /**
+   * 获取新的标签ID
+   */
+  private _newLabel() {
+    return '_label_' + this._labelCount++
   }
 
   constructor(root: ASTNode) {
-    this._funcPool = new Map()
-    this._blockSp = 0
-    this._blockPool = []
-    this._tempCount = 0
-    this._varCount = 0
+    this._funcs = new Map()
+    this._blocks = []
+    this._blockPtr = -1
+    this._globalVars = []
     this._quads = []
-    this.act(root)
+    this._varCount = 0
+    this._labelCount = 0
+    this.start(root)
   }
 
-  act(node: ASTNode) {
+  start(node: ASTNode) {
     if (!node) return
     this.parse_program(node)
   }
@@ -108,57 +143,53 @@ export class IRGenerator {
   }
 
   parse_var_decl(node: ASTNode) {
-
+    if (node.match('type_spec IDENTIFIER')) {
+      const type = this.parse_type_spec($(1))
+      const name = $(2).literal
+      this._globalVars.push(new IRVar(this._newVar(), name, type))
+    }
+    if (node.match('type_spec IDENTIFIER CONSTANT')) {
+      const type = this.parse_type_spec($(1))
+      const name = $(2).literal
+      let len = $(3).literal
+      assert(!isNaN(Number($(3).literal)), `数组长度必须为数字，但取到 ${len}。`)
+      // TODO: 数组和变量到底分开管理，还是一起管理？
+    }
   }
 
-  /**
-   * 解析type_spec（类型声明）
-   */
   parse_type_spec(node: ASTNode) {
     // 取类型字面
-    return $(1).literal
+    return $(1).literal as MiniCType
   }
 
-  /**
-   * 解析func_decl（函数声明）
-   */
   parse_fun_decl(node: ASTNode) {
-    // 取返回值类型
     const retType = this.parse_type_spec($(1))
-    // 取函数名
-    const funcName = $(2).literal
-    assert(!this._funcPool.has(funcName), `重复定义的函数：${funcName}`)
-    // 建函数的块级作用域
-    let funcNode = new FuncNode(funcName, retType, []) // 参数列表在parse_params时会填上
-    this._funcPool.set(funcName, funcNode)
-    let funcBlock = Block.newFunc(funcName, funcNode)
-    this._blockPool.push(funcBlock)
-    // 处理形参列表
-    this.parse_params($(3), funcName)
-    // 处理局部变量
-    this.parse_local_decls($(4), funcName)
-    // 处理函数体逻辑
-    const stmt_list = $(5)
+    const name = $(2).literal
+    assert(!this._funcs.has(name), `重复定义的函数：${name}`)
+
+    const func = new IRFunc(name, retType, []) // 参数列表在parse_params时会填上
+    this._funcs.set(name, func)
+
+    const funcBlock = IRBlock.newFunc(name, func)
+    this._pushBlock(funcBlock)
+
+    this.parse_params($(3), name)
+    this.parse_local_decls($(4), name)
+    this.parse_stmt_list($(5))
   }
 
-  /**
-   * 解析params（参数s）
-   */
   parse_params(node: ASTNode, funcName: string) {
-    // 参数列表置空表示没有参数
     if ($(1).name == 'VOID') {
-      this._funcPool.get(funcName)!.paramList = []
+      this._funcs.get(funcName)!.paramList = []
     }
     if ($(1).name == 'param_list') {
       this.parse_param_list($(1), funcName)
     }
   }
 
-  /**
-   * 解析param_list（参数列表）
-   */
   parse_param_list(node: ASTNode, funcName: string) {
     if ($(1).name == 'param_list') {
+      // 左递归文法加上这里的递归顺序使得参数列表保序
       this.parse_param_list($(1), funcName)
       this.parse_param($(2), funcName)
     }
@@ -167,24 +198,15 @@ export class IRGenerator {
     }
   }
 
-  /**
-   * 解析param（单个参数）
-   */
   parse_param(node: ASTNode, funcName: string) {
-    // 取出并检查变量类型
-    const paramType = this.parse_type_spec($(1))
-    assert(paramType != 'void', '不可以使用void作参数类型。')
-    // 取变量名
-    const paramName = $(2).name
-    // 组装变量结点
-    const paramNode = new VarNode(paramName, paramType, this._newVar())
+    const type = this.parse_type_spec($(1))
+    assert(type != 'void', '不可以使用void作参数类型。')
+    const name = $(2).name
+    const param = new IRVar(this._newVar(), name, type)
     // 将形参送给函数
-    this._funcPool.get(funcName)?.paramList.push(paramNode)
+    this._funcs.get(funcName)!.paramList.push(param)
   }
 
-  /**
-   * 解析stmt_list（语句列表）
-   */
   parse_stmt_list(node: ASTNode) {
     if ($(1).name == 'stmt_list') {
       this.parse_stmt_list($(1))
@@ -195,9 +217,6 @@ export class IRGenerator {
     }
   }
 
-  /**
-   * 解析stmt（语句）
-   */
   parse_stmt(node: ASTNode) {
     if ($(1).name == 'expr_stmt') {
       this.parse_expr_stmt($(1))
@@ -222,39 +241,48 @@ export class IRGenerator {
     }
   }
 
-  parse_compound_stmt(node: ASTNode) {}
-
-  parse_if_stmt(node: ASTNode) {}
-
-  parse_while_stmt(node: ASTNode) {
-    const block = Block.newCompound('', false)
-
-    const exprNode = this.parse_expr($(1))
+  parse_compound_stmt(node: ASTNode) {
+    // 复合语句注意作用域问题
+    // FIXME: 确定breakable
+    this._pushBlock(IRBlock.newCompound(this._newLabel(), false))
+    this.parse_stmt_list($(1))
   }
 
-  parse_continue_stmt(node: ASTNode) {}
+  parse_if_stmt(node: ASTNode) {
+    const expr = this.parse_expr($(1))
 
-  parse_break_stmt(node: ASTNode) {
-
+    const stmt = this.parse_stmt($(2))
   }
+
+  parse_while_stmt(node: ASTNode) {}
+
+  parse_continue_stmt(node: ASTNode) {
+    this._newQuad('j', this._currentBlock().label!, '', '')
+  }
+
+  parse_break_stmt(node: ASTNode) {}
 
   parse_expr_stmt(node: ASTNode) {
     // 变量赋值
-    if (node.fit('IDENTIFIER ASSIGN expr')) {
-      const lhs = this.findVar($(1).name)
+    if (node.match('IDENTIFIER ASSIGN expr')) {
+      const lhs = this._findVar($(1).name)
       const rhs = this.parse_expr($(2))
-      this.newQuad('ASSIGN', rhs, '', lhs.name)
+      this._newQuad('=', rhs, '', lhs.name)
     }
-    if (node.fit('IDENTIFIER expr ASSIGN expr')) {
+    // 读数组
+    if (node.match('IDENTIFIER expr ASSIGN expr')) {
       // TODO:
     }
     // 访地址
-    if (node.fit('DOLLAR expr ASSIGN expr')) {
-      // TODO:
+    if (node.match('DOLLAR expr ASSIGN expr')) {
+      const addr = this.parse_expr($(2))
+      const rhs = this.parse_expr($(4))
+      this._newQuad('$=', rhs, '', addr)
     }
     // 调函数
-    if (node.fit('IDENTIFIER args')) {
-      // TODO:
+    if (node.match('IDENTIFIER args')) {
+      const args = this.parse_args($(2))
+      this._newQuad('call', $(1).literal, args.join('&'), '')
     }
   }
 
@@ -271,65 +299,77 @@ export class IRGenerator {
   parse_local_decl(node: ASTNode, funcName: string) {
     if (node.children.length == 2) {
       // 单个变量声明
-      const varType = this.parse_type_spec($(1))
-      const varName = $(2).name
-      const varNode = new VarNode(varName, varType, this._newVar())
-      assert(!this._blockFor(funcName)!.vars.has(varName), `函数 ${funcName} 中的变量 ${varName} 重复声明。`)
-      this._blockFor(funcName)!.vars.set(varName, varNode)
+      const type = this.parse_type_spec($(1))
+      const name = $(2).name
+      const var_ = new IRVar(this._newVar(), name, type)
+      assert(!this._blockFor(funcName)!.vars.some(v => v.name == name), `函数 ${funcName} 中的变量 ${name} 重复声明。`)
+      this._blockFor(funcName)!.vars.push(var_)
     }
     if (node.children.length == 3) {
-      // 数组声明
-      // TODO:
+      // TODO: 数组
     }
   }
 
   parse_return_stmt(node: ASTNode) {}
 
+  /**
+   * 处理expr，返回指代expr结果的IRVar的id
+   */
   parse_expr(node: ASTNode) {
-    // 处理所有二元表达式
+    // 处理所有二元表达式 expr op expr
     if (node.children.length == 3 && node.children[0].name == 'expr' && node.children[2].name == 'expr') {
       // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY, SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
       const oprand1 = this.parse_expr($(1))
       const oprand2 = this.parse_expr($(3))
-      const res = this._newTemp()
-      this.newQuad($(2).name, oprand1, oprand2, res)
+      const res = this._newVar()
+      this._newQuad($(2).name, oprand1, oprand2, res)
       return res
     }
-    // 处理所有一元表达式
+    // 处理所有一元表达式 op expr
     if (node.children.length == 2) {
       // NOT_OP, MINUS, PLUS, DOLLAR, BITINV_OP
       const oprand = this.parse_expr($(2))
-      const res = this._newTemp()
-      this.newQuad($(1).name, oprand, '', res)
+      const res = this._newVar()
+      this._newQuad($(1).name, oprand, '', res)
       return res
     }
-    // 其余情况
-    if (node.fit('LPAREN expr RPAREN')) {
+    // 处理其余情况
+    if (node.match('LPAREN expr RPAREN')) {
       const oprand = this.parse_expr($(2))
-      const res = this._newTemp()
-      this.newQuad('=', oprand, '', res)
+      const res = this._newVar()
+      this._newQuad('=', oprand, '', res)
       return res
     }
-    if (node.fit('IDENTIFIER')) {
-      // TODO: 变量
-      return $(1).literal
+    if (node.match('IDENTIFIER')) {
+      return this._findVar($(1).literal).id
     }
-    if (node.fit('IDENTIFIER LBRACKET expr RBRACKET')) {
+    if (node.match('IDENTIFIER LBRACKET expr RBRACKET')) {
       // TODO: 数组
       return '?'
     }
-    if (node.fit('IDENTIFIER LPAREN args RPAREN')) {
+    if (node.match('IDENTIFIER LPAREN args RPAREN')) {
       // TODO: 函数调用
       return '?'
     }
-    if (node.fit('CONSTANT')) {
-      // TODO: 字面常量
-      return $(1).literal
+    if (node.match('CONSTANT')) {
+      const res = this._newVar()
+      this._newQuad('=', $(1).literal, '', res)
+      return res
     }
-    return '?'
+    assert(false, 'parse_expr兜底失败。')
+    return '-1'
   }
 
-  parse_args(node: ASTNode) {
-    // TODO: 
+  /**
+   * 按参数顺序返回IRVar.id[]
+   */
+  parse_args(node: ASTNode): string[] {
+    if ($(1).name == 'args') {
+      return [...this.parse_args($(1)), this.parse_expr($(2))]
+    }
+    if ($(1).name == 'expr') {
+      return [this.parse_expr($(1))]
+    }
+    return []
   }
 }

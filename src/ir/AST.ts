@@ -1,155 +1,12 @@
 /**
  * 语法树相关
- *
  * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
-import * as path from 'path'
-import * as fs from 'fs'
-import * as childProcess from 'child_process'
+import path from 'path'
+import fs from 'fs'
+import childProcess from 'child_process'
 import { SymbolStackElement } from '../parser/ParseLALR'
-
-/**
- * 变量结点
- */
-export class VarNode {
-  private _name: string // 变量名
-  private _type: string // 变量类型
-  private _id: string
-
-  get id() {
-    return this._id
-  }
-  set id(v: string) {
-    this._id = v
-  }
-
-  get name() {
-    return this._name
-  }
-  set name(v: string) {
-    this._name = v
-  }
-  get type() {
-    return this._type
-  }
-  set type(v: string) {
-    this._type = v
-  }
-
-  constructor(name: string, type: string, id: string) {
-    this._name = name
-    this._type = type
-    this._id = id
-  }
-}
-
-/**
- * 函数结点
- */
-export class FuncNode {
-  private _name: string // 函数名
-  private _retType: string // 函数返回值类型
-  private _paramList: VarNode[] // 形参列表
-
-  get name() {
-    return this._name
-  }
-  set name(v: string) {
-    this._name = v
-  }
-  get retType() {
-    return this._retType
-  }
-  set retType(v: string) {
-    this._retType = v
-  }
-  get paramList() {
-    return this._paramList
-  }
-  set paramList(v: VarNode[]) {
-    this._paramList = v
-  }
-
-  constructor(name: string, retType: string, paramList: VarNode[]) {
-    this._name = name
-    this._retType = retType
-    this._paramList = paramList
-  }
-}
-
-/**
- * 块级作用域
- */
-type BlockType = 'func' | 'compound'
-export class Block {
-  private _type: BlockType
-  private _vars: Map<string, VarNode> // 局部变量
-  // 函数信息
-  private _func?: FuncNode
-  private _funcName?: string
-  // compound statement信息
-  private _label?: string
-  private _breakable?: boolean
-
-  get type() {
-    return this._type
-  }
-  set type(v: BlockType) {
-    this._type = v
-  }
-  get vars() {
-    return this._vars
-  }
-  get func() {
-    return this._func
-  }
-  set func(v: FuncNode | undefined) {
-    this._func = v
-  }
-  get funcName() {
-    return this._funcName
-  }
-  set funcName(v: string | undefined) {
-    this._funcName = v
-  }
-  get label() {
-    return this._label
-  }
-  set label(v: string | undefined) {
-    this._label = v
-  }
-  get breakable() {
-    return this._breakable
-  }
-  set breakable(v: boolean | undefined) {
-    this._breakable = v
-  }
-
-  static newFunc(funcName: string, func: FuncNode) {
-    return new Block('func', new Map(), funcName, func, void 0, void 0)
-  }
-
-  static newCompound(label: string, breakable: boolean) {
-    return new Block('compound', new Map(), void 0, void 0, label, breakable)
-  }
-
-  private constructor(
-    type: BlockType,
-    vars: Map<string, VarNode>,
-    funcName: string | undefined,
-    func: FuncNode | undefined,
-    label: string | undefined,
-    breakable: boolean | undefined
-  ) {
-    this._type = type
-    this._vars = vars
-    this._func = func
-    this._funcName = funcName
-    this._label = label
-    this._breakable = breakable
-  }
-}
 
 /**
  * 语法树结点
@@ -192,11 +49,17 @@ export class ASTNode {
     this._children = []
   }
 
+  /**
+   * 添加子节点
+   */
   addChild(node: ASTNode) {
     this._children.push(node)
   }
 
-  fit(rhs: string) {
+  /**
+   * 判断子节点name可匹配某串
+   */
+  match(rhs: string) {
     const seq = rhs.trim().split(' ')
     if (seq.length == this._children.length)
       for (let i = 0; i < seq.length; i++) if (seq[i] != this._children[i]._name) return false
@@ -205,7 +68,7 @@ export class ASTNode {
 }
 
 /**
- * .y语义动作执行中用到的创建非终结符的ASTNode的方法
+ * 创建非终结符的ASTNode (语义动作执行用)
  */
 export function $newNode(name: string, ...args: SymbolStackElement[]) {
   const node = new ASTNode(name, 'nonterminal', name)
