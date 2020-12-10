@@ -33,6 +33,10 @@ int main(void) {
   a = 10;
   b = 20;
   func(a, b);
+  if (a) {
+    b = 30;
+  }
+  b = 40;
 }
 `;
 const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'));

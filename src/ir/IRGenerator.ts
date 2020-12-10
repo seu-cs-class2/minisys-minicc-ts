@@ -239,8 +239,15 @@ export class IRGenerator {
   }
 
   parse_if_stmt(node: ASTNode) {
-    const expr = this.parse_expr(node.$(1))
-    const stmt = this.parse_stmt(node.$(2))
+    const expr = this.parse_expr(node.$(1)) 
+    const trueLabel = this._newLabel()
+    const falseLabel = this._newLabel()
+    this._pushBlock(IRBlock.newCompound(trueLabel, false))
+    this._newQuad('set_label', '', '', trueLabel)
+    this._newQuad('j_if_not', expr, '', falseLabel)
+    this.parse_stmt(node.$(2))
+    this._backBlock()
+    this._newQuad('set_label', '', '', falseLabel)
   }
 
   parse_while_stmt(node: ASTNode) {}
@@ -256,7 +263,7 @@ export class IRGenerator {
     if (node.match('IDENTIFIER ASSIGN expr')) {
       const lhs = this._findVar(node.$(1).literal)
       const rhs = this.parse_expr(node.$(3))
-      this._newQuad('=', rhs, '', lhs.name)
+      this._newQuad('=', rhs, '', lhs.id)
     }
     // 读数组
     if (node.match('IDENTIFIER expr ASSIGN expr')) {
