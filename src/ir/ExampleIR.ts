@@ -15,7 +15,7 @@ int main(void) {
   a = 10;
   b = 20;
   func(a, b);
-  if (a) {
+  if (a > b) {
     b = 30;
   }
   b = 40;

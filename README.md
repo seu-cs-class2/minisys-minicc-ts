@@ -45,12 +45,14 @@
 - 中间代码生成
 
   - [ ] 从 AST 到 IR 的转换
+    *Almost done.*
 
   - [ ] IR 的优化
 
 - 目标代码生成
 
   - [ ] 从 IR 到 ASM 的转换
+    *Almost done.*
 
   - [ ] ASM 的优化
 

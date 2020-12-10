@@ -26,6 +26,12 @@ class IRGenerator {
         this._labelCount = 0;
         this.start(root);
     }
+    get funcs() {
+        return this._funcs;
+    }
+    get blocks() {
+        return this._blocks;
+    }
     /**
      * 获取当前所在的块
      */
@@ -56,6 +62,12 @@ class IRGenerator {
      */
     _blockFor(funcName) {
         return this._blocks.find(v => v.funcName == funcName);
+    }
+    get globalVars() {
+        return this._globalVars;
+    }
+    get quads() {
+        return this._quads;
     }
     /**
      * 新建四元式
@@ -222,7 +234,7 @@ class IRGenerator {
     }
     parse_while_stmt(node) { }
     parse_continue_stmt(node) {
-        this._newQuad('j', this._currentBlock().label, '', '');
+        this._newQuad('j', '', '', this._currentBlock().label);
     }
     parse_break_stmt(node) { }
     parse_expr_stmt(node) {
@@ -276,7 +288,7 @@ class IRGenerator {
      */
     parse_expr(node) {
         // 处理所有二元表达式 expr op expr
-        if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(2).name == 'expr') {
+        if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(3).name == 'expr') {
             // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY, SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
             const oprand1 = this.parse_expr(node.$(1));
             const oprand2 = this.parse_expr(node.$(3));
@@ -315,7 +327,7 @@ class IRGenerator {
         }
         if (node.match('CONSTANT')) {
             const res = this._newVar();
-            this._newQuad('=', node.$(1).literal, '', res);
+            this._newQuad('=const', node.$(1).literal, '', res);
             return res;
         }
         utils_1.assert(false, 'parse_expr兜底失败。');

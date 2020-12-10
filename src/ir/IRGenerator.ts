@@ -18,8 +18,14 @@ import { Quad } from './IR'
 export class IRGenerator {
   // 函数名→函数结点 映射
   private _funcs: Map<string, IRFunc>
+  get funcs() {
+    return this._funcs
+  }
   // 块
   private _blocks: IRBlock[]
+  get blocks() {
+    return this._blocks
+  }
   private _blockPtr: number // 当前块指针，用于实现作用域
   /**
    * 获取当前所在的块
@@ -54,8 +60,14 @@ export class IRGenerator {
   }
   // 全局变量
   private _globalVars: IRVar[]
+  get globalVars() {
+    return this._globalVars
+  }
   // 四元式
   private _quads: Quad[]
+  get quads() {
+    return this._quads
+  }
   /**
    * 新建四元式
    */
@@ -239,7 +251,7 @@ export class IRGenerator {
   }
 
   parse_if_stmt(node: ASTNode) {
-    const expr = this.parse_expr(node.$(1)) 
+    const expr = this.parse_expr(node.$(1))
     const trueLabel = this._newLabel()
     const falseLabel = this._newLabel()
     this._pushBlock(IRBlock.newCompound(trueLabel, false))
@@ -253,7 +265,7 @@ export class IRGenerator {
   parse_while_stmt(node: ASTNode) {}
 
   parse_continue_stmt(node: ASTNode) {
-    this._newQuad('j', this._currentBlock().label!, '', '')
+    this._newQuad('j', '', '', this._currentBlock().label!)
   }
 
   parse_break_stmt(node: ASTNode) {}
@@ -313,7 +325,7 @@ export class IRGenerator {
    */
   parse_expr(node: ASTNode) {
     // 处理所有二元表达式 expr op expr
-    if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(2).name == 'expr') {
+    if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(3).name == 'expr') {
       // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY, SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
       const oprand1 = this.parse_expr(node.$(1))
       const oprand2 = this.parse_expr(node.$(3))
@@ -352,7 +364,7 @@ export class IRGenerator {
     }
     if (node.match('CONSTANT')) {
       const res = this._newVar()
-      this._newQuad('=', node.$(1).literal, '', res)
+      this._newQuad('=const', node.$(1).literal, '', res)
       return res
     }
     assert(false, 'parse_expr兜底失败。')
