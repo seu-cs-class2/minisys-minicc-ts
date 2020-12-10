@@ -1,6 +1,23 @@
 # *minisys*-minicc-ts
 
-## 开始
+![demo](https://i.loli.net/2020/12/10/luzhMIY7PF65rks.png)
+
+## 使用
+
+```shell
+$ npm install # just once
+$ node ./dist/cli.js <path_to_c_code> [options]
+```
+
+可用的选项（options）有：
+
+| 参数             | 作用                              |
+| ---------------- | --------------------------------- |
+| -o <output_path> | 指定输出路径，默认与 C 代码同路径 |
+| -i               | 一并输出中间代码                  |
+| -v               | 显示编译过程详细信息              |
+
+## 参与开发
 
 - 安装
 
@@ -45,15 +62,17 @@
 - 中间代码生成
 
   - [ ] 从 AST 到 IR 的转换
+    
     *Almost done.*
-
+  
   - [ ] IR 的优化
-
+  
 - 目标代码生成
 
   - [ ] 从 IR 到 ASM 的转换
+    
     *Almost done.*
-
+    
   - [ ] ASM 的优化
 
 ## 文档
