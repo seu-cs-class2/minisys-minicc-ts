@@ -10,10 +10,11 @@ const Arch_1 = require("./Arch");
 class ASMGenerator {
     constructor(ir) {
         this._ir = ir;
-        this._registerTable = {};
+        this._registerStatus = {};
+        this._varLocTable = {};
         this._asm = [];
         for (let reg of Arch_1.usefulRegs)
-            this._registerTable[reg] = '[free]';
+            this._registerStatus[reg] = 'free';
         this.newAsm('.DATA 0x0');
         this.processGlobalVars();
         this.newAsm('.TEXT 0x0');
@@ -38,22 +39,27 @@ class ASMGenerator {
             this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} 0x0`);
         }
     }
+    /**
+     * 为变量varId分配寄存器（总是返回寄存器）
+     */
     getRegister(varId, mustExist = false) {
         // 检查是否已经为该变量分配过寄存器
-        const regIndex = Object.values(this._registerTable).findIndex(v => v == varId);
-        if (mustExist && regIndex == -1)
+        const allocatedCheck = this._varLocTable[varId] && this._varLocTable[varId].type === 'register';
+        if (allocatedCheck)
+            return this._varLocTable[varId].location;
+        if (mustExist && !allocatedCheck)
             utils_1.assert(false, `找不到变量：${varId}`);
-        if (regIndex !== -1)
-            return '$' + Arch_1.usefulRegs[regIndex];
-        // 分配新寄存器
+        // 否则尝试分配新寄存器
         let regAlloc;
-        for (let reg in this._registerTable) {
-            if (this._registerTable[reg] == '[free]') {
-                this._registerTable[reg] = varId;
+        for (let reg of Arch_1.usefulRegs) {
+            if (this._registerStatus[reg] == 'free') {
                 regAlloc = reg;
+                this._varLocTable[varId] = { type: 'register', location: '$' + reg };
                 break;
             }
         }
+        // 找不到空闲的寄存器，则开始压栈处理
+        // TODO: 复用寄存器
         utils_1.assert(regAlloc, '没有空闲寄存器分配给变量：' + varId); // FIXME: 进栈
         return ('$' + regAlloc);
     }
@@ -126,12 +132,46 @@ class ASMGenerator {
                 case 'PLUS': {
                 }
                 case 'MINUS': {
+                    if (binaryOp) {
+                        const lhs = this.getRegister(arg1);
+                        const rhs = this.getRegister(arg2);
+                        const saveTo = this.getRegister(res);
+                        this.newAsm(`sub ${lhs}, ${rhs}, ${saveTo}`);
+                    }
+                    if (unaryOp) {
+                        const oprand = this.getRegister(arg1);
+                        const saveTo = this.getRegister(res);
+                        this.newAsm(`sub $zero, ${oprand}, ${saveTo}`);
+                    }
+                    break;
                 }
                 case 'MULTIPLY': {
+                    if (binaryOp) {
+                        const lhs = this.getRegister(arg1);
+                        const rhs = this.getRegister(arg2);
+                        const saveTo = this.getRegister(res);
+                        this.newAsm(`add ${lhs}, ${rhs}, ${saveTo}`);
+                    }
+                    if (unaryOp) {
+                        const oprand = this.getRegister(arg1);
+                        const saveTo = this.getRegister(res);
+                        this.newAsm(`add $zero, ${oprand}, ${saveTo}`);
+                    }
+                    break;
                 }
                 case 'SLASH': {
+                    const lhs = this.getRegister(arg1);
+                    const rhs = this.getRegister(arg2);
+                    const saveTo = this.getRegister(res);
+                    this.newAsm(`div ${lhs}, ${rhs}`);
+                    this.newAsm(`mflo ${saveTo}`);
                 }
                 case 'PERCENT': {
+                    const lhs = this.getRegister(arg1);
+                    const rhs = this.getRegister(arg2);
+                    const saveTo = this.getRegister(res);
+                    this.newAsm(`div ${lhs}, ${rhs}`);
+                    this.newAsm(`mfhi ${saveTo}`);
                 }
                 case 'NOT_OP': {
                 }

@@ -45,5 +45,6 @@ const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
 const lalr = LALR_1.LALRAnalyzer.load(path.join(__dirname, '../syntax/MiniC/MiniC-LALRParse.json'));
 const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
 const ir = new IRGenerator_1.IRGenerator(root);
+console.log(ir.toIRString());
 const asm = new ASMGenerator_1.ASMGenerator(ir);
 console.log(asm.toAssembly());

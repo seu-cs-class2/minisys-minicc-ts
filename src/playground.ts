@@ -31,6 +31,8 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 
 const ir = new IRGenerator(root)
 
+console.log(ir.toIRString())
+
 const asm = new ASMGenerator(ir)
 
 console.log(asm.toAssembly())
