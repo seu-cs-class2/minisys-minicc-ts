@@ -19,7 +19,8 @@ class IRGenerator {
     constructor(root) {
         this._funcs = new Map();
         this._blocks = [];
-        this._blockPtr = -1;
+        this._blockStkPtr = -1;
+        this._blocksStk = [];
         this._globalVars = [];
         this._quads = [];
         this._varCount = 0;
@@ -36,26 +37,28 @@ class IRGenerator {
      * 获取当前所在的块
      */
     _currentBlock() {
-        return this._blocks[this._blockPtr];
+        return this._blocks[this._blocksStk[this._blockStkPtr]];
     }
     /**
      * 在当前位置添加一个块，并进入该块的上下文
      */
     _pushBlock(block) {
         this._blocks.push(block);
-        this._blockPtr += 1;
+        this._blocksStk.push(this._blocks.length - 1);
+        this._blockStkPtr += 1;
     }
     /**
      * 前进一个块
      */
     _nextBlock() {
-        this._blockPtr += 1;
+        this._blockStkPtr += 1;
     }
     /**
      * 回退一个块
      */
     _backBlock() {
-        this._blockPtr -= 1;
+        this._blocksStk.pop();
+        this._blockStkPtr -= 1;
     }
     /**
      * 获取函数对应的块
@@ -88,8 +91,8 @@ class IRGenerator {
      */
     _findVar(name) {
         // FIXME: 考虑层次
-        for (let i = this._blockPtr; i >= 0; i--) {
-            const res = this._blocks[i].vars.find(v => v.name == name);
+        for (let i = this._blockStkPtr; i >= 0; i--) {
+            const res = this._blocks[this._blocksStk[i]].vars.find(v => v.name == name);
             if (res)
                 return res;
         }
