@@ -235,7 +235,18 @@ class IRGenerator {
         this._backBlock();
         this._newQuad('set_label', '', '', falseLabel);
     }
-    parse_while_stmt(node) { }
+    parse_while_stmt(node) {
+        const expr = this.parse_expr(node.$(1));
+        const loopLabel = this._newLabel();
+        const breakLabel = this._newLabel();
+        this._pushBlock(IR_1.IRBlock.newCompound(loopLabel, true));
+        this._newQuad('set_label', '', '', loopLabel);
+        this._newQuad('j_if_not', expr, '', breakLabel);
+        this.parse_stmt(node.$(2));
+        this._newQuad('j', '', '', loopLabel);
+        this._backBlock();
+        this._newQuad('set_label', '', '', breakLabel);
+    }
     parse_continue_stmt(node) {
         this._newQuad('j', '', '', this._currentBlock().label);
     }
