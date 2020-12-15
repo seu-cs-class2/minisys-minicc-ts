@@ -75,9 +75,7 @@ $ ./generate-minic.sh
 
 - 中间代码生成
 
-  - [ ] 从 AST 到 IR 的转换
-    
-    *Almost done.*
+  - [x] 从 AST 到 IR 的转换
   
   - [ ] IR 的优化
   

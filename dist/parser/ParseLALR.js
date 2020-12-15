@@ -14,9 +14,20 @@ exports.WHITESPACE_SYMBOL_ID = -10;
  */
 function parseTokensLALR(tokens, analyzer) {
     // 预处理
+    // 检查未匹配符号
     utils_1.assert(tokens.every(v => v.name !== utils_1.UNMATCH_TOKENNAME), 'Token序列中存在未匹配的非法符号');
-    tokens = tokens.filter(v => v.name !== utils_1.WHITESPACE_TOKENNAME);
+    // 移除注释
+    tokens = tokens.map(v => {
+        // 保护行号
+        if (v.name == utils_1.COMMENT_TOKENNAME && v.literal.endsWith('\n'))
+            return { name: utils_1.WHITESPACE_TOKENNAME, literal: '\n' };
+        return v;
+    });
     tokens = tokens.filter(v => v.name !== utils_1.COMMENT_TOKENNAME);
+    // 移除无用的空白符
+    tokens = tokens.filter(v => !(v.name == utils_1.WHITESPACE_TOKENNAME && v.literal != '\n'));
+    // 剩下的Token中是WHITESPACE的就是换行，这里用来统计行号
+    let lineno = 1;
     // Token编号表，Token名->Token编号
     const tokenIds = (function () {
         let map = new Map();
@@ -89,8 +100,10 @@ function parseTokensLALR(tokens, analyzer) {
     const stateStack = [analyzer.dfa.startStateId];
     // 处理当前情况遇到symbol
     function dealWith(symbol) {
-        if (symbol === exports.WHITESPACE_SYMBOL_ID)
+        if (symbol === exports.WHITESPACE_SYMBOL_ID) {
+            lineno++;
             return symbol;
+        }
         switch (table[stateStack.slice(-1)[0]][symbol].action) {
             case 'shift':
                 const prevToken = tokens[currentTokenIndex - 1];
@@ -126,7 +139,7 @@ function parseTokensLALR(tokens, analyzer) {
             case 'acc':
                 return -1;
             default:
-                utils_1.assert(false, `语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${table[stateStack.slice(-1)[0]][symbol].action}`);
+                utils_1.assert(false, `语法分析表中存在未定义行为：在状态${stateStack.slice(-1)[0]}下收到${analyzer.symbols[symbol].content}时进行${table[stateStack.slice(-1)[0]][symbol].action}，推测行号为${lineno}`);
         }
     }
     let currentTokenIndex = 0;

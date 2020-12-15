@@ -7,7 +7,7 @@
  *    - 文法中的终结符在.y和此处都使用全大写命名
  *    - 其余驼峰命名的则是程序逻辑相关的部分
  * 文法文件：/syntax/MiniC.y，顺序、命名均一致
- * 
+ *
  * // TODO: 测试continue、break的处理；测试函数调用的处理
  */
 
@@ -74,6 +74,12 @@ export class IRGenerator {
     return this._scopePath.pop()
   }
   /**
+   * 判断两个作用域是否相同
+   */
+  private sameScope(scope1: number[], scope2: number[]) {
+    return scope1.join('/') == scope2.join('/')
+  }
+  /**
    * 结合当前所在的作用域寻找最近的名字相符的变量
    */
   private _findVar(name: string) {
@@ -83,8 +89,9 @@ export class IRGenerator {
       validScopes.push([...currentScope])
       currentScope.pop()
     }
-    for (let v of this._varPool)
-      if (v.name == name && validScopes.some(scope => scope.join('/') == v.scope.join('/'))) return v
+    // validScoped由近及远
+    for (let scope of validScopes)
+      for (let v of this._varPool) if (v.name == name && this.sameScope(v.scope, scope)) return v
     assert(false, `未找到该变量：${name}`)
     return new IRVar('-1', '', 'none', [])
   }
@@ -94,6 +101,8 @@ export class IRGenerator {
   private duplicateCheck(v1: IRVar | IRArray, v2: IRVar | IRArray) {
     return v1.name == v2.name && v1.scope.join('/') == v2.scope.join('/')
   }
+  // break、continue辅助栈，以支持while嵌套
+  private _loopStack: { loopLabel: string; breakLabel: string }[]
 
   constructor(root: ASTNode) {
     this._scopePath = GlobalScope
@@ -103,6 +112,7 @@ export class IRGenerator {
     this._varCount = 0
     this._labelCount = 0
     this._scopeCount = 0
+    this._loopStack = []
     this.start(root)
   }
 
@@ -170,8 +180,13 @@ export class IRGenerator {
     this.pushScope()
     this._newQuad('set_label', '', '', entryLabel) // 函数入口
     this.parse_params(node.$(3), name)
-    this.parse_local_decls(node.$(4))
-    this.parse_stmt_list(node.$(5), { entryLabel, exitLabel })
+    if (node.children.length == 5) {
+      this.parse_local_decls(node.$(4))
+      this.parse_stmt_list(node.$(5), { entryLabel, exitLabel })
+    } else if (node.children.length == 4) {
+      // 没有局部变量
+      this.parse_stmt_list(node.$(4), { entryLabel, exitLabel })
+    }
     this._newQuad('set_label', '', '', exitLabel) // 函数出口
     this.popScope()
   }
@@ -233,18 +248,22 @@ export class IRGenerator {
       this.parse_return_stmt(node.$(1), context.exitLabel)
     }
     if (node.$(1).name == 'continue_stmt') {
-      assert(context && context.loopLabel, '产生continue时没有足够的上下文信息')
-      this.parse_continue_stmt(node.$(1), context.loopLabel)
+      this.parse_continue_stmt(node.$(1))
     }
     if (node.$(1).name == 'break_stmt') {
-      assert(context && context.breakLabel, '产生break时没有足够的上下文信息')
-      this.parse_break_stmt(node.$(1), context.breakLabel)
+      this.parse_break_stmt(node.$(1))
     }
   }
 
   parse_compound_stmt(node: ASTNode) {
     this.pushScope()
-    this.parse_stmt_list(node.$(1))
+    if (node.children.length == 2) {
+      this.parse_local_decls(node.$(1))
+      this.parse_stmt_list(node.$(2))
+    } else if (node.children.length == 1) {
+      // 没有局部变量
+      this.parse_stmt_list(node.$(1))
+    }
     this.popScope()
   }
 
@@ -262,19 +281,23 @@ export class IRGenerator {
     const expr = this.parse_expr(node.$(1))
     const loopLabel = this._newLabel('loop') // 入口标号
     const breakLabel = this._newLabel('break') // 出口标号
+    this._loopStack.push({ loopLabel, breakLabel })
     this._newQuad('set_label', '', '', loopLabel)
     this._newQuad('j_false', expr, '', breakLabel)
-    this.parse_stmt(node.$(2), { loopLabel, breakLabel })
+    this.parse_stmt(node.$(2))
     this._newQuad('j', '', '', loopLabel)
     this._newQuad('set_label', '', '', breakLabel)
+    this._loopStack.pop()
   }
 
-  parse_continue_stmt(node: ASTNode, loopLabel: string) {
-    this._newQuad('j', '', '', loopLabel)
+  parse_continue_stmt(node: ASTNode) {
+    assert(this._loopStack.length > 0, '产生continue时没有足够的上下文')
+    this._newQuad('j', '', '', this._loopStack.slice(-1)[0]!.loopLabel)
   }
 
-  parse_break_stmt(node: ASTNode, breakLabel: string) {
-    this._newQuad('j', '', '', breakLabel)
+  parse_break_stmt(node: ASTNode) {
+    assert(this._loopStack.length > 0, '产生break时没有足够的上下文')
+    this._newQuad('j', '', '', this._loopStack.slice(-1)[0]!.breakLabel)
   }
 
   parse_expr_stmt(node: ASTNode) {
@@ -349,25 +372,7 @@ export class IRGenerator {
    * 处理expr，返回指代expr结果的IRVar的id
    */
   parse_expr(node: ASTNode) {
-    // 处理所有二元表达式 expr op expr
-    if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(3).name == 'expr') {
-      // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY,
-      // SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
-      const oprand1 = this.parse_expr(node.$(1))
-      const oprand2 = this.parse_expr(node.$(3))
-      const res = this._newVarId()
-      this._newQuad(node.$(2).name, oprand1, oprand2, res)
-      return res
-    }
-    // 处理所有一元表达式 op expr
-    if (node.children.length == 2) {
-      // NOT_OP, MINUS, PLUS, DOLLAR, BITINV_OP
-      const oprand = this.parse_expr(node.$(2))
-      const res = this._newVarId()
-      this._newQuad(node.$(1).name, oprand, '', res)
-      return res
-    }
-    // 处理其余情况
+    // 处理特殊情况
     if (node.match('LPAREN expr RPAREN')) {
       // 括号表达式
       const oprand = this.parse_expr(node.$(2))
@@ -401,6 +406,24 @@ export class IRGenerator {
       this._newQuad('=const', node.$(1).literal, '', res)
       return res
     }
+    // 处理所有二元表达式 expr op expr
+    if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(3).name == 'expr') {
+      // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY,
+      // SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
+      const oprand1 = this.parse_expr(node.$(1))
+      const oprand2 = this.parse_expr(node.$(3))
+      const res = this._newVarId()
+      this._newQuad(node.$(2).name, oprand1, oprand2, res)
+      return res
+    }
+    // 处理所有一元表达式 op expr
+    if (node.children.length == 2) {
+      // NOT_OP, MINUS, PLUS, DOLLAR, BITINV_OP
+      const oprand = this.parse_expr(node.$(2))
+      const res = this._newVarId()
+      this._newQuad(node.$(1).name, oprand, '', res)
+      return res
+    }
     assert(false, 'parse_expr兜底失败')
     return '-1'
   }
@@ -431,8 +454,14 @@ export class IRGenerator {
     res += '\n'
     // 全局变量
     res += '[GLOBALVARS]\n'
-    for (let v of this._varPool.filter(x => x.scope.length == 1 && x.scope[0] == 0)) {
+    for (let v of this._varPool.filter(x => this.sameScope(x.scope, GlobalScope))) {
       res += '\t' + `${v.id}(${v.type})` + '\n'
+    }
+    res += '\n'
+    // 变量池
+    res += '[VARPOOL]\n'
+    for (let v of this._varPool) {
+      res += '\t' + `${v.id}, ${v.name}, ${v.type}, ${v.scope.join('/')}` + '\n'
     }
     res += '\n'
     // 四元式

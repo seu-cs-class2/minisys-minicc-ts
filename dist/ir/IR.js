@@ -16,7 +16,7 @@ class Quad {
         this.res = res;
     }
     toString() {
-        return `(${this.op}, ${this.arg1}, ${this.arg2}, ${this.res})`;
+        return `(${this.op.padEnd(12)}, ${this.arg1.padEnd(12)}, ${this.arg2.padEnd(12)}, ${this.res.padEnd(20)})`;
     }
 }
 exports.Quad = Quad;

@@ -83,7 +83,7 @@ stmt
 	;
 
 compound_stmt
-	: LBRACE local_decls stmt_list RBRACE { $$ = newNode('compound_stmt', $2); }
+	: LBRACE local_decls stmt_list RBRACE { $$ = newNode('compound_stmt', $1, $2); }
 	| LBRACE stmt_list RBRACE { $$ = newNode('compound_stmt', $2); }
 	;
 

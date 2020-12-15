@@ -2,34 +2,28 @@
 
 import { lexSourceCode } from '../lexer/Lex'
 import { DFA } from '../seu-lex-yacc/seulex/DFA'
-import * as path from 'path'
-import { ASTNode } from './AST'
+import { ASTNode, visualizeAST } from './AST'
 import { LALRAnalyzer } from '../seu-lex-yacc/seuyacc/LALR'
 import { parseTokensLALR } from '../parser/ParseLALR'
 import { IRGenerator } from './IRGenerator'
+import fs from 'fs'
+import path from 'path'
 
-const CCode = String.raw`
-int main(void) {
-  int a;
-  int b;
-  a = 10;
-  b = 20;
-  func(a, b);
-  if (a > b) {
-    b = 30;
-  }
-  b = 40;
-}
-`
+// 测试代码
+const CCode = fs
+  .readFileSync(path.join(__dirname, './Example.c'))
+  .toString()
+  .replace(/\r\n/g, '\n')
+  .split('\n')
+  .slice(3)
+  .join('\n')
+
 const lexDFA = DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'))
-const tokens = lexSourceCode(CCode, lexDFA)
+let tokens = lexSourceCode(CCode, lexDFA)
 
 const lalr = LALRAnalyzer.load(path.join(__dirname, '../../syntax/MiniC/MiniC-LALRParse.json'))
 const root = parseTokensLALR(tokens, lalr) as ASTNode
 
 const ir = new IRGenerator(root)
-console.dir(ir, {
-  depth: 4,
-})
-console.log('\n=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=*=\n')
 console.log(ir.toIRString())
+fs.writeFileSync(path.join(__dirname, './Example.ir'), ir.toIRString())
