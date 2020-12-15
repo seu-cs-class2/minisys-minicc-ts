@@ -1,10 +1,4 @@
- zhuoxu@ZHUOXUPC  /mnt/f/minisys-minicc-ts/script   master  time ./generate-minic.sh
---- Start generating MiniC-Lex.json
---- Start generating MiniC-LALRParse.json
-[LR0] Start LR0 DFA construction...
-[LALR] Computing FIRST set...
-[LALR] Start LALR DFA construction...
-[LALR] Start LALR ACTIONGOTOTable construction...
-_constructACTIONGOTOTable
-Progress: 99.32% ████████████████████████░ 147/148--- re-generate work done
-./generate-minic.sh  5160.64s user 41.67s system 76% cpu 1:52:45.86 total
+~/minicc/minisys-minicc-ts/script# time ./generate-minic.sh
+real    77m53.768s
+user    76m46.464s
+sys     0m8.324s
