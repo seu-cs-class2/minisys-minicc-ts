@@ -50,7 +50,7 @@ export class ASMGenerator {
   }
 
   processGlobalVars() {
-    const globalVars = this._ir.globalVars
+    const globalVars = this._ir.varPool.filter(v => v.scope.join('/') == '0')
     for (let var_ of globalVars) {
       // FIXME
       this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} 0x0`)

@@ -2,12 +2,12 @@
   // 本语法定义文件基于“计算机系统综合课程设计”补充讲义121定义
 %}
 
-%token COMMENT BREAK CONTINUE DO ELSE
-%token FOR IF INT RETURN VOID WHILE IDENTIFIER
+%token BREAK CONTINUE
+%token IF INT RETURN VOID WHILE IDENTIFIER
 %token CONSTANT RIGHT_OP LEFT_OP AND_OP OR_OP LE_OP GE_OP EQ_OP NE_OP
 %token SEMICOLON LBRACE RBRACE COMMA COLON ASSIGN LPAREN RPAREN
 %token LBRACKET RBRACKET DOT BITAND_OP NOT_OP BITINV_OP MINUS PLUS MULTIPLY SLASH PERCENT
-%token LT_OP GT_OP BITXOR_OP BITOR_OP DOLLAR _WHITESPACE
+%token LT_OP GT_OP BITXOR_OP BITOR_OP DOLLAR
 
 %left OR_OP
 %left AND_OP
@@ -29,7 +29,7 @@ program
 	;
 
 decl_list
-	: decl_list decl { $$ = newNode('decl_list', $1, $2); } 
+	: decl_list decl { $$ = newNode('decl_list', $1, $2); }
 	| decl 	{ $$ = newNode('decl_list', $1); }
 	;
 
@@ -50,6 +50,7 @@ type_spec
 
 fun_decl
 	: type_spec IDENTIFIER LPAREN params RPAREN LBRACE local_decls stmt_list RBRACE { $$ = newNode('fun_decl', $1, $2, $4, $7, $8); }
+	| type_spec IDENTIFIER LPAREN params RPAREN LBRACE stmt_list RBRACE { $$ = newNode('fun_decl', $1, $2, $4, $7); }
 	;
 
 params
@@ -82,7 +83,8 @@ stmt
 	;
 
 compound_stmt
-	: LBRACE stmt_list RBRACE { $$ = newNode('compound_stmt', $2); }
+	: LBRACE local_decls stmt_list RBRACE { $$ = newNode('compound_stmt', $2); }
+	| LBRACE stmt_list RBRACE { $$ = newNode('compound_stmt', $2); }
 	;
 
 if_stmt

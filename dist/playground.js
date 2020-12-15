@@ -26,25 +26,70 @@ const DFA_1 = require("./seu-lex-yacc/seulex/DFA");
 const path = __importStar(require("path"));
 const LALR_1 = require("./seu-lex-yacc/seuyacc/LALR");
 const ParseLALR_1 = require("./parser/ParseLALR");
-const IRGenerator_1 = require("./ir/IRGenerator");
-const ASMGenerator_1 = require("./asm/ASMGenerator");
-const CCode = String.raw `
+const CCode1 = String.raw `
+int a;
+void foo(int x) {
+  int y;
+  return x + y;
+}
+void func(int a, int b) {
+  int z;
+  return;
+}
 int main(void) {
   int a;
   int b;
   a = 10;
   b = 20;
   if (a > b) {
-    b = 30;
+    func(a, b);
   }
-  b = 40;
+  while (a > b) {
+    int a;
+    if (a < b) {
+      int c = a;
+      foo(b);
+    }
+  }
+  return;
+}
+`;
+const CCode = String.raw `
+int a;
+void foo(int x) {
+  int y;
+  return x + y;
+}
+void func(int a, int b) {
+  int z;
+  return;
+}
+int main(void) {
+  int a;
+  int b;
+  a = 10;
+  b = 20;
+  if (a > b) {
+    func(a, b);
+  }
+  while (a > b) {
+    int a;
+    if (a < b) {
+      int c = a;
+      foo(b);
+    }
+  }
+  return;
 }
 `;
 const lexDFA = DFA_1.DFA.fromFile(path.join(__dirname, '../syntax/MiniC/MiniC-Lex.json'));
 const tokens = Lex_1.lexSourceCode(CCode, lexDFA);
 const lalr = LALR_1.LALRAnalyzer.load(path.join(__dirname, '../syntax/MiniC/MiniC-LALRParse.json'));
+// visualizeGOTOGraph(lalr.dfa, lalr)
+// visualizeLALRACTIONGOTOTable(lalr)
 const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
-const ir = new IRGenerator_1.IRGenerator(root);
-console.log(ir.toIRString());
-const asm = new ASMGenerator_1.ASMGenerator(ir);
-console.log(asm.toAssembly());
+// visualizeAST(root)
+// const ir = new IRGenerator(root)
+// console.log(ir.toIRString())
+// const asm = new ASMGenerator(ir)
+// console.log(asm.toAssembly())
