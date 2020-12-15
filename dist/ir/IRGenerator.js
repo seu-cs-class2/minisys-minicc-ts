@@ -12,17 +12,19 @@
  * // TODO: 测试continue、break的处理；测试函数调用的处理
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.IRGenerator = void 0;
+exports.IRGenerator = exports.VarPrefix = exports.LabelPrefix = exports.GlobalScope = void 0;
 const utils_1 = require("../seu-lex-yacc/utils");
 const IR_1 = require("./IR");
 const IR_2 = require("./IR");
-const GlobalScope = [0]; // 0号作用域是全局作用域
+exports.GlobalScope = [0]; // 0号作用域是全局作用域
+exports.LabelPrefix = '_label_';
+exports.VarPrefix = '_var_';
 /**
  * 中间代码生成器
  */
 class IRGenerator {
     constructor(root) {
-        this._scopePath = GlobalScope;
+        this._scopePath = exports.GlobalScope;
         this._varPool = [];
         this._funcPool = [];
         this._quads = [];
@@ -50,7 +52,7 @@ class IRGenerator {
      * 分配一个新的变量id
      */
     _newVarId() {
-        return '_var_' + this._varCount++;
+        return exports.VarPrefix + this._varCount++;
     }
     /**
      * 新增一个变量
@@ -62,7 +64,7 @@ class IRGenerator {
      * 分配一个新标号
      */
     _newLabel(desc = '') {
-        return '_label_' + this._labelCount++ + '_' + desc;
+        return exports.LabelPrefix + this._labelCount++ + '_' + desc;
     }
     /**
      * 进一层作用域
@@ -79,7 +81,7 @@ class IRGenerator {
     /**
      * 判断两个作用域是否相同
      */
-    sameScope(scope1, scope2) {
+    static sameScope(scope1, scope2) {
         return scope1.join('/') == scope2.join('/');
     }
     /**
@@ -94,7 +96,7 @@ class IRGenerator {
         // validScoped由近及远
         for (let scope of validScopes)
             for (let v of this._varPool)
-                if (v.name == name && this.sameScope(v.scope, scope))
+                if (v.name == name && IRGenerator.sameScope(v.scope, scope))
                     return v;
         utils_1.assert(false, `未找到该变量：${name}`);
         return new IR_1.IRVar('-1', '', 'none', []);
@@ -135,7 +137,7 @@ class IRGenerator {
         if (node.match('type_spec IDENTIFIER')) {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
-            this._scopePath = GlobalScope;
+            this._scopePath = exports.GlobalScope;
             this._newVar(new IR_1.IRVar(this._newVarId(), name, type, this._scopePath));
         }
         // 全局数组声明
@@ -143,7 +145,7 @@ class IRGenerator {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
             let len = Number(node.$(3).literal);
-            this._scopePath = GlobalScope;
+            this._scopePath = exports.GlobalScope;
             utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`);
             this._newVar(new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath));
         }
@@ -423,7 +425,7 @@ class IRGenerator {
         res += '\n';
         // 全局变量
         res += '[GLOBALVARS]\n';
-        for (let v of this._varPool.filter(x => this.sameScope(x.scope, GlobalScope))) {
+        for (let v of this._varPool.filter(x => IRGenerator.sameScope(x.scope, exports.GlobalScope))) {
             res += '\t' + `${v.id}(${v.type})` + '\n';
         }
         res += '\n';

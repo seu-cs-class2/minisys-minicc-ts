@@ -16,7 +16,9 @@ import { ASTNode } from './AST'
 import { IRVar, IRFunc, MiniCType, IRArray } from './IR'
 import { Quad } from './IR'
 
-const GlobalScope = [0] // 0号作用域是全局作用域
+export const GlobalScope = [0] // 0号作用域是全局作用域
+export const LabelPrefix = '_label_'
+export const VarPrefix = '_var_'
 
 /**
  * 中间代码生成器
@@ -44,7 +46,7 @@ export class IRGenerator {
    * 分配一个新的变量id
    */
   private _newVarId() {
-    return '_var_' + this._varCount++
+    return VarPrefix + this._varCount++
   }
   /**
    * 新增一个变量
@@ -57,7 +59,7 @@ export class IRGenerator {
    * 分配一个新标号
    */
   private _newLabel(desc = '') {
-    return '_label_' + this._labelCount++ + '_' + desc
+    return LabelPrefix + this._labelCount++ + '_' + desc
   }
   private _scopeCount: number // 作用域计数
   private _scopePath: number[] // 当前作用域路径
@@ -76,7 +78,7 @@ export class IRGenerator {
   /**
    * 判断两个作用域是否相同
    */
-  private sameScope(scope1: number[], scope2: number[]) {
+  static sameScope(scope1: number[], scope2: number[]) {
     return scope1.join('/') == scope2.join('/')
   }
   /**
@@ -91,7 +93,7 @@ export class IRGenerator {
     }
     // validScoped由近及远
     for (let scope of validScopes)
-      for (let v of this._varPool) if (v.name == name && this.sameScope(v.scope, scope)) return v
+      for (let v of this._varPool) if (v.name == name && IRGenerator.sameScope(v.scope, scope)) return v
     assert(false, `未找到该变量：${name}`)
     return new IRVar('-1', '', 'none', [])
   }
@@ -454,7 +456,7 @@ export class IRGenerator {
     res += '\n'
     // 全局变量
     res += '[GLOBALVARS]\n'
-    for (let v of this._varPool.filter(x => this.sameScope(x.scope, GlobalScope))) {
+    for (let v of this._varPool.filter(x => IRGenerator.sameScope(x.scope, GlobalScope))) {
       res += '\t' + `${v.id}(${v.type})` + '\n'
     }
     res += '\n'

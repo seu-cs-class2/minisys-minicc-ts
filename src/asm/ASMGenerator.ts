@@ -1,47 +1,69 @@
 /**
  * 汇编代码（目标代码）生成器
+ * 约定：
+ *   - 布尔真：0x1；布尔假：0x0
  * 2020-12 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
 import { MiniCType } from '../ir/IR'
-import { IRGenerator } from '../ir/IRGenerator'
+import { GlobalScope, IRGenerator, LabelPrefix } from '../ir/IRGenerator'
 import { assert } from '../seu-lex-yacc/utils'
 import { usefulRegs } from './Arch'
 
-// true: 0x1
-// false: 0x0
-
 interface VarLocation {
-  type: 'stack' | 'register' | 'unassigned'
-  location: string
+  type: 'stack' | 'register' | 'unassigned' // 变量在栈、寄存器，还是未分配位置
+  location: string // 具体位置，若为寄存器则带$
 }
 
+type RegStatus = 'free' | 'busy'
+
+/**
+ * 汇编代码生成器
+ */
 export class ASMGenerator {
   private _ir: IRGenerator
-  private _registerStatus: { [key: string]: 'free' | 'allocated' }
-  private _varLocTable: { [key: string]: VarLocation } // 变量id→变量所在位置
+  private _regStatus: Map<string, RegStatus> // 寄存器名→寄存器状态
+  private _varLocTable: Map<string, VarLocation> // 变量id→变量所在位置
   private _asm: string[]
 
   constructor(ir: IRGenerator) {
     this._ir = ir
-    this._registerStatus = {}
-    this._varLocTable = {}
     this._asm = []
-    for (let reg of usefulRegs) this._registerStatus[reg] = 'free'
+    // 初始化全体寄存器为空闲状态
+    this._regStatus = new Map()
+    for (let reg of usefulRegs) this._regStatus.set(reg, 'free')
+    // 初始化全体变量为未分配状态
+    this._varLocTable = new Map()
+    for (let var_ of ir.varPool)
+      this._varLocTable.set(var_.id, {
+        type: 'unassigned',
+        location: ' ',
+      })
     this.newAsm('.DATA 0x0')
     this.processGlobalVars()
     this.newAsm('.TEXT 0x0')
-    this.convert()
+    this.processTextSegment()
   }
 
+  /**
+   * 生成汇编代码
+   */
   toAssembly() {
-    return this._asm.map(v => (!v.startsWith('.') ? '\t' : '') + v.replace(' ', '\t')).join('\n')
+    return this._asm
+      .map(v => (!(v.startsWith('.') || v.startsWith(LabelPrefix)) ? '\t' : '') + v.replace(' ', '\t'))
+      .join('\n')
   }
 
+  /**
+   * 添加一行新汇编代码
+   */
   newAsm(line: string) {
     this._asm.push(line)
   }
 
+  /**
+   * 将MiniC类型转换为Minisys汇编类型
+   */
   toMinisysType(type: MiniCType) {
     const table: { [key: string]: string } = {
       int: '.word',
@@ -49,42 +71,65 @@ export class ASMGenerator {
     return table[type]
   }
 
+  /**
+   * 处理全局变量
+   */
   processGlobalVars() {
-    const globalVars = this._ir.varPool.filter(v => v.scope.join('/') == '0')
+    const globalVars = this._ir.varPool.filter(v => IRGenerator.sameScope(v.scope, GlobalScope))
     for (let var_ of globalVars) {
-      // FIXME
+      // FIXME 数组、初始值，怎么处理
       this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} 0x0`)
     }
   }
 
   /**
-   * 为变量varId分配寄存器（总是返回寄存器）
+   * LLVM Fast 寄存器分配算法
+   * @see
+   *   A Detailed Analysis of the LLVM’s Register Allocators,
+   *   Tiago Cariolano de Souza Xavier et al.
+   * 策略：
+   *   - 按照变量出现顺序依次分配
+   *   - 全满时从开头开始spill
+   */
+  RAFast(varId: string, protect: string[], mustExist = false /* 是否要求该变量当前一定在寄存器内 */) {
+    // 检查是否已经为该变量分配过寄存器
+    const allocatedCheck = this._varLocTable.get(varId)!.type == 'register'
+    if (allocatedCheck) return this._varLocTable.get(varId)!.location
+    if (mustExist && !allocatedCheck) assert(false, `找不到变量：${varId}`)
+    // 检查是否有空寄存器可以分配
+    // FIXME: 考虑s系寄存器的破坏问题
+    for (let [reg, status] of this._regStatus.entries())
+      if (status == 'free') {
+        this._regStatus.set(reg, 'busy')
+        this._varLocTable.set(varId, { type: 'register', location: '$' + reg })
+        return '$' + reg
+      }
+    // 仍然没有分配出去，则spill
+    // 保护所有在protect数组中的寄存器，以免覆盖该条指令中某个已经分配的寄存器
+    const availableRegisters = usefulRegs.filter(v => !protect.includes('$' + v))
+    // 牺牲第一个可用寄存器
+    const regToSacrifice = availableRegisters[0]
+    let varToSacrifice: string = ''
+    for (let [var_, loc] of this._varLocTable.entries())
+      if (loc.type == 'register' && loc.location == '$' + regToSacrifice) varToSacrifice = var_
+    assert(varToSacrifice.trim(), `未找到寄存器 $${regToSacrifice} 放置的变量。`)
+    this._regStatus.set(regToSacrifice, 'busy')
+    this._varLocTable.set(varToSacrifice, { type: 'stack', location: '' })
+    // TODO: ...
+  }
+
+  /**
+   * 为变量varId分配寄存器
    */
   getRegister(varId: string, mustExist = false) {
-    // 检查是否已经为该变量分配过寄存器
-    const allocatedCheck = this._varLocTable[varId] && this._varLocTable[varId].type === 'register'
-    if (allocatedCheck) return this._varLocTable[varId].location
-    if (mustExist && !allocatedCheck) assert(false, `找不到变量：${varId}`)
-    // 否则尝试分配新寄存器
-    let regAlloc
-    for (let reg of usefulRegs) {
-      if (this._registerStatus[reg] == 'free') {
-        regAlloc = reg
-        this._varLocTable[varId] = { type: 'register', location: '$' + reg }
-        break
-      }
-    }
-    // 找不到空闲的寄存器，则开始压栈处理
-
-    // TODO: 复用寄存器
-    assert(regAlloc, '没有空闲寄存器分配给变量：' + varId) // FIXME: 进栈
-    return ('$' + regAlloc) as string
+    // TODO: 实现线性扫描寄存器分配算法（需要先进行变量存活区间分析，在IR优化时一起做）
+    return this.RAFast(varId, [], mustExist)
   }
 
   // $2 <- $1  -->  or $1, $zero, $2
   // $2 <- immed  -->  addi $zero, $2, immed
 
-  convert() {
+  processTextSegment() {
     for (let quad of this._ir.quads) {
       const { op, arg1, arg2, res } = quad
       const binaryOp = !!(arg1.trim() && arg2.trim())

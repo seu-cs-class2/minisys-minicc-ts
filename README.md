@@ -93,3 +93,4 @@ $ ./generate-minic.sh
 - [seu-lex-yacc README](https://github.com/seu-cs-class2/minisys-minicc-ts/blob/master/docs/seu-lex-yacc.md)
 - [MiniC 语言](https://github.com/seu-cs-class2/minisys-minicc-ts/blob/master/docs/MiniC.md)
 - [中间代码约定](https://github.com/seu-cs-class2/minisys-minicc-ts/blob/master/docs/IR.md)
+- [运行时设计](https://github.com/seu-cs-class2/minisys-minicc-ts/blob/master/docs/runtime.md)
