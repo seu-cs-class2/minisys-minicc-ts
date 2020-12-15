@@ -175,7 +175,7 @@ export class DFA extends FiniteAutomata {
     for (let [state, action] of this._acceptActionMap.entries())
       obj['acceptActionMap'].push({ accpetStateIndex: this._states.indexOf(state), action })
     // output
-    fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
+    fs.writeFileSync(savePath, JSON.stringify(obj))
   }
 
   /**
