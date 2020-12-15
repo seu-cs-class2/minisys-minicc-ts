@@ -182,6 +182,7 @@ export class IRBlock {
   private _func?: IRFunc
   // 复合语句信息
   private _label?: string
+  private _breakLabel?: string
   private _breakable?: boolean
 
   get type() {
@@ -211,6 +212,12 @@ export class IRBlock {
   set label(v: string | undefined) {
     this._label = v
   }
+  get breakLabel() {
+    return this._breakLabel
+  }
+  set breakLabel(v: string | undefined) {
+    this._breakLabel = v
+  }
   get breakable() {
     return this._breakable
   }
@@ -222,14 +229,14 @@ export class IRBlock {
    * 新建函数型块
    */
   static newFunc(funcName: string, func: IRFunc) {
-    return new IRBlock('func', [], funcName, func, void 0, void 0)
+    return new IRBlock('func', [], funcName, func, void 0, void 0, void 0)
   }
 
   /**
    * 新建复合语句型块
    */
-  static newCompound(label: string, breakable: boolean) {
-    return new IRBlock('compound', [], void 0, void 0, label, breakable)
+  static newCompound(label: string, breakable: boolean, breakLabel?: string) {
+    return new IRBlock('compound', [], void 0, void 0, label, breakable, breakLabel)
   }
 
   protected constructor(
@@ -238,7 +245,8 @@ export class IRBlock {
     funcName: string | undefined,
     func: IRFunc | undefined,
     label: string | undefined,
-    breakable: boolean | undefined
+    breakable: boolean | undefined,
+    breakLabel: string | undefined
   ) {
     this._type = type
     this._vars = vars
@@ -246,5 +254,6 @@ export class IRBlock {
     this._funcName = funcName
     this._label = label
     this._breakable = breakable
+    this._breakLabel = breakLabel
   }
 }

@@ -142,13 +142,14 @@ exports.IRFunc = IRFunc;
  * IR阶段块级作用域
  */
 class IRBlock {
-    constructor(type, vars, funcName, func, label, breakable) {
+    constructor(type, vars, funcName, func, label, breakable, breakLabel) {
         this._type = type;
         this._vars = vars;
         this._func = func;
         this._funcName = funcName;
         this._label = label;
         this._breakable = breakable;
+        this._breakLabel = breakLabel;
     }
     get type() {
         return this._type;
@@ -177,6 +178,12 @@ class IRBlock {
     set label(v) {
         this._label = v;
     }
+    get breakLabel() {
+        return this._breakLabel;
+    }
+    set breakLabel(v) {
+        this._breakLabel = v;
+    }
     get breakable() {
         return this._breakable;
     }
@@ -187,13 +194,13 @@ class IRBlock {
      * 新建函数型块
      */
     static newFunc(funcName, func) {
-        return new IRBlock('func', [], funcName, func, void 0, void 0);
+        return new IRBlock('func', [], funcName, func, void 0, void 0, void 0);
     }
     /**
      * 新建复合语句型块
      */
-    static newCompound(label, breakable) {
-        return new IRBlock('compound', [], void 0, void 0, label, breakable);
+    static newCompound(label, breakable, breakLabel) {
+        return new IRBlock('compound', [], void 0, void 0, label, breakable, breakLabel);
     }
 }
 exports.IRBlock = IRBlock;

@@ -267,11 +267,11 @@ export class IRGenerator {
   }
 
   parse_while_stmt(node: ASTNode) {
-    const expr = this.parse_expr(node.$(1))
     const loopLabel = this._newLabel()
     const breakLabel = this._newLabel()
-    this._pushBlock(IRBlock.newCompound(loopLabel, true))
+    this._pushBlock(IRBlock.newCompound(loopLabel, true, breakLabel))
     this._newQuad('set_label', '', '', loopLabel)
+    const expr = this.parse_expr(node.$(1))
     this._newQuad('j_if_not', expr, '', breakLabel)
     this.parse_stmt(node.$(2))
     this._newQuad('j', '', '', loopLabel)
@@ -282,8 +282,16 @@ export class IRGenerator {
   parse_continue_stmt(node: ASTNode) {
     this._newQuad('j', '', '', this._currentBlock().label!)
   }
-
-  parse_break_stmt(node: ASTNode) {}
+  
+  parse_break_stmt(node: ASTNode) {
+    for (let i = this._blockStkPtr; i >= 0; i--) {
+      if (this._blocks[this._blocksStk[i]].breakable) {
+        this._newQuad('j', '', '', this._blocks[this._blocksStk[i]].breakLabel!)
+        return
+      }
+    }
+    assert(false, `break未找到跳转目标`)
+  }
 
   parse_expr_stmt(node: ASTNode) {
     // 变量赋值
