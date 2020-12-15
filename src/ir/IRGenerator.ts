@@ -7,6 +7,8 @@
  *    - 文法中的终结符在.y和此处都使用全大写命名
  *    - 其余驼峰命名的则是程序逻辑相关的部分
  * 文法文件：/syntax/MiniC.y，顺序、命名均一致
+ * 
+ * // TODO: 测试continue、break的处理；测试函数调用的处理
  */
 
 import { assert } from '../seu-lex-yacc/utils'
@@ -14,74 +16,92 @@ import { ASTNode } from './AST'
 import { IRVar, IRFunc, MiniCType, IRArray } from './IR'
 import { Quad } from './IR'
 
-const GlobalScope = [0]
+const GlobalScope = [0] // 0号作用域是全局作用域
 
-// 收集所有变量、函数
+/**
+ * 中间代码生成器
+ */
 export class IRGenerator {
-  private _funcPool: IRFunc[]
-  private _quads: Quad[]
+  private _funcPool: IRFunc[] // 所有函数
+  private _quads: Quad[] // 所有四元式
   get quads() {
     return this._quads
   }
+  /**
+   * 新增一条四元式并将其返回
+   */
   private _newQuad(op: string, arg1: string, arg2: string, res: string) {
     const quad = new Quad(op, arg1, arg2, res)
     this._quads.push(quad)
     return quad
   }
-  private _varPool: (IRVar | IRArray)[]
-  private _varCount: number
+  private _varPool: (IRVar | IRArray)[] // 所有变量
+  get varPool() {
+    return this._varPool
+  }
+  private _varCount: number // 变量计数
+  /**
+   * 分配一个新的变量id
+   */
   private _newVarId() {
     return '_var_' + this._varCount++
   }
+  /**
+   * 新增一个变量
+   */
   private _newVar(v: IRVar | IRArray) {
     this._varPool.push(v)
   }
+  private _labelCount: number // 标号计数
+  /**
+   * 分配一个新标号
+   */
+  private _newLabel(desc = '') {
+    return '_label_' + this._labelCount++ + '_' + desc
+  }
+  private _scopeCount: number // 作用域计数
+  private _scopePath: number[] // 当前作用域路径
+  /**
+   * 进一层作用域
+   */
+  private pushScope() {
+    this._scopePath.push(++this._scopeCount)
+  }
+  /**
+   * 退出当前作用域
+   */
+  private popScope() {
+    return this._scopePath.pop()
+  }
+  /**
+   * 结合当前所在的作用域寻找最近的名字相符的变量
+   */
   private _findVar(name: string) {
     let validScopes = [],
-      currentScope = [...this.scopePath]
+      currentScope = [...this._scopePath]
     while (currentScope.length) {
       validScopes.push([...currentScope])
       currentScope.pop()
     }
-    // console.log('Finding: ' , name);
-    // console.log('Current Scope: ' , this.scopePath);
-    // console.log('Valid Scopes: ', validScopes);
-    for (let v of this._varPool) {
-      if (v.name == name && validScopes.some(scope => scope.join('/') == v.scope.join('/'))) {
-        return v
-      }
-    }
+    for (let v of this._varPool)
+      if (v.name == name && validScopes.some(scope => scope.join('/') == v.scope.join('/'))) return v
     assert(false, `未找到该变量：${name}`)
     return new IRVar('-1', '', 'none', [])
   }
-  private _labelCount: number
-  private _newLabel(desc = '') {
-    return '_label_' + this._labelCount++ + '_' + desc
-  }
-  private _scopeCount: number
-  private scopePath: number[]
-  private pushScope() {
-    this.scopePath.push(++this._scopeCount)
-  }
-  private popScope() {
-    return this.scopePath.pop()
-  }
-
-  get varPool () {
-    return this._varPool
-  }
-
+  /**
+   * 检查变量是否重复
+   */
   private duplicateCheck(v1: IRVar | IRArray, v2: IRVar | IRArray) {
     return v1.name == v2.name && v1.scope.join('/') == v2.scope.join('/')
   }
 
   constructor(root: ASTNode) {
+    this._scopePath = GlobalScope
+    this._varPool = []
+    this._funcPool = []
     this._quads = []
     this._varCount = 0
     this._labelCount = 0
-    this.scopePath = [0]
-    this._varPool = []
-    this._funcPool = []
     this._scopeCount = 0
     this.start(root)
   }
@@ -119,17 +139,17 @@ export class IRGenerator {
     if (node.match('type_spec IDENTIFIER')) {
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
-      this.scopePath = GlobalScope
-      this._newVar(new IRVar(this._newVarId(), name, type, this.scopePath))
+      this._scopePath = GlobalScope
+      this._newVar(new IRVar(this._newVarId(), name, type, this._scopePath))
     }
     // 全局数组声明
     if (node.match('type_spec IDENTIFIER CONSTANT')) {
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
       let len = Number(node.$(3).literal)
-      this.scopePath = GlobalScope
+      this._scopePath = GlobalScope
       assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`)
-      this._newVar(new IRArray(this._newVarId(), type, name, len, this.scopePath))
+      this._newVar(new IRArray(this._newVarId(), type, name, len, this._scopePath))
     }
   }
 
@@ -180,7 +200,7 @@ export class IRGenerator {
     const type = this.parse_type_spec(node.$(1))
     assert(type != 'void', '不可以使用void作参数类型。函数: ' + funcName)
     const name = node.$(2).literal
-    const var_ = new IRVar(this._newVarId(), name, type, this.scopePath)
+    const var_ = new IRVar(this._newVarId(), name, type, this._scopePath)
     this._newVar(var_)
     // 将形参送给函数
     this._funcPool.find(v => v.name == funcName)!.paramList.push(var_)
@@ -299,7 +319,7 @@ export class IRGenerator {
       // 单个变量声明
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
-      const var_ = new IRVar(this._newVarId(), name, type, this.scopePath)
+      const var_ = new IRVar(this._newVarId(), name, type, this._scopePath)
       assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '变量重复声明: ' + name)
       this._newVar(var_)
     }
@@ -309,7 +329,7 @@ export class IRGenerator {
       const name = node.$(2).literal
       const len = Number(node.$(3).literal)
       assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`)
-      const arr = new IRArray(this._newVarId(), type, name, len, this.scopePath)
+      const arr = new IRArray(this._newVarId(), type, name, len, this._scopePath)
       assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '变量重复声明: ' + name)
       this._newVar(arr)
     }
@@ -331,7 +351,8 @@ export class IRGenerator {
   parse_expr(node: ASTNode) {
     // 处理所有二元表达式 expr op expr
     if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(3).name == 'expr') {
-      // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY, SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
+      // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY,
+      // SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
       const oprand1 = this.parse_expr(node.$(1))
       const oprand2 = this.parse_expr(node.$(3))
       const res = this._newVarId()
@@ -398,7 +419,6 @@ export class IRGenerator {
   }
 
   toIRString() {
-    // TODO
     let res = ''
     // 函数定义
     res += '[FUNCTIONS]\n'

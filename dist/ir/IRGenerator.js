@@ -8,68 +8,91 @@
  *    - 文法中的终结符在.y和此处都使用全大写命名
  *    - 其余驼峰命名的则是程序逻辑相关的部分
  * 文法文件：/syntax/MiniC.y，顺序、命名均一致
+ *
+ * // TODO: 测试continue、break的处理；测试函数调用的处理
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IRGenerator = void 0;
 const utils_1 = require("../seu-lex-yacc/utils");
 const IR_1 = require("./IR");
 const IR_2 = require("./IR");
-const GlobalScope = [0];
-// 收集所有变量、函数
+const GlobalScope = [0]; // 0号作用域是全局作用域
+/**
+ * 中间代码生成器
+ */
 class IRGenerator {
     constructor(root) {
+        this._scopePath = GlobalScope;
+        this._varPool = [];
+        this._funcPool = [];
         this._quads = [];
         this._varCount = 0;
         this._labelCount = 0;
-        this.scopePath = [0];
-        this._varPool = [];
-        this._funcPool = [];
         this._scopeCount = 0;
         this.start(root);
     }
     get quads() {
         return this._quads;
     }
+    /**
+     * 新增一条四元式并将其返回
+     */
     _newQuad(op, arg1, arg2, res) {
         const quad = new IR_2.Quad(op, arg1, arg2, res);
         this._quads.push(quad);
         return quad;
     }
+    get varPool() {
+        return this._varPool;
+    }
+    /**
+     * 分配一个新的变量id
+     */
     _newVarId() {
         return '_var_' + this._varCount++;
     }
+    /**
+     * 新增一个变量
+     */
     _newVar(v) {
         this._varPool.push(v);
     }
+    /**
+     * 分配一个新标号
+     */
+    _newLabel(desc = '') {
+        return '_label_' + this._labelCount++ + '_' + desc;
+    }
+    /**
+     * 进一层作用域
+     */
+    pushScope() {
+        this._scopePath.push(++this._scopeCount);
+    }
+    /**
+     * 退出当前作用域
+     */
+    popScope() {
+        return this._scopePath.pop();
+    }
+    /**
+     * 结合当前所在的作用域寻找最近的名字相符的变量
+     */
     _findVar(name) {
-        let validScopes = [], currentScope = [...this.scopePath];
+        let validScopes = [], currentScope = [...this._scopePath];
         while (currentScope.length) {
             validScopes.push([...currentScope]);
             currentScope.pop();
         }
-        // console.log('Finding: ' , name);
-        // console.log('Current Scope: ' , this.scopePath);
-        // console.log('Valid Scopes: ', validScopes);
-        for (let v of this._varPool) {
-            if (v.name == name && validScopes.some(scope => scope.join('/') == v.scope.join('/'))) {
+        for (let v of this._varPool)
+            if (v.name == name && validScopes.some(scope => scope.join('/') == v.scope.join('/')))
                 return v;
-            }
-        }
         utils_1.assert(false, `未找到该变量：${name}`);
         return new IR_1.IRVar('-1', '', 'none', []);
     }
-    _newLabel(desc = '') {
-        return '_label_' + this._labelCount++ + '_' + desc;
-    }
-    pushScope() {
-        this.scopePath.push(++this._scopeCount);
-    }
-    popScope() {
-        return this.scopePath.pop();
-    }
-    get varPool() {
-        return this._varPool;
-    }
+    /**
+     * 检查变量是否重复
+     */
     duplicateCheck(v1, v2) {
         return v1.name == v2.name && v1.scope.join('/') == v2.scope.join('/');
     }
@@ -103,17 +126,17 @@ class IRGenerator {
         if (node.match('type_spec IDENTIFIER')) {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
-            this.scopePath = GlobalScope;
-            this._newVar(new IR_1.IRVar(this._newVarId(), name, type, this.scopePath));
+            this._scopePath = GlobalScope;
+            this._newVar(new IR_1.IRVar(this._newVarId(), name, type, this._scopePath));
         }
         // 全局数组声明
         if (node.match('type_spec IDENTIFIER CONSTANT')) {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
             let len = Number(node.$(3).literal);
-            this.scopePath = GlobalScope;
+            this._scopePath = GlobalScope;
             utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`);
-            this._newVar(new IR_1.IRArray(this._newVarId(), type, name, len, this.scopePath));
+            this._newVar(new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath));
         }
     }
     parse_type_spec(node) {
@@ -159,7 +182,7 @@ class IRGenerator {
         const type = this.parse_type_spec(node.$(1));
         utils_1.assert(type != 'void', '不可以使用void作参数类型。函数: ' + funcName);
         const name = node.$(2).literal;
-        const var_ = new IR_1.IRVar(this._newVarId(), name, type, this.scopePath);
+        const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
         this._newVar(var_);
         // 将形参送给函数
         this._funcPool.find(v => v.name == funcName).paramList.push(var_);
@@ -268,7 +291,7 @@ class IRGenerator {
             // 单个变量声明
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
-            const var_ = new IR_1.IRVar(this._newVarId(), name, type, this.scopePath);
+            const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
             utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '变量重复声明: ' + name);
             this._newVar(var_);
         }
@@ -278,7 +301,7 @@ class IRGenerator {
             const name = node.$(2).literal;
             const len = Number(node.$(3).literal);
             utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`);
-            const arr = new IR_1.IRArray(this._newVarId(), type, name, len, this.scopePath);
+            const arr = new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath);
             utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '变量重复声明: ' + name);
             this._newVar(arr);
         }
@@ -298,7 +321,8 @@ class IRGenerator {
     parse_expr(node) {
         // 处理所有二元表达式 expr op expr
         if (node.children.length == 3 && node.$(1).name == 'expr' && node.$(3).name == 'expr') {
-            // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY, SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
+            // OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, GE_OP, LE_OP, PLUS, MINUS, MULTIPLY,
+            // SLASH, PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, RIGHT_OP, BITOR_OP
             const oprand1 = this.parse_expr(node.$(1));
             const oprand2 = this.parse_expr(node.$(3));
             const res = this._newVarId();
@@ -363,7 +387,6 @@ class IRGenerator {
         return [];
     }
     toIRString() {
-        // TODO
         let res = '';
         // 函数定义
         res += '[FUNCTIONS]\n';

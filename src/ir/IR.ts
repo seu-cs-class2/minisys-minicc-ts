@@ -7,45 +7,20 @@
  * 四元式 (op, arg1, arg2, res)
  */
 export class Quad {
-  private _op: string
-  private _arg1: string
-  private _arg2: string
-  private _res: string
-
-  get op() {
-    return this._op
-  }
-  set op(v: string) {
-    this._op = v
-  }
-  get arg1() {
-    return this._arg1
-  }
-  set arg1(v: string) {
-    this._arg1 = v
-  }
-  get arg2() {
-    return this._arg2
-  }
-  set arg2(v: string) {
-    this._arg2 = v
-  }
-  get res() {
-    return this._res
-  }
-  set res(v: string) {
-    this._res = v
-  }
+  public op: string
+  public arg1: string
+  public arg2: string
+  public res: string
 
   constructor(op: string, arg1: string, arg2: string, res: string) {
-    this._op = op
-    this._arg1 = arg1
-    this._arg2 = arg2
-    this._res = res
+    this.op = op
+    this.arg1 = arg1
+    this.arg2 = arg2
+    this.res = res
   }
 
   toString() {
-    return `(${this._op}, ${this._arg1}, ${this._arg2}, ${this._res})`
+    return `(${this.op}, ${this.arg1}, ${this.arg2}, ${this.res})`
   }
 }
 
@@ -61,7 +36,7 @@ export class IRVar {
   public id: string // 变量唯一id
   public name: string // 变量名
   public type: MiniCType // 变量类型
-  public scope: number[] // 作用域
+  public scope: number[] // 作用域路径
 
   constructor(id: string, name: string, type: MiniCType, scope: number[]) {
     this.name = name
@@ -75,11 +50,11 @@ export class IRVar {
  * IR阶段数组信息存储
  */
 export class IRArray {
-  public id: string
-  public type: MiniCType
-  public name: string
-  public len: number
-  public scope: number[]
+  public id: string // 数组变量唯一id
+  public type: MiniCType // 数组类型
+  public name: string // 数组名
+  public len: number // 长度
+  public scope: number[] // 作用域路径
 
   constructor(id: string, type: MiniCType, name: string, len: number, scope: number[]) {
     this.id = id
