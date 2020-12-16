@@ -132,8 +132,8 @@ export class ASMGenerator {
   processTextSegment() {
     for (let quad of this._ir.quads) {
       const { op, arg1, arg2, res } = quad
-      const binaryOp = !!(arg1.trim() && arg2.trim())
-      const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim())
+      const binaryOp = !!(arg1.trim() && arg2.trim()) // 是二元表达式
+      const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()) // 是一元表达式
       switch (op) {
         case 'OR_OP': {
         }

@@ -93,7 +93,7 @@ class IRGenerator {
             validScopes.push([...currentScope]);
             currentScope.pop();
         }
-        // validScoped由近及远
+        // validScopes由近及远
         for (let scope of validScopes)
             for (let v of this._varPool)
                 if (v.name == name && IRGenerator.sameScope(v.scope, scope))
@@ -258,11 +258,11 @@ class IRGenerator {
         this._newQuad('set_label', '', '', falseLabel);
     }
     parse_while_stmt(node) {
-        const expr = this.parse_expr(node.$(1));
         const loopLabel = this._newLabel('loop'); // 入口标号
         const breakLabel = this._newLabel('break'); // 出口标号
         this._loopStack.push({ loopLabel, breakLabel });
         this._newQuad('set_label', '', '', loopLabel);
+        const expr = this.parse_expr(node.$(1));
         this._newQuad('j_false', expr, '', breakLabel);
         this.parse_stmt(node.$(2));
         this._newQuad('j', '', '', loopLabel);
