@@ -280,11 +280,11 @@ export class IRGenerator {
   }
 
   parse_while_stmt(node: ASTNode) {
-    const expr = this.parse_expr(node.$(1))
     const loopLabel = this._newLabel('loop') // 入口标号
     const breakLabel = this._newLabel('break') // 出口标号
     this._loopStack.push({ loopLabel, breakLabel })
     this._newQuad('set_label', '', '', loopLabel)
+    const expr = this.parse_expr(node.$(1))
     this._newQuad('j_false', expr, '', breakLabel)
     this.parse_stmt(node.$(2))
     this._newQuad('j', '', '', loopLabel)
