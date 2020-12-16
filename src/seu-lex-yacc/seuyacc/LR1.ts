@@ -501,7 +501,7 @@ export class LR1Analyzer {
     obj['first'] = this._first
     // epsilon
     obj['epsilon'] = this._epsilon
-    fs.writeFileSync(savePath, JSON.stringify(obj, null, 2))
+    fs.writeFileSync(savePath, JSON.stringify(obj))
   }
 
   /**

@@ -545,7 +545,7 @@ class LALRAnalyzer {
         obj['first'] = this._first;
         // epsilon
         obj['epsilon'] = this._epsilon;
-        fs.writeFileSync(savePath, JSON.stringify(obj, null, 2));
+        fs.writeFileSync(savePath, JSON.stringify(obj));
     }
     /**
      * 加载导出的LALRAnalyzer

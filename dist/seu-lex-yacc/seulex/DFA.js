@@ -193,7 +193,7 @@ class DFA extends FA_1.FiniteAutomata {
         for (let [state, action] of this._acceptActionMap.entries())
             obj['acceptActionMap'].push({ accpetStateIndex: this._states.indexOf(state), action });
         // output
-        fs.writeFileSync(savePath, JSON.stringify(obj, null, 2));
+        fs.writeFileSync(savePath, JSON.stringify(obj));
     }
     /**
      * 从DFA的序列化结果装载DFA
