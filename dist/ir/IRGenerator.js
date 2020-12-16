@@ -8,8 +8,6 @@
  *    - 文法中的终结符在.y和此处都使用全大写命名
  *    - 其余驼峰命名的则是程序逻辑相关的部分
  * 文法文件：/syntax/MiniC.y，顺序、命名均一致
- *
- * // TODO: 测试continue、break的处理；测试函数调用的处理
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IRGenerator = exports.VarPrefix = exports.LabelPrefix = exports.GlobalScope = void 0;
@@ -441,6 +439,42 @@ class IRGenerator {
             res += '\t' + quad.toString() + '\n';
         }
         res += '\n';
+        return res;
+    }
+    /**
+     * 对四元式进行基本块划分
+     * 龙书算法8.5
+     */
+    toBasicBlocks() {
+        let leaders = []; // 首指令下标
+        let nextFlag = false;
+        for (let i = 0; i < this._quads.length; i++) {
+            if (i == 0) {
+                // 中间代码的第一个四元式是一个首指令
+                leaders.push(i);
+                continue;
+            }
+            if (this._quads[i].op == 'j' || this._quads[i].op == 'j_false') {
+                // 条件或无条件转移指令的目标指令是一个首指令
+                leaders.push(this._quads.findIndex(v => v.op == 'set_label' && v.res == this._quads[i].res));
+                nextFlag = true;
+                continue;
+            }
+            if (nextFlag) {
+                // 紧跟在一个条件或无条件转移指令之后的指令是一个首指令
+                leaders.push(i);
+                nextFlag = false;
+                continue;
+            }
+        }
+        leaders = [...new Set(leaders)].sort((a, b) => a - b);
+        if (leaders.slice(-1)[0] !== this._quads.length - 1)
+            leaders.push(this._quads.length - 1);
+        // 每个首指令左闭右开地划分了四元式
+        let res = [];
+        for (let i = 0; i < leaders.length - 1; i++) {
+            res.push(this._quads.slice(leaders[i], leaders[i + 1]));
+        }
         return res;
     }
 }

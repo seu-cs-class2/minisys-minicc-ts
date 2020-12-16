@@ -26,3 +26,9 @@ const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
 const ir = new IRGenerator_1.IRGenerator(root);
 console.log(ir.toIRString());
 fs_1.default.writeFileSync(path_1.default.join(__dirname, './Example.ir'), ir.toIRString());
+let basicBlocksSplit = '----------------------------------------------------------------\n';
+ir.toBasicBlocks().forEach(block => {
+    basicBlocksSplit += block.map(v => v.toString()).join('\n');
+    basicBlocksSplit += '\n----------------------------------------------------------------\n';
+});
+fs_1.default.writeFileSync(path_1.default.join(__dirname, './Example.split.ir'), basicBlocksSplit);
