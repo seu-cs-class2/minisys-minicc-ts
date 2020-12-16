@@ -28,9 +28,9 @@ const ir = new IRGenerator(root)
 console.log(ir.toIRString())
 fs.writeFileSync(path.join(__dirname, './Example.ir'), ir.toIRString())
 
-let basicBlocksSplit = '----------------------------------------------------------------\n'
-ir.toBasicBlocks().forEach(block => {
-  basicBlocksSplit += block.map(v => v.toString()).join('\n')
-  basicBlocksSplit += '\n----------------------------------------------------------------\n'
+let basicBlocksSplit = ''
+ir.basicBlocks.forEach(block => {
+  basicBlocksSplit += `\nB${block.id}`.padEnd(65, '-') + '\n'
+  basicBlocksSplit += block.content.map(v => v.toString()).join('\n')
 })
-fs.writeFileSync(path.join(__dirname, './Example.split.ir'), basicBlocksSplit)
+fs.writeFileSync(path.join(__dirname, './Example.split.ir'), basicBlocksSplit.trim())

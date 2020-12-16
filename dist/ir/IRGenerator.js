@@ -31,9 +31,13 @@ class IRGenerator {
         this._scopeCount = 0;
         this._loopStack = [];
         this.start(root);
+        this._basicBlocks = this._toBasicBlocks();
     }
     get quads() {
         return this._quads;
+    }
+    get basicBlocks() {
+        return this._basicBlocks;
     }
     /**
      * 新增一条四元式并将其返回
@@ -445,7 +449,7 @@ class IRGenerator {
      * 对四元式进行基本块划分
      * 龙书算法8.5
      */
-    toBasicBlocks() {
+    _toBasicBlocks() {
         let leaders = []; // 首指令下标
         let nextFlag = false;
         for (let i = 0; i < this._quads.length; i++) {
@@ -472,8 +476,12 @@ class IRGenerator {
             leaders.push(this._quads.length - 1);
         // 每个首指令左闭右开地划分了四元式
         let res = [];
+        let id = 0;
         for (let i = 0; i < leaders.length - 1; i++) {
-            res.push(this._quads.slice(leaders[i], leaders[i + 1]));
+            res.push({
+                id: id++,
+                content: this._quads.slice(leaders[i], leaders[i + 1]),
+            });
         }
         return res;
     }

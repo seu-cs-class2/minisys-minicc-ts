@@ -11,7 +11,7 @@
 
 import { assert } from '../seu-lex-yacc/utils'
 import { ASTNode } from './AST'
-import { IRVar, IRFunc, MiniCType, IRArray } from './IR'
+import { IRVar, IRFunc, MiniCType, IRArray, BasicBlock } from './IR'
 import { Quad } from './IR'
 
 export const GlobalScope = [0] // 0号作用域是全局作用域
@@ -26,6 +26,10 @@ export class IRGenerator {
   private _quads: Quad[] // 所有四元式
   get quads() {
     return this._quads
+  }
+  private _basicBlocks: BasicBlock[] // 经过基本块划分的四元式
+  get basicBlocks() {
+    return this._basicBlocks
   }
   /**
    * 新增一条四元式并将其返回
@@ -114,6 +118,7 @@ export class IRGenerator {
     this._scopeCount = 0
     this._loopStack = []
     this.start(root)
+    this._basicBlocks = this._toBasicBlocks()
   }
 
   start(node: ASTNode) {
@@ -477,7 +482,7 @@ export class IRGenerator {
    * 对四元式进行基本块划分
    * 龙书算法8.5
    */
-  toBasicBlocks(): Quad[][] {
+  private _toBasicBlocks(): BasicBlock[] {
     let leaders = [] // 首指令下标
     let nextFlag = false
     for (let i = 0; i < this._quads.length; i++) {
@@ -503,9 +508,13 @@ export class IRGenerator {
     if (leaders.slice(-1)[0] !== this._quads.length - 1) leaders.push(this._quads.length - 1)
 
     // 每个首指令左闭右开地划分了四元式
-    let res: Quad[][] = []
+    let res: BasicBlock[] = []
+    let id = 0
     for (let i = 0; i < leaders.length - 1; i++) {
-      res.push(this._quads.slice(leaders[i], leaders[i + 1]))
+      res.push({
+        id: id++,
+        content: this._quads.slice(leaders[i], leaders[i + 1]),
+      })
     }
 
     return res
