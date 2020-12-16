@@ -7,8 +7,6 @@
  *    - 文法中的终结符在.y和此处都使用全大写命名
  *    - 其余驼峰命名的则是程序逻辑相关的部分
  * 文法文件：/syntax/MiniC.y，顺序、命名均一致
- *
- * // TODO: 测试continue、break的处理；测试函数调用的处理
  */
 
 import { assert } from '../seu-lex-yacc/utils'
