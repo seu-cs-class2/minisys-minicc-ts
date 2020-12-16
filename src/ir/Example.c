@@ -20,6 +20,7 @@ int main(void) {
   while (a > b) { // while
     a = 15;
     while (a == 1) { // nested while
+      int c; // local decl in compound_stmt
       b = b * 2;
       foo(b); // function call
       a = foo(b); // call and assign

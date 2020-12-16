@@ -91,7 +91,7 @@ export class IRGenerator {
       validScopes.push([...currentScope])
       currentScope.pop()
     }
-    // validScoped由近及远
+    // validScopes由近及远
     for (let scope of validScopes)
       for (let v of this._varPool) if (v.name == name && IRGenerator.sameScope(v.scope, scope)) return v
     assert(false, `未找到该变量：${name}`)
