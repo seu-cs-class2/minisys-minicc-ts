@@ -33,6 +33,9 @@ class IRGenerator {
         this.start(root);
         this._basicBlocks = this._toBasicBlocks();
     }
+    get funcPool() {
+        return this._funcPool;
+    }
     get quads() {
         return this._quads;
     }

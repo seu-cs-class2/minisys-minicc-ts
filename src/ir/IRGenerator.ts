@@ -23,6 +23,9 @@ export const VarPrefix = '_var_'
  */
 export class IRGenerator {
   private _funcPool: IRFunc[] // 所有函数
+  get funcPool() {
+    return this._funcPool
+  }
   private _quads: Quad[] // 所有四元式
   get quads() {
     return this._quads
