@@ -142,7 +142,9 @@ class IRGenerator {
         if (node.match('type_spec IDENTIFIER')) {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
+            utils_1.assert(type !== 'void', `不可以声明void型变量：${name}`);
             this._scopePath = exports.GlobalScope;
+            utils_1.assert(!this._varPool.some(v => IRGenerator.sameScope(v.scope, exports.GlobalScope) && v.name == name), `全局变量重复声明：${name}`);
             this._newVar(new IR_1.IRVar(this._newVarId(), name, type, this._scopePath));
         }
         // 全局数组声明
@@ -163,7 +165,7 @@ class IRGenerator {
         // 规定所有的函数都在全局作用域
         const retType = this.parse_type_spec(node.$(1));
         const name = node.$(2).literal;
-        utils_1.assert(!this._funcPool.some(v => v.name == name), `重复定义的函数：${name}`);
+        utils_1.assert(!this._funcPool.some(v => v.name == name), `函数重复定义：${name}`);
         // 参数列表在parse_params时会填上
         this._funcPool.push(new IR_1.IRFunc(name, retType, []));
         const entryLabel = this._newLabel(name + '_entry');
@@ -202,7 +204,7 @@ class IRGenerator {
     }
     parse_param(node, funcName) {
         const type = this.parse_type_spec(node.$(1));
-        utils_1.assert(type != 'void', '不可以使用void作参数类型。函数: ' + funcName);
+        utils_1.assert(type != 'void', '不可以使用void作参数类型。函数：' + funcName);
         const name = node.$(2).literal;
         const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
         this._newVar(var_);
@@ -275,11 +277,11 @@ class IRGenerator {
         this._loopStack.pop();
     }
     parse_continue_stmt(node) {
-        utils_1.assert(this._loopStack.length > 0, '产生continue时没有足够的上下文');
+        utils_1.assert(this._loopStack.length > 0, '产生continue时没有足够的上下文。');
         this._newQuad('j', '', '', this._loopStack.slice(-1)[0].loopLabel);
     }
     parse_break_stmt(node) {
-        utils_1.assert(this._loopStack.length > 0, '产生break时没有足够的上下文');
+        utils_1.assert(this._loopStack.length > 0, '产生break时没有足够的上下文。');
         this._newQuad('j', '', '', this._loopStack.slice(-1)[0].breakLabel);
     }
     parse_expr_stmt(node) {
@@ -323,7 +325,7 @@ class IRGenerator {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
             const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
-            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '变量重复声明: ' + name);
+            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '局部变量重复声明：' + name);
             this._newVar(var_);
         }
         if (node.children.length == 3) {
@@ -333,7 +335,7 @@ class IRGenerator {
             const len = Number(node.$(3).literal);
             utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`);
             const arr = new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath);
-            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '变量重复声明: ' + name);
+            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name);
             this._newVar(arr);
         }
     }
@@ -373,6 +375,7 @@ class IRGenerator {
         if (node.match('IDENTIFIER args')) {
             // 调用函数
             const funcName = node.$(1).literal;
+            utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数。');
             const args = this.parse_args(node.$(2));
             let res = this._newVarId();
             this._newQuad('call', funcName, args.join('&'), res);
