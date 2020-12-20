@@ -4,7 +4,7 @@
  * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.IRFunc = exports.IRArray = exports.IRVar = exports.Quad = void 0;
+exports.CFG = exports.IRFunc = exports.IRArray = exports.IRVar = exports.Quad = void 0;
 /**
  * 四元式 (op, arg1, arg2, res)
  */
@@ -56,3 +56,9 @@ class IRFunc {
     }
 }
 exports.IRFunc = IRFunc;
+/**
+ * 流图
+ */
+class CFG {
+}
+exports.CFG = CFG;

@@ -8,8 +8,6 @@
  *    - 文法中的终结符在.y和此处都使用全大写命名
  *    - 其余驼峰命名的则是程序逻辑相关的部分
  * 文法文件：/syntax/MiniC.y，顺序、命名均一致
- *
- * // TODO: 测试continue、break的处理；测试函数调用的处理
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IRGenerator = exports.VarPrefix = exports.LabelPrefix = exports.GlobalScope = void 0;
@@ -33,9 +31,16 @@ class IRGenerator {
         this._scopeCount = 0;
         this._loopStack = [];
         this.start(root);
+        this._basicBlocks = this._toBasicBlocks();
+    }
+    get funcPool() {
+        return this._funcPool;
     }
     get quads() {
         return this._quads;
+    }
+    get basicBlocks() {
+        return this._basicBlocks;
     }
     /**
      * 新增一条四元式并将其返回
@@ -137,7 +142,9 @@ class IRGenerator {
         if (node.match('type_spec IDENTIFIER')) {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
+            utils_1.assert(type !== 'void', `不可以声明void型变量：${name}`);
             this._scopePath = exports.GlobalScope;
+            utils_1.assert(!this._varPool.some(v => IRGenerator.sameScope(v.scope, exports.GlobalScope) && v.name == name), `全局变量重复声明：${name}`);
             this._newVar(new IR_1.IRVar(this._newVarId(), name, type, this._scopePath));
         }
         // 全局数组声明
@@ -158,7 +165,7 @@ class IRGenerator {
         // 规定所有的函数都在全局作用域
         const retType = this.parse_type_spec(node.$(1));
         const name = node.$(2).literal;
-        utils_1.assert(!this._funcPool.some(v => v.name == name), `重复定义的函数：${name}`);
+        utils_1.assert(!this._funcPool.some(v => v.name == name), `函数重复定义：${name}`);
         // 参数列表在parse_params时会填上
         this._funcPool.push(new IR_1.IRFunc(name, retType, []));
         const entryLabel = this._newLabel(name + '_entry');
@@ -197,7 +204,7 @@ class IRGenerator {
     }
     parse_param(node, funcName) {
         const type = this.parse_type_spec(node.$(1));
-        utils_1.assert(type != 'void', '不可以使用void作参数类型。函数: ' + funcName);
+        utils_1.assert(type != 'void', '不可以使用void作参数类型。函数：' + funcName);
         const name = node.$(2).literal;
         const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
         this._newVar(var_);
@@ -270,11 +277,11 @@ class IRGenerator {
         this._loopStack.pop();
     }
     parse_continue_stmt(node) {
-        utils_1.assert(this._loopStack.length > 0, '产生continue时没有足够的上下文');
+        utils_1.assert(this._loopStack.length > 0, '产生continue时没有足够的上下文。');
         this._newQuad('j', '', '', this._loopStack.slice(-1)[0].loopLabel);
     }
     parse_break_stmt(node) {
-        utils_1.assert(this._loopStack.length > 0, '产生break时没有足够的上下文');
+        utils_1.assert(this._loopStack.length > 0, '产生break时没有足够的上下文。');
         this._newQuad('j', '', '', this._loopStack.slice(-1)[0].breakLabel);
     }
     parse_expr_stmt(node) {
@@ -318,7 +325,7 @@ class IRGenerator {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
             const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
-            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '变量重复声明: ' + name);
+            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '局部变量重复声明：' + name);
             this._newVar(var_);
         }
         if (node.children.length == 3) {
@@ -328,7 +335,7 @@ class IRGenerator {
             const len = Number(node.$(3).literal);
             utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`);
             const arr = new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath);
-            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '变量重复声明: ' + name);
+            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name);
             this._newVar(arr);
         }
     }
@@ -368,6 +375,7 @@ class IRGenerator {
         if (node.match('IDENTIFIER args')) {
             // 调用函数
             const funcName = node.$(1).literal;
+            utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数。');
             const args = this.parse_args(node.$(2));
             let res = this._newVarId();
             this._newQuad('call', funcName, args.join('&'), res);
@@ -441,6 +449,46 @@ class IRGenerator {
             res += '\t' + quad.toString() + '\n';
         }
         res += '\n';
+        return res;
+    }
+    /**
+     * 对四元式进行基本块划分
+     * 龙书算法8.5
+     */
+    _toBasicBlocks() {
+        let leaders = []; // 首指令下标
+        let nextFlag = false;
+        for (let i = 0; i < this._quads.length; i++) {
+            if (i == 0) {
+                // 中间代码的第一个四元式是一个首指令
+                leaders.push(i);
+                continue;
+            }
+            if (this._quads[i].op == 'j' || this._quads[i].op == 'j_false') {
+                // 条件或无条件转移指令的目标指令是一个首指令
+                leaders.push(this._quads.findIndex(v => v.op == 'set_label' && v.res == this._quads[i].res));
+                nextFlag = true;
+                continue;
+            }
+            if (nextFlag) {
+                // 紧跟在一个条件或无条件转移指令之后的指令是一个首指令
+                leaders.push(i);
+                nextFlag = false;
+                continue;
+            }
+        }
+        leaders = [...new Set(leaders)].sort((a, b) => a - b);
+        if (leaders.slice(-1)[0] !== this._quads.length - 1)
+            leaders.push(this._quads.length - 1);
+        // 每个首指令左闭右开地划分了四元式
+        let res = [];
+        let id = 0;
+        for (let i = 0; i < leaders.length - 1; i++) {
+            res.push({
+                id: id++,
+                content: this._quads.slice(leaders[i], leaders[i + 1]),
+            });
+        }
         return res;
     }
 }

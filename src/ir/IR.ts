@@ -7,6 +7,7 @@
  * 四元式 (op, arg1, arg2, res)
  */
 export class Quad {
+
   public op: string
   public arg1: string
   public arg2: string
@@ -79,4 +80,19 @@ export class IRFunc {
     this.retType = retType
     this.paramList = paramList
   }
+}
+
+/**
+ * 基本块
+ */
+export interface BasicBlock {
+  id: number
+  content: Quad[]
+}
+
+/**
+ * 流图
+ */
+export class CFG {
+  // TODO:
 }

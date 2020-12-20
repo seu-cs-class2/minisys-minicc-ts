@@ -2,7 +2,7 @@
 
 import { lexSourceCode } from '../lexer/Lex'
 import { DFA } from '../seu-lex-yacc/seulex/DFA'
-import { ASTNode, visualizeAST } from './AST'
+import { ASTNode } from './AST'
 import { LALRAnalyzer } from '../seu-lex-yacc/seuyacc/LALR'
 import { parseTokensLALR } from '../parser/ParseLALR'
 import { IRGenerator } from './IRGenerator'
@@ -27,3 +27,10 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 const ir = new IRGenerator(root)
 console.log(ir.toIRString())
 fs.writeFileSync(path.join(__dirname, './Example.ir'), ir.toIRString())
+
+let basicBlocksSplit = ''
+ir.basicBlocks.forEach(block => {
+  basicBlocksSplit += `\nB${block.id}`.padEnd(65, '-') + '\n'
+  basicBlocksSplit += block.content.map(v => v.toString()).join('\n')
+})
+fs.writeFileSync(path.join(__dirname, './Example.split.ir'), basicBlocksSplit.trim())
