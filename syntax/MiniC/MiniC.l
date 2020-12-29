@@ -1,6 +1,6 @@
 D			[0-9]
 L			[a-zA-Z_]
-H     0x([a-z0-9])+
+H     0x([a-zA-Z0-9])+
 
 %{
   // nothing
@@ -19,11 +19,11 @@ H     0x([a-z0-9])+
 "return"		      { return(RETURN); }
 "void"			      { return(VOID); }
 "while"			      { return(WHILE); }
+{H}               { return(CONSTANT); }
 {L}               { return(IDENTIFIER); }
 {L}({L}|{D})*		  { return(IDENTIFIER); }
 [1-9]{D}*					{ return(CONSTANT); }
 {D}+							{ return(CONSTANT); }
-{H}               { return(CONSTANT); }
 ">>"			        { return(RIGHT_OP); }
 "<<"			        { return(LEFT_OP); }
 "&&"			        { return(AND_OP); }
