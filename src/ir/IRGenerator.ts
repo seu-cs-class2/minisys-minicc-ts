@@ -125,7 +125,7 @@ export class IRGenerator {
   }
 
   start(node: ASTNode) {
-    if (!node) assert(false, 'AST根节点为null。')
+    if (!node) assert(false, 'AST根节点为null')
     this.parse_program(node)
   }
 
@@ -187,9 +187,9 @@ export class IRGenerator {
     const name = node.$(2).literal
     assert(!this._funcPool.some(v => v.name == name), `函数重复定义：${name}`)
     // 参数列表在parse_params时会填上
-    this._funcPool.push(new IRFunc(name, retType, []))
     const entryLabel = this._newLabel(name + '_entry')
     const exitLabel = this._newLabel(name + '_exit')
+    this._funcPool.push(new IRFunc(name, retType, [], entryLabel, exitLabel))
     this.pushScope()
     this._newQuad('set_label', '', '', entryLabel) // 函数入口
     this.parse_params(node.$(3), name)
@@ -226,7 +226,7 @@ export class IRGenerator {
 
   parse_param(node: ASTNode, funcName: string) {
     const type = this.parse_type_spec(node.$(1))
-    assert(type != 'void', '不可以使用void作参数类型。函数：' + funcName)
+    assert(type != 'void', '不可以用void作参数类型。函数：' + funcName)
     const name = node.$(2).literal
     const var_ = new IRVar(this._newVarId(), name, type, this._scopePath)
     this._newVar(var_)
@@ -304,12 +304,12 @@ export class IRGenerator {
   }
 
   parse_continue_stmt(node: ASTNode) {
-    assert(this._loopStack.length > 0, '产生continue时没有足够的上下文。')
+    assert(this._loopStack.length > 0, '产生continue时没有足够的上下文')
     this._newQuad('j', '', '', this._loopStack.slice(-1)[0]!.loopLabel)
   }
 
   parse_break_stmt(node: ASTNode) {
-    assert(this._loopStack.length > 0, '产生break时没有足够的上下文。')
+    assert(this._loopStack.length > 0, '产生break时没有足够的上下文')
     this._newQuad('j', '', '', this._loopStack.slice(-1)[0]!.breakLabel)
   }
 
@@ -336,7 +336,27 @@ export class IRGenerator {
     // 调函数
     if (node.match('IDENTIFIER args')) {
       const args = this.parse_args(node.$(2))
+      assert(
+        this._funcPool.find(v => v.name == node.$(1).literal),
+        `未声明就调用了函数 ${node.$(1).literal}`
+      )
+      assert(
+        args.length == this._funcPool.find(v => v.name == node.$(1).literal)!.paramList.length,
+        `函数 ${node.$(1).literal} 调用参数数量不匹配`
+      )
       this._newQuad('call', node.$(1).literal, args.join('&'), '')
+    }
+    // 调函数（无参）
+    if (node.match('IDENTIFIER LPAREN RPAREN')) {
+      assert(
+        this._funcPool.find(v => v.name == node.$(1).literal),
+        `未声明就调用了函数 ${node.$(1).literal}`
+      )
+      assert(
+        0 == this._funcPool.find(v => v.name == node.$(1).literal)!.paramList.length,
+        `函数 ${node.$(1).literal} 调用参数数量不匹配`
+      )
+      this._newQuad('call', node.$(1).literal, '', '')
     }
   }
 
@@ -364,7 +384,7 @@ export class IRGenerator {
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
       const len = Number(node.$(3).literal)
-      assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`)
+      assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}`)
       const arr = new IRArray(this._newVarId(), type, name, len, this._scopePath)
       assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name)
       this._newVar(arr)
@@ -406,18 +426,38 @@ export class IRGenerator {
       return res
     }
     if (node.match('IDENTIFIER args')) {
-      // 调用函数
+      console.log('herererererere')
+      // 调用函数（有参）
       const funcName = node.$(1).literal
-      assert(funcName !== 'main', '禁止手动或递归调用main函数。')
+      assert(funcName !== 'main', '禁止手动或递归调用main函数')
       const args = this.parse_args(node.$(2))
       let res = this._newVarId()
+      assert(
+        args.length == this._funcPool.find(v => v.name == funcName)!.paramList.length,
+        `函数 ${funcName} 调用参数数量不匹配`
+      )
       this._newQuad('call', funcName, args.join('&'), res)
+      return res
+    }
+    if (node.match('IDENTIFIER LPAREN RPAREN')) {
+      // 调用函数（无参）
+      const funcName = node.$(1).literal
+      assert(funcName !== 'main', '禁止手动或递归调用main函数')
+      let res = this._newVarId()
+      this._newQuad('call', funcName, '', res)
       return res
     }
     if (node.match('CONSTANT')) {
       // 常量
       const res = this._newVarId()
       this._newQuad('=const', node.$(1).literal, '', res)
+      return res
+    }
+    if (node.match('STRING_LITERAL')) {
+      // 字符串字面
+      // FIXME
+      const res = this._newVarId()
+      this._newQuad('=string', node.$(1).literal, '', res)
       return res
     }
     // 处理所有二元表达式 expr op expr
@@ -462,7 +502,7 @@ export class IRGenerator {
     for (let func of this._funcPool) {
       res += '\tname: ' + func.name + '\n'
       res += '\tretType: ' + func.retType + '\n'
-      res += '\tparamList: ' + func.paramList.map(v => `${v.id}(${v.type})`).join(' | ') + '\n'
+      res += '\tparamList: ' + func.paramList.map(v => `${v.id}(${v.type})`).join('; ') + '\n'
       res += '\n'
     }
     res += '\n'

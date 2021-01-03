@@ -114,7 +114,7 @@ class IRGenerator {
     }
     start(node) {
         if (!node)
-            utils_1.assert(false, 'AST根节点为null。');
+            utils_1.assert(false, 'AST根节点为null');
         this.parse_program(node);
     }
     parse_program(node) {
@@ -204,7 +204,7 @@ class IRGenerator {
     }
     parse_param(node, funcName) {
         const type = this.parse_type_spec(node.$(1));
-        utils_1.assert(type != 'void', '不可以使用void作参数类型。函数：' + funcName);
+        utils_1.assert(type != 'void', '不可以用void作参数类型。函数：' + funcName);
         const name = node.$(2).literal;
         const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
         this._newVar(var_);
@@ -277,11 +277,11 @@ class IRGenerator {
         this._loopStack.pop();
     }
     parse_continue_stmt(node) {
-        utils_1.assert(this._loopStack.length > 0, '产生continue时没有足够的上下文。');
+        utils_1.assert(this._loopStack.length > 0, '产生continue时没有足够的上下文');
         this._newQuad('j', '', '', this._loopStack.slice(-1)[0].loopLabel);
     }
     parse_break_stmt(node) {
-        utils_1.assert(this._loopStack.length > 0, '产生break时没有足够的上下文。');
+        utils_1.assert(this._loopStack.length > 0, '产生break时没有足够的上下文');
         this._newQuad('j', '', '', this._loopStack.slice(-1)[0].breakLabel);
     }
     parse_expr_stmt(node) {
@@ -307,6 +307,8 @@ class IRGenerator {
         // 调函数
         if (node.match('IDENTIFIER args')) {
             const args = this.parse_args(node.$(2));
+            utils_1.assert(this._funcPool.find(v => v.name == node.$(1).literal), `未声明就调用了函数 ${node.$(1).literal}`);
+            utils_1.assert(args.length == this._funcPool.find(v => v.name == node.$(1).literal).paramList.length, `函数 ${node.$(1).literal} 调用参数数量不匹配`);
             this._newQuad('call', node.$(1).literal, args.join('&'), '');
         }
     }
@@ -333,7 +335,7 @@ class IRGenerator {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
             const len = Number(node.$(3).literal);
-            utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`);
+            utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}`);
             const arr = new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath);
             utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name);
             this._newVar(arr);
@@ -373,18 +375,35 @@ class IRGenerator {
             return res;
         }
         if (node.match('IDENTIFIER args')) {
-            // 调用函数
+            console.log('herererererere');
+            // 调用函数（有参）
             const funcName = node.$(1).literal;
-            utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数。');
+            utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数');
             const args = this.parse_args(node.$(2));
             let res = this._newVarId();
+            utils_1.assert(args.length == this._funcPool.find(v => v.name == funcName).paramList.length, `函数 ${funcName} 调用参数数量不匹配`);
             this._newQuad('call', funcName, args.join('&'), res);
+            return res;
+        }
+        if (node.match('IDENTIFIER LPAREN RPAREN')) {
+            // 调用函数（无参）
+            const funcName = node.$(1).literal;
+            utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数');
+            let res = this._newVarId();
+            this._newQuad('call', funcName, '', res);
             return res;
         }
         if (node.match('CONSTANT')) {
             // 常量
             const res = this._newVarId();
             this._newQuad('=const', node.$(1).literal, '', res);
+            return res;
+        }
+        if (node.match('STRING_LITERAL')) {
+            // 字符串字面
+            // FIXME
+            const res = this._newVarId();
+            this._newQuad('=string', node.$(1).literal, '', res);
             return res;
         }
         // 处理所有二元表达式 expr op expr
@@ -427,7 +446,7 @@ class IRGenerator {
         for (let func of this._funcPool) {
             res += '\tname: ' + func.name + '\n';
             res += '\tretType: ' + func.retType + '\n';
-            res += '\tparamList: ' + func.paramList.map(v => `${v.id}(${v.type})`).join(' | ') + '\n';
+            res += '\tparamList: ' + func.paramList.map(v => `${v.id}(${v.type})`).join('; ') + '\n';
             res += '\n';
         }
         res += '\n';
