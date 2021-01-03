@@ -47,6 +47,9 @@ export class IRGenerator {
     return this._varPool
   }
   private _varCount: number // 变量计数
+  get varCount() {
+    return this._varCount
+  }
   /**
    * 分配一个新的变量id
    */
@@ -100,7 +103,7 @@ export class IRGenerator {
     for (let scope of validScopes)
       for (let v of this._varPool) if (v.name == name && IRGenerator.sameScope(v.scope, scope)) return v
     assert(false, `未找到该变量：${name}`)
-    return new IRVar('-1', '', 'none', [])
+    return new IRVar('-1', '', 'none', [], false)
   }
   /**
    * 检查变量是否重复
@@ -163,7 +166,7 @@ export class IRGenerator {
         !this._varPool.some(v => IRGenerator.sameScope(v.scope, GlobalScope) && v.name == name),
         `全局变量重复声明：${name}`
       )
-      this._newVar(new IRVar(this._newVarId(), name, type, this._scopePath))
+      this._newVar(new IRVar(this._newVarId(), name, type, this._scopePath, false))
     }
     // 全局数组声明
     if (node.match('type_spec IDENTIFIER CONSTANT')) {
@@ -228,7 +231,7 @@ export class IRGenerator {
     const type = this.parse_type_spec(node.$(1))
     assert(type != 'void', '不可以用void作参数类型。函数：' + funcName)
     const name = node.$(2).literal
-    const var_ = new IRVar(this._newVarId(), name, type, this._scopePath)
+    const var_ = new IRVar(this._newVarId(), name, type, this._scopePath, false)
     this._newVar(var_)
     // 将形参送给函数
     this._funcPool.find(v => v.name == funcName)!.paramList.push(var_)
@@ -317,6 +320,7 @@ export class IRGenerator {
     // 变量赋值
     if (node.match('IDENTIFIER ASSIGN expr')) {
       const lhs = this._findVar(node.$(1).literal)
+      ;(lhs as IRVar).inited = true
       const rhs = this.parse_expr(node.$(3))
       this._newQuad('=var', rhs, '', lhs.id)
     }
@@ -375,7 +379,7 @@ export class IRGenerator {
       // 单个变量声明
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
-      const var_ = new IRVar(this._newVarId(), name, type, this._scopePath)
+      const var_ = new IRVar(this._newVarId(), name, type, this._scopePath, false)
       assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '局部变量重复声明：' + name)
       this._newVar(var_)
     }
@@ -415,7 +419,9 @@ export class IRGenerator {
     }
     if (node.match('IDENTIFIER')) {
       // 访问变量
-      return this._findVar(node.$(1).literal).id
+      const var_ = this._findVar(node.$(1).literal) as IRVar
+      assert(var_.inited, `在初始化前使用了变量：${var_.name}`)
+      return var_.id
     }
     if (node.match('IDENTIFIER expr')) {
       // 访问数组元素

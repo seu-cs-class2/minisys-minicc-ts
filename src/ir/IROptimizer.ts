@@ -39,25 +39,79 @@ export class IROptimizer {
     this._varPool = val
   }
 
+  printLogs() {
+    return this._logs.join('\n')
+  }
+
   constructor(ir: IRGenerator) {
     this._ir = ir
     this._quads = [...ir.quads]
     this._logs = []
     this._varPool = [...ir.varPool]
 
-    // 不动点法优化中间代码
-    let unfix = false
+    // 不动点法
+    let unfix
     do {
       unfix = false
+      // 死代码消除
       unfix = unfix || this.deadVarEliminate()
-      unfix = unfix || this.deadCodeEliminate()
+      unfix = unfix || this.deadFuncEliminate()
+      unfix = unfix || this.deadVarUseEliminate()
+      // 常量传播和常量折叠
+      // TODO
+      // 代数优化
+      // TODO
     } while (unfix)
   }
 
   /**
-   * 死变量消除
+   * 删除在赋值后从未使用的变量的赋值语句
+   */
+  deadVarUseEliminate() {
+    const varUpdates = new Map<string, number[]>() // VarId -> QuadIndex[]，变量更新的地方
+
+    // 找出所有变量被更新的所有地方
+    for (let i = 0; i < this._ir.varCount; i++) varUpdates.set(VarPrefix + String(i), [])
+    for (let i = 0; i < this._quads.length; i++) {
+      const quad = this._quads[i]
+      quad.res.startsWith(VarPrefix) && varUpdates.set(quad.res, varUpdates.get(quad.res)!.concat([i]))
+    }
+
+    const quadsToRemove: number[] = []
+    for (let [var_, indices] of varUpdates) {
+      // 变量从未被更新，说明已经是死变量，在varPool中的会被deadVarEliminate处理，不在的则已经没有相关四元式
+      if (indices.length == 0) continue
+      // 向后寻找该变量是否被使用过
+      const finalIndex = indices.sort((a, b) => b - a)[0]
+      let used = false
+      for (let i = finalIndex + 1; i < this._quads.length; i++) {
+        const quad = this._quads[i]
+        // 只要出现在arg1 / arg2 / res，就是被使用过的活变量？
+        if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_) {
+          used = true
+          break
+        }
+      }
+      // 没被使用过，那么之前对它的所有赋值都没有意义
+      if (!used) {
+        this._logs.push(`删除从未被使用的变量 ${var_}，对应四元式索引 ${indices}`)
+        quadsToRemove.push(...indices)
+      }
+    }
+
+    // 执行删除
+    // @ts-ignore
+    for (let quadIndex of quadsToRemove) this._quads[quadIndex] = void 0
+    this._quads = this._quads.filter(Boolean)
+
+    return !!quadsToRemove.length
+  }
+
+  /**
+   * 删除变量池中的死变量（从未出现在任何四元式中的变量）
    */
   deadVarEliminate() {
+    //
     let usedVars: string[] = []
     for (let quad of this._quads) {
       if (quad.op == 'call') {
@@ -69,18 +123,17 @@ export class IROptimizer {
       quad.res.startsWith(VarPrefix) && usedVars.push(quad.res)
     }
     usedVars = [...new Set(usedVars)]
-    const unusedVars = this._ir.varPool.filter(v => !usedVars.includes(v.id))
-    this._logs.push(`消除了死变量：${unusedVars}`)
-    this._varPool = this._ir.varPool.filter(v => usedVars.includes(v.id))
+    const unusedVars = this._varPool.filter(v => !usedVars.includes(v.id))
+    unusedVars.length && this._logs.push(`消除了死变量：${JSON.stringify(unusedVars.map(v => v.id))}`)
+
+    this._varPool = this._varPool.filter(v => usedVars.includes(v.id))
     return !!unusedVars.length
   }
 
   /**
-   * 死代码消除
-   *  - 消除从未成为跳转目标的函数
-   *  - TODO 消除不可能的if、while
+   * 删除从未成为跳转目标的函数
    */
-  deadCodeEliminate() {
+  deadFuncEliminate() {
     // 所有跳转目标
     const jTargets = this._quads.filter(v => ['j', 'j_false'].includes(v.op)).map(x => x.res)
     // 所有调用目标

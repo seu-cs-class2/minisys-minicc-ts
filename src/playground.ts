@@ -12,7 +12,7 @@ import { preCompile } from './pre-compile/PreCompile'
 import { UNMATCH_TOKENNAME } from './seu-lex-yacc/utils'
 
 // 测试代码
-const CCode = `
+const CCode1 = `
 // hello
 #include "./test.c"
 
@@ -28,6 +28,19 @@ int main(void) {
 }
 `
 
+const CCode = `
+int a;
+int main(void) {
+  int b;
+  int c;
+  c = 5;
+  a = 20;
+  b = a + 20 * 2;
+  // c = b;
+  return c;
+}
+`
+
 const after = preCompile(CCode, path.join(__dirname, './'))
 console.log(after)
 
@@ -40,5 +53,7 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 const ir = new IRGenerator(root)
 console.log(ir.toIRString())
 
-// const opt = new IROptimizer(ir)
-// console.log(opt.quads.map(v => v.toString()))
+const opt = new IROptimizer(ir)
+console.log(opt.quads.map(v => v.toString()))
+
+console.log(opt.printLogs())

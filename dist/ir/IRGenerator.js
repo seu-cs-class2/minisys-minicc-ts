@@ -53,6 +53,9 @@ class IRGenerator {
     get varPool() {
         return this._varPool;
     }
+    get varCount() {
+        return this._varCount;
+    }
     /**
      * 分配一个新的变量id
      */
@@ -104,7 +107,7 @@ class IRGenerator {
                 if (v.name == name && IRGenerator.sameScope(v.scope, scope))
                     return v;
         utils_1.assert(false, `未找到该变量：${name}`);
-        return new IR_1.IRVar('-1', '', 'none', []);
+        return new IR_1.IRVar('-1', '', 'none', [], false);
     }
     /**
      * 检查变量是否重复
@@ -145,7 +148,7 @@ class IRGenerator {
             utils_1.assert(type !== 'void', `不可以声明void型变量：${name}`);
             this._scopePath = exports.GlobalScope;
             utils_1.assert(!this._varPool.some(v => IRGenerator.sameScope(v.scope, exports.GlobalScope) && v.name == name), `全局变量重复声明：${name}`);
-            this._newVar(new IR_1.IRVar(this._newVarId(), name, type, this._scopePath));
+            this._newVar(new IR_1.IRVar(this._newVarId(), name, type, this._scopePath, false));
         }
         // 全局数组声明
         if (node.match('type_spec IDENTIFIER CONSTANT')) {
@@ -167,9 +170,9 @@ class IRGenerator {
         const name = node.$(2).literal;
         utils_1.assert(!this._funcPool.some(v => v.name == name), `函数重复定义：${name}`);
         // 参数列表在parse_params时会填上
-        this._funcPool.push(new IR_1.IRFunc(name, retType, []));
         const entryLabel = this._newLabel(name + '_entry');
         const exitLabel = this._newLabel(name + '_exit');
+        this._funcPool.push(new IR_1.IRFunc(name, retType, [], entryLabel, exitLabel));
         this.pushScope();
         this._newQuad('set_label', '', '', entryLabel); // 函数入口
         this.parse_params(node.$(3), name);
@@ -206,7 +209,7 @@ class IRGenerator {
         const type = this.parse_type_spec(node.$(1));
         utils_1.assert(type != 'void', '不可以用void作参数类型。函数：' + funcName);
         const name = node.$(2).literal;
-        const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
+        const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath, false);
         this._newVar(var_);
         // 将形参送给函数
         this._funcPool.find(v => v.name == funcName).paramList.push(var_);
@@ -288,6 +291,7 @@ class IRGenerator {
         // 变量赋值
         if (node.match('IDENTIFIER ASSIGN expr')) {
             const lhs = this._findVar(node.$(1).literal);
+            lhs.inited = true;
             const rhs = this.parse_expr(node.$(3));
             this._newQuad('=var', rhs, '', lhs.id);
         }
@@ -311,6 +315,12 @@ class IRGenerator {
             utils_1.assert(args.length == this._funcPool.find(v => v.name == node.$(1).literal).paramList.length, `函数 ${node.$(1).literal} 调用参数数量不匹配`);
             this._newQuad('call', node.$(1).literal, args.join('&'), '');
         }
+        // 调函数（无参）
+        if (node.match('IDENTIFIER LPAREN RPAREN')) {
+            utils_1.assert(this._funcPool.find(v => v.name == node.$(1).literal), `未声明就调用了函数 ${node.$(1).literal}`);
+            utils_1.assert(0 == this._funcPool.find(v => v.name == node.$(1).literal).paramList.length, `函数 ${node.$(1).literal} 调用参数数量不匹配`);
+            this._newQuad('call', node.$(1).literal, '', '');
+        }
     }
     parse_local_decls(node) {
         if (node.$(1).name == 'local_decls') {
@@ -326,7 +336,7 @@ class IRGenerator {
             // 单个变量声明
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
-            const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath);
+            const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath, false);
             utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, var_)), '局部变量重复声明：' + name);
             this._newVar(var_);
         }
@@ -364,7 +374,9 @@ class IRGenerator {
         }
         if (node.match('IDENTIFIER')) {
             // 访问变量
-            return this._findVar(node.$(1).literal).id;
+            const var_ = this._findVar(node.$(1).literal);
+            utils_1.assert(var_.inited, `在初始化前使用了变量：${var_.name}`);
+            return var_.id;
         }
         if (node.match('IDENTIFIER expr')) {
             // 访问数组元素

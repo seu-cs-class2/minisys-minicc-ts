@@ -48,11 +48,12 @@ exports.Quad = Quad;
  * IR阶段变量信息存储
  */
 class IRVar {
-    constructor(id, name, type, scope) {
+    constructor(id, name, type, scope, inited) {
         this._name = name;
         this._type = type;
         this._id = id;
         this._scope = [...scope];
+        this._inited = inited;
     }
     get id() {
         return this._id;
@@ -77,6 +78,12 @@ class IRVar {
     }
     set scope(val) {
         this._scope = val;
+    }
+    get inited() {
+        return this._inited;
+    }
+    set inited(val) {
+        this._inited = val;
     }
 }
 exports.IRVar = IRVar;
@@ -127,12 +134,13 @@ exports.IRArray = IRArray;
  * IR阶段函数信息存储
  */
 class IRFunc {
-    constructor(name, retType, paramList) {
+    constructor(name, retType, paramList, entryLabel, exitLabel) {
         this._name = name;
         this._retType = retType;
         this._paramList = paramList;
+        this._entryLabel = entryLabel;
+        this._exitLabel = exitLabel;
     }
-    // 形参仍然分配变量位，当需要调用时，将实参变量赋给形参变量即可
     get name() {
         return this._name;
     }
@@ -144,6 +152,18 @@ class IRFunc {
     }
     set retType(val) {
         this._retType = val;
+    }
+    get entryLabel() {
+        return this._entryLabel;
+    }
+    set entryLabel(val) {
+        this._entryLabel = val;
+    }
+    get exitLabel() {
+        return this._exitLabel;
+    }
+    set exitLabel(val) {
+        this._exitLabel = val;
     }
     get paramList() {
         return this._paramList;

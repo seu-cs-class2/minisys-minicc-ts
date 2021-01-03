@@ -69,6 +69,7 @@ export class IRVar {
   private _name: string // 变量名
   private _type: MiniCType // 变量类型
   private _scope: number[] // 作用域路径
+  private _inited: boolean
 
   get id() {
     return this._id
@@ -102,11 +103,20 @@ export class IRVar {
     this._scope = val
   }
 
-  constructor(id: string, name: string, type: MiniCType, scope: number[]) {
+  get inited() {
+    return this._inited
+  }
+
+  set inited(val: boolean) {
+    this._inited = val
+  }
+
+  constructor(id: string, name: string, type: MiniCType, scope: number[], inited: boolean) {
     this._name = name
     this._type = type
     this._id = id
     this._scope = [...scope]
+    this._inited = inited
   }
 }
 
