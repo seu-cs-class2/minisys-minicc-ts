@@ -5,6 +5,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IROptimizer = void 0;
+const IR_1 = require("./IR");
 const IRGenerator_1 = require("./IRGenerator");
 /**
  * 中间代码优化器
@@ -24,7 +25,8 @@ class IROptimizer {
             unfix = unfix || this.deadFuncEliminate();
             unfix = unfix || this.deadVarUseEliminate();
             // 常量传播和常量折叠
-            // TODO
+            unfix = unfix || this.constPropPeepHole();
+            unfix = unfix || this.constPropAndFold();
             // 代数优化
             // TODO
         } while (unfix);
@@ -147,12 +149,49 @@ class IROptimizer {
         return !!rangesToRemove.length;
     }
     /**
+     * 处理常量传播的一种窥孔级边界情况
+     *  - (=const, xxx, , _var_1), (=var, _var_1, , _var_2) --> (=const, xxx, , _var_2)
+     */
+    constPropPeepHole() {
+        // 找出所有=var的四元式
+        const eqVars = this._quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
+        const patches = [];
+        // 替换符合上述模式的四元式
+        for (let eqVar of eqVars) {
+            const rhs = eqVar.v.arg1;
+            for (let i = eqVar.i - 1; i >= 0; i--) {
+                if (this._quads[i].op == '=const' && this._quads[i].res == rhs) {
+                    patches.push({
+                        index: eqVar.i,
+                        source: this._quads[i].toString(0),
+                        target: new IR_1.Quad('=const', this._quads[i].arg1, '', eqVar.v.res),
+                    });
+                    // 不需要删除原有的=const产生式，因为死代码消除部分会负责清除
+                }
+            }
+        }
+        // 应用修改
+        for (let patch of patches) {
+            this._quads[patch.index] = patch.target;
+            this._logs.push(`常量传播，将位于 ${patch.index} 的 ${patch.source} 改写为 ${patch.target.toString(0)}`);
+        }
+        return !!patches.length;
+    }
+    /**
      * 常量传播和常量折叠
      */
     constPropAndFold() {
         // 找出所有=var的四元式
         const eqVars = this._quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
-        // TODO 回溯每一个arg1，构建表达式树？
+        // 处理复杂的常量传播和常量折叠情况
+        // 借助回溯法构造表达式树，可以同时完成常量传播和常量折叠
+        for (let eqVar of eqVars) {
+            // TODO
+        }
     }
+    /**
+     * 代数规则优化
+     */
+    algebraOptimize() { }
 }
 exports.IROptimizer = IROptimizer;

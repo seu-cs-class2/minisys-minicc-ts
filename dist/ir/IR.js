@@ -39,8 +39,8 @@ class Quad {
     set res(val) {
         this._res = val;
     }
-    toString() {
-        return `(${this._op.padEnd(12)}, ${this._arg1.padEnd(12)}, ${this._arg2.padEnd(12)}, ${this._res.padEnd(20)})`;
+    toString(padEnd = 12) {
+        return `(${this._op.padEnd(padEnd)}, ${this._arg1.padEnd(padEnd)}, ${this._arg2.padEnd(padEnd)}, ${this._res.padEnd(padEnd != 0 ? padEnd + 8 : 0)})`;
     }
 }
 exports.Quad = Quad;

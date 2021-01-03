@@ -37,7 +37,7 @@ int main(void) {
   a = 20;
   b = a + 20 * 2;
   // c = b;
-  return c;
+  return b;
 }
 `;
 const after = PreCompile_1.preCompile(CCode, path_1.default.join(__dirname, './'));
