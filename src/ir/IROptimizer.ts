@@ -195,7 +195,7 @@ export class IROptimizer {
         }
       }
     }
-    
+
     // 应用修改
     for (let patch of patches) {
       this._quads[patch.index] = patch.target
@@ -218,11 +218,63 @@ export class IROptimizer {
     for (let eqVar of eqVars) {
       // TODO
     }
-
   }
 
   /**
    * 代数规则优化
+   * PLUS: a+0=a
+   * MINUS: a-0=0; 0-a=-a
+   * MULTIPLY: a*1=a; a*0=0
+   * SLASH: 0/a=0; a/1=a
    */
-  algebraOptimize() {}
+  algebraOptimize() {
+    // 找出所有算术计算四元式
+    const calcQuads = this._quads
+      .filter(v => ['PLUS', 'MINUS', 'MULTIPLY', 'SLASH'].includes(v.op))
+      .map((v, i) => ({ v, i })) as { v: Quad; i: number }[]
+
+    interface Record {
+      optimizable: boolean | undefined
+      constant: string | undefined
+    }
+
+    // 对每条四元式的arg1、arg2
+    for (let { v, i } of calcQuads) {
+      let record: { arg1: Record; arg2: Record } = {
+        arg1: {
+          optimizable: void 0, // 是否可能被优化
+          constant: void 0, // 常量是多少
+        },
+        arg2: {
+          optimizable: void 0,
+          constant: void 0,
+        },
+      }
+      const that = this
+
+      // 向上找最近相关的=const，并且过程中不应被作为其他res覆写过
+      function checkHelper(varId: string, record: Record) {
+        for (let j = i - 1; j >= 0; j--) {
+          const quad = that._quads[j]
+          if (quad.op == '=const' && quad.res == varId) {
+            record.optimizable = true
+            record.constant = quad.arg1
+            return
+          }
+          if (quad.res == varId) {
+            record.optimizable = false
+            return
+          }
+        }
+        record.optimizable = false
+        return
+      }
+      checkHelper(v.arg1, record.arg1)
+      checkHelper(v.arg2, record.arg2)
+
+      // 应用规则优化之
+      function optimHelper(record: Record) {}
+      // TODO
+    }
+  }
 }
