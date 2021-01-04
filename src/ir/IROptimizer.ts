@@ -59,9 +59,9 @@ export class IROptimizer {
       unfix = unfix || this.deadVarUseEliminate()
       // 常量传播和常量折叠
       unfix = unfix || this.constPropPeepHole()
-      unfix = unfix || this.constPropAndFold()
+      // unfix = unfix || this.constPropAndFold()
       // 代数优化
-      // TODO
+      unfix = unfix || this.algebraOptimize()
     } while (unfix)
   }
 
@@ -230,13 +230,15 @@ export class IROptimizer {
   algebraOptimize() {
     // 找出所有算术计算四元式
     const calcQuads = this._quads
-      .filter(v => ['PLUS', 'MINUS', 'MULTIPLY', 'SLASH'].includes(v.op))
-      .map((v, i) => ({ v, i })) as { v: Quad; i: number }[]
+      .map((v, i) => ({ v, i }))
+      .filter(x => ['PLUS', 'MINUS', 'MULTIPLY', 'SLASH'].includes(x.v.op))
 
     interface Record {
       optimizable: boolean | undefined
       constant: string | undefined
     }
+
+    let undone = false
 
     // 对每条四元式的arg1、arg2
     for (let { v, i } of calcQuads) {
@@ -272,9 +274,83 @@ export class IROptimizer {
       checkHelper(v.arg1, record.arg1)
       checkHelper(v.arg2, record.arg2)
 
+      function _modify(to: Quad) {
+        that._logs.push(`代数优化，将位于 ${i} 的 ${that._quads[i].toString(0)} 优化为 ${to.toString(0)}`)
+        that._quads[i] = to
+        undone = true
+      }
+
       // 应用规则优化之
-      function optimHelper(record: Record) {}
-      // TODO
+      function optimArg1() {
+        const quad = that._quads[i]
+        if (record.arg1.optimizable && record.arg1.constant == '0') {
+          switch (v.op) {
+            case 'PLUS':
+              // 0 + a = a
+              _modify(new Quad('=var', quad.arg2, '', quad.res))
+              break
+            case 'MINUS':
+              // 0 - a = -a
+              // Minisys架构没有比较高效的取相反数指令，优化与否区别不大，这里不优化
+              break
+            case 'MULTIPLY':
+              // 0 * a = 0
+              _modify(new Quad('=const', '0', '', quad.res))
+              break
+            case 'SLASH':
+              // 0 / a = 0
+              _modify(new Quad('=const', '0', '', quad.res))
+              break
+            default:
+              break
+          }
+        }
+        if (record.arg1.optimizable && record.arg1.constant == '1') {
+          switch (v.op) {
+            case 'MULTIPLY':
+              // 1 * a = a
+              _modify(new Quad('=var', quad.arg2, '', quad.res))
+              break
+            default:
+              break
+          }
+        }
+      }
+      function optimArg2() {
+        const quad = that._quads[i]
+        if (record.arg2.optimizable && record.arg2.constant == '0') {
+          switch (v.op) {
+            case 'PLUS':
+              // a + 0 = a
+              _modify(new Quad('=var', quad.arg1, '', quad.res))
+              break
+            case 'MINUS':
+              // a - 0 = a
+              _modify(new Quad('=var', quad.arg1, '', quad.res))
+              break
+            case 'MULTIPLY':
+              // a * 0 = 0
+              _modify(new Quad('=const', '0', '', quad.res))
+              break
+            default:
+              break
+          }
+        }
+        if (record.arg2.optimizable && record.arg2.constant == '1') {
+          switch (v.op) {
+            case 'MULTIPLY':
+              // a * 1 = a
+              _modify(new Quad('=var', quad.arg1, '', quad.res))
+              break
+            default:
+              break
+          }
+        }
+      }
+      optimArg1()
+      optimArg2()
     }
+
+    return undone
   }
 }

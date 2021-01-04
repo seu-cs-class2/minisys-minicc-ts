@@ -28,7 +28,7 @@ int main(void) {
 }
 `
 
-const CCode = `
+const CCode2 = `
 int a;
 int main(void) {
   int b;
@@ -38,6 +38,20 @@ int main(void) {
   b = a + 20 * 2;
   // c = b;
   return b;
+}
+`
+
+const CCode = `
+int a;
+int main(void) {
+  int b;
+  int c;
+  c = 5 + 0;
+  b = 1 * c;
+  a = 100;
+  a = 0 / 100;
+  b = b + a;
+  return b + c;
 }
 `
 
