@@ -7,43 +7,118 @@
  * 四元式 (op, arg1, arg2, res)
  */
 export class Quad {
+  private _op: string
+  private _arg1: string
+  private _arg2: string
+  private _res: string
 
-  public op: string
-  public arg1: string
-  public arg2: string
-  public res: string
-
-  constructor(op: string, arg1: string, arg2: string, res: string) {
-    this.op = op
-    this.arg1 = arg1
-    this.arg2 = arg2
-    this.res = res
+  get op() {
+    return this._op
   }
 
-  toString() {
-    return `(${this.op.padEnd(12)}, ${this.arg1.padEnd(12)}, ${this.arg2.padEnd(12)}, ${this.res.padEnd(20)})`
+  set op(val: string) {
+    this._op = val
+  }
+
+  get arg1() {
+    return this._arg1
+  }
+
+  set arg1(val: string) {
+    this._arg1 = val
+  }
+
+  get arg2() {
+    return this._arg2
+  }
+
+  set arg2(val: string) {
+    this._arg2 = val
+  }
+
+  get res() {
+    return this._res
+  }
+
+  set res(val: string) {
+    this._res = val
+  }
+
+  constructor(op: string, arg1: string, arg2: string, res: string) {
+    this._op = op
+    this._arg1 = arg1
+    this._arg2 = arg2
+    this._res = res
+  }
+
+  toString(padEnd = 12) {
+    return `(${this._op.padEnd(padEnd)}, ${this._arg1.padEnd(padEnd)}, ${this._arg2.padEnd(padEnd)}, ${this._res.padEnd(
+      padEnd != 0 ? padEnd + 8 : 0
+    )})`
   }
 }
 
 /**
  * MiniC语言数据类型
  */
-export type MiniCType = 'int' | 'void' | 'none'
+export type MiniCType = 'int' | 'void' | 'string' | 'none'
 
 /**
  * IR阶段变量信息存储
  */
 export class IRVar {
-  public id: string // 变量唯一id
-  public name: string // 变量名
-  public type: MiniCType // 变量类型
-  public scope: number[] // 作用域路径
+  private _id: string // 变量唯一id
+  private _name: string // 变量名
+  private _type: MiniCType // 变量类型
+  private _scope: number[] // 作用域路径
+  private _inited: boolean
 
-  constructor(id: string, name: string, type: MiniCType, scope: number[]) {
-    this.name = name
-    this.type = type
-    this.id = id
-    this.scope = [...scope]
+  get id() {
+    return this._id
+  }
+
+  set id(val: string) {
+    this._id = val
+  }
+
+  get name() {
+    return this._name
+  }
+
+  set name(val: string) {
+    this._name = val
+  }
+
+  get type() {
+    return this._type
+  }
+
+  set type(val: MiniCType) {
+    this._type = val
+  }
+
+  get scope() {
+    return this._scope
+  }
+
+  set scope(val: number[]) {
+    this._scope = val
+  }
+
+  get inited() {
+    return this._inited
+  }
+
+  set inited(val: boolean) {
+    this._inited = val
+  }
+
+  constructor(id: string, name: string, type: MiniCType, scope: number[], inited: boolean) {
+    this._name = name
+    this._type = type
+    this._id = id
+    this._scope = [...scope]
+    this._inited = inited
   }
 }
 
@@ -51,18 +126,58 @@ export class IRVar {
  * IR阶段数组信息存储
  */
 export class IRArray {
-  public id: string // 数组变量唯一id
-  public type: MiniCType // 数组类型
-  public name: string // 数组名
-  public len: number // 长度
-  public scope: number[] // 作用域路径
+  private _id: string // 数组变量唯一id
+  private _type: MiniCType // 数组类型
+  private _name: string // 数组名
+  private _len: number // 长度
+  private _scope: number[] // 作用域路径
+
+  get id() {
+    return this._id
+  }
+
+  set id(val: string) {
+    this._id = val
+  }
+
+  get type() {
+    return this._type
+  }
+
+  set type(val: MiniCType) {
+    this._type = val
+  }
+
+  get name() {
+    return this._name
+  }
+
+  set name(val: string) {
+    this._name = val
+  }
+
+  get len() {
+    return this._len
+  }
+
+  set len(val: number) {
+    this._len = val
+  }
+
+  get scope() {
+    return this._scope
+  }
+
+  set scope(val: number[]) {
+    this._scope = val
+  }
 
   constructor(id: string, type: MiniCType, name: string, len: number, scope: number[]) {
-    this.id = id
-    this.type = type
-    this.name = name
-    this.len = len
-    this.scope = [...scope]
+    this._id = id
+    this._type = type
+    this._name = name
+    this._len = len
+    this._scope = [...scope]
   }
 }
 
@@ -70,15 +185,59 @@ export class IRArray {
  * IR阶段函数信息存储
  */
 export class IRFunc {
-  public name: string // 函数名
-  public retType: MiniCType // 函数返回值类型
+  private _name: string // 函数名
+  private _retType: MiniCType // 函数返回值类型
+  private _entryLabel: string
+  private _exitLabel: string
   // 形参仍然分配变量位，当需要调用时，将实参变量赋给形参变量即可
-  public paramList: IRVar[] // 形参列表
+  private _paramList: IRVar[] // 形参列表
 
-  constructor(name: string, retType: MiniCType, paramList: IRVar[]) {
-    this.name = name
-    this.retType = retType
-    this.paramList = paramList
+  get name() {
+    return this._name
+  }
+
+  set name(val: string) {
+    this._name = val
+  }
+
+  get retType() {
+    return this._retType
+  }
+
+  set retType(val: MiniCType) {
+    this._retType = val
+  }
+
+  get entryLabel() {
+    return this._entryLabel
+  }
+
+  set entryLabel(val: string) {
+    this._entryLabel = val
+  }
+
+  get exitLabel() {
+    return this._exitLabel
+  }
+
+  set exitLabel(val: string) {
+    this._exitLabel = val
+  }
+
+  get paramList() {
+    return this._paramList
+  }
+
+  set paramList(val: IRVar[]) {
+    this._paramList = val
+  }
+
+  constructor(name: string, retType: MiniCType, paramList: IRVar[], entryLabel: string, exitLabel: string) {
+    this._name = name
+    this._retType = retType
+    this._paramList = paramList
+    this._entryLabel = entryLabel
+    this._exitLabel = exitLabel
   }
 }
 
@@ -88,11 +247,4 @@ export class IRFunc {
 export interface BasicBlock {
   id: number
   content: Quad[]
-}
-
-/**
- * 流图
- */
-export class CFG {
-  // TODO:
 }

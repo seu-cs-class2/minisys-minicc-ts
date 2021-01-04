@@ -7,7 +7,7 @@
 %token CONSTANT RIGHT_OP LEFT_OP AND_OP OR_OP LE_OP GE_OP EQ_OP NE_OP
 %token SEMICOLON LBRACE RBRACE COMMA COLON ASSIGN LPAREN RPAREN
 %token LBRACKET RBRACKET DOT BITAND_OP NOT_OP BITINV_OP MINUS PLUS MULTIPLY SLASH PERCENT
-%token LT_OP GT_OP BITXOR_OP BITOR_OP DOLLAR
+%token LT_OP GT_OP BITXOR_OP BITOR_OP DOLLAR STRING STRING_LITERAL
 
 %left OR_OP
 %left AND_OP
@@ -46,6 +46,7 @@ var_decl
 type_spec
 	: VOID { $$ = newNode('type_spec', $1); }
 	| INT { $$ = newNode('type_spec', $1); }
+	| STRING { $$ = newNode('type_spec', $1); }
 	;
 
 fun_decl
@@ -108,6 +109,7 @@ expr_stmt
 	| IDENTIFIER LBRACKET expr RBRACKET ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $3, $5, $6); }
 	| DOLLAR expr ASSIGN expr SEMICOLON { $$ = newNode('expr_stmt', $1, $2, $3, $4); }
 	| IDENTIFIER LPAREN args RPAREN SEMICOLON { $$ = newNode('expr_stmt', $1, $3); }
+	| IDENTIFIER LPAREN RPAREN SEMICOLON { $$ = newNode('expr_stmt', $1, $2, $3); }
 	;
 
 local_decls
@@ -147,7 +149,9 @@ expr
 	| IDENTIFIER { $$ = newNode('expr', $1); }
 	| IDENTIFIER LBRACKET expr RBRACKET { $$ = newNode('expr', $1, $3); }
 	| IDENTIFIER LPAREN args RPAREN { $$ = newNode('expr', $1, $3); }
+	| IDENTIFIER LPAREN RPAREN { $$ = newNode('expr', $1, $2, $3); }
 	| CONSTANT { $$ = newNode('expr', $1); }
+	| STRING_LITERAL { $$ = newNode('expr', $1); }
 	| expr BITAND_OP expr { $$ = newNode('expr', $1, $2, $3); }
 	| expr BITXOR_OP expr { $$ = newNode('expr', $1, $2, $3); }
 	| BITINV_OP expr { $$ = newNode('expr', $1, $2); }

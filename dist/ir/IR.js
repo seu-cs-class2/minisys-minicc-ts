@@ -4,19 +4,43 @@
  * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CFG = exports.IRFunc = exports.IRArray = exports.IRVar = exports.Quad = void 0;
+exports.IRFunc = exports.IRArray = exports.IRVar = exports.Quad = void 0;
 /**
  * 四元式 (op, arg1, arg2, res)
  */
 class Quad {
     constructor(op, arg1, arg2, res) {
-        this.op = op;
-        this.arg1 = arg1;
-        this.arg2 = arg2;
-        this.res = res;
+        this._op = op;
+        this._arg1 = arg1;
+        this._arg2 = arg2;
+        this._res = res;
     }
-    toString() {
-        return `(${this.op.padEnd(12)}, ${this.arg1.padEnd(12)}, ${this.arg2.padEnd(12)}, ${this.res.padEnd(20)})`;
+    get op() {
+        return this._op;
+    }
+    set op(val) {
+        this._op = val;
+    }
+    get arg1() {
+        return this._arg1;
+    }
+    set arg1(val) {
+        this._arg1 = val;
+    }
+    get arg2() {
+        return this._arg2;
+    }
+    set arg2(val) {
+        this._arg2 = val;
+    }
+    get res() {
+        return this._res;
+    }
+    set res(val) {
+        this._res = val;
+    }
+    toString(padEnd = 12) {
+        return `(${this._op.padEnd(padEnd)}, ${this._arg1.padEnd(padEnd)}, ${this._arg2.padEnd(padEnd)}, ${this._res.padEnd(padEnd != 0 ? padEnd + 8 : 0)})`;
     }
 }
 exports.Quad = Quad;
@@ -24,11 +48,42 @@ exports.Quad = Quad;
  * IR阶段变量信息存储
  */
 class IRVar {
-    constructor(id, name, type, scope) {
-        this.name = name;
-        this.type = type;
-        this.id = id;
-        this.scope = [...scope];
+    constructor(id, name, type, scope, inited) {
+        this._name = name;
+        this._type = type;
+        this._id = id;
+        this._scope = [...scope];
+        this._inited = inited;
+    }
+    get id() {
+        return this._id;
+    }
+    set id(val) {
+        this._id = val;
+    }
+    get name() {
+        return this._name;
+    }
+    set name(val) {
+        this._name = val;
+    }
+    get type() {
+        return this._type;
+    }
+    set type(val) {
+        this._type = val;
+    }
+    get scope() {
+        return this._scope;
+    }
+    set scope(val) {
+        this._scope = val;
+    }
+    get inited() {
+        return this._inited;
+    }
+    set inited(val) {
+        this._inited = val;
     }
 }
 exports.IRVar = IRVar;
@@ -37,11 +92,41 @@ exports.IRVar = IRVar;
  */
 class IRArray {
     constructor(id, type, name, len, scope) {
-        this.id = id;
-        this.type = type;
-        this.name = name;
-        this.len = len;
-        this.scope = [...scope];
+        this._id = id;
+        this._type = type;
+        this._name = name;
+        this._len = len;
+        this._scope = [...scope];
+    }
+    get id() {
+        return this._id;
+    }
+    set id(val) {
+        this._id = val;
+    }
+    get type() {
+        return this._type;
+    }
+    set type(val) {
+        this._type = val;
+    }
+    get name() {
+        return this._name;
+    }
+    set name(val) {
+        this._name = val;
+    }
+    get len() {
+        return this._len;
+    }
+    set len(val) {
+        this._len = val;
+    }
+    get scope() {
+        return this._scope;
+    }
+    set scope(val) {
+        this._scope = val;
     }
 }
 exports.IRArray = IRArray;
@@ -49,16 +134,42 @@ exports.IRArray = IRArray;
  * IR阶段函数信息存储
  */
 class IRFunc {
-    constructor(name, retType, paramList) {
-        this.name = name;
-        this.retType = retType;
-        this.paramList = paramList;
+    constructor(name, retType, paramList, entryLabel, exitLabel) {
+        this._name = name;
+        this._retType = retType;
+        this._paramList = paramList;
+        this._entryLabel = entryLabel;
+        this._exitLabel = exitLabel;
+    }
+    get name() {
+        return this._name;
+    }
+    set name(val) {
+        this._name = val;
+    }
+    get retType() {
+        return this._retType;
+    }
+    set retType(val) {
+        this._retType = val;
+    }
+    get entryLabel() {
+        return this._entryLabel;
+    }
+    set entryLabel(val) {
+        this._entryLabel = val;
+    }
+    get exitLabel() {
+        return this._exitLabel;
+    }
+    set exitLabel(val) {
+        this._exitLabel = val;
+    }
+    get paramList() {
+        return this._paramList;
+    }
+    set paramList(val) {
+        this._paramList = val;
     }
 }
 exports.IRFunc = IRFunc;
-/**
- * 流图
- */
-class CFG {
-}
-exports.CFG = CFG;

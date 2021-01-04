@@ -81,9 +81,7 @@ $ ./generate-minic.sh
   
 - 目标代码生成
 
-  - [ ] 从 IR 到 ASM 的转换
-    
-    *Almost done.*
+  - [x] 从 IR 到 ASM 的转换
     
   - [ ] ASM 的优化
 
