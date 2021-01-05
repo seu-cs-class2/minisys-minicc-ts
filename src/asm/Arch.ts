@@ -23,3 +23,6 @@ export const UsefulRegs = <const>[
 
 export const WordLengthBit = 32
 export const WordLengthByte = 4
+export const RAMSize = 65536 // bytes
+export const ROMSize = 65536 // bytes
+export const IOMaxAddr = 0xffffffff

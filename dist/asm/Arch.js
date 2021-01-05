@@ -4,7 +4,7 @@
  * 2020-11 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.WordLengthByte = exports.WordLengthBit = exports.UsefulRegs = exports.AllRegs = void 0;
+exports.IOMaxAddr = exports.ROMSize = exports.RAMSize = exports.WordLengthByte = exports.WordLengthBit = exports.UsefulRegs = exports.AllRegs = void 0;
 // prettier-ignore
 exports.AllRegs = [
     '$zero', '$at',
@@ -23,3 +23,6 @@ exports.UsefulRegs = [
 ];
 exports.WordLengthBit = 32;
 exports.WordLengthByte = 4;
+exports.RAMSize = 65536; // bytes
+exports.ROMSize = 65536; // bytes
+exports.IOMaxAddr = 0xffffffff;

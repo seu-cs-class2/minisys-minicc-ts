@@ -3,6 +3,8 @@
  * 2020-12 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
+import { IOMaxAddr } from '../asm/Arch'
+import { assert } from '../seu-lex-yacc/utils'
 import { IRArray, IRVar, Quad } from './IR'
 import { IRGenerator, LabelPrefix, VarPrefix } from './IRGenerator'
 
@@ -62,6 +64,7 @@ export class IROptimizer {
       // unfix = unfix || this.constPropAndFold()
       // 代数优化
       unfix = unfix || this.algebraOptimize()
+      this.earlyReject()
     } while (unfix)
   }
 
@@ -83,11 +86,11 @@ export class IROptimizer {
       // 变量从未被更新，说明已经是死变量，在varPool中的会被deadVarEliminate处理，不在的则已经没有相关四元式
       if (indices.length == 0) continue
       // 向后寻找该变量是否被使用过
-      const finalIndex = indices.sort((a, b) => b - a)[0]
+      const finalIndex = indices.sort((a, b) => b - a)[0] // 最后一次被更新的地方
       let used = false
       for (let i = finalIndex + 1; i < this._quads.length; i++) {
         const quad = this._quads[i]
-        // 只要出现在arg1 / arg2 / res，就是被使用过的活变量？
+        // 只要出现在arg1 / arg2 / res，就是被使用过的活变量
         if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_) {
           used = true
           break
@@ -352,5 +355,47 @@ export class IROptimizer {
     }
 
     return undone
+  }
+
+  /**
+   * 对不合理的命令立即拒绝
+   */
+  earlyReject() {
+    for (let i = 0; i < this._quads.length; i++) {
+      const quad = this._quads[i]
+
+      // 编译期可以确定的除以0
+      if (quad.op == 'SLASH' || quad.op == 'PERCENT') {
+        for (let j = i - 1; j >= 0; j--) {
+          if (this._quads[j].op == '=const' && this._quads[j].res == quad.arg2 && this._quads[j].arg1 == '0') {
+            // 上次赋值确定是常数0
+            assert(false, `位于 ${i} 的四元式 ${quad.toString(0)} 存在除以0错误`)
+            break
+          }
+          if (this._quads[j].res == quad.arg2) {
+            // 被写入值不能确定的情况
+            break
+          }
+        }
+      }
+
+      // 越界的端口访问
+      if (quad.op == '=$') {
+        for (let j = i - 1; j >= 0; j--) {
+          if (this._quads[j].op == '=const' && this._quads[j].res == quad.arg1) {
+            // 上次赋值确定是某常数
+            const addr = this._quads[j].arg1.startsWith('0x')
+              ? parseInt(this._quads[j].arg1, 16)
+              : parseInt(this._quads[j].arg1, 10)
+            assert(addr <= IOMaxAddr, `位于 ${i} 的四元式 ${quad.toString(0)} 存在越界端口访问`)
+            break
+          }
+          if (this._quads[j].res == quad.arg2) {
+            // 被写入值不能确定的情况
+            break
+          }
+        }
+      }
+    }
   }
 }

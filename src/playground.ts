@@ -46,12 +46,11 @@ int a;
 int main(void) {
   int b;
   int c;
-  c = 5 + 0;
-  b = 1 * c;
-  a = 100;
-  a = 0 / 100;
-  b = b + a;
-  return b + c;
+  c = 0;
+  a = 10;
+  b = a / 10;
+  $0xFFFFFFFFF = a;
+  return b;
 }
 `
 

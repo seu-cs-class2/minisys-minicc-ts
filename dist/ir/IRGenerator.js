@@ -306,7 +306,7 @@ class IRGenerator {
         if (node.match('DOLLAR expr ASSIGN expr')) {
             const addr = this.parse_expr(node.$(2));
             const rhs = this.parse_expr(node.$(4));
-            this._newQuad('=$', rhs, '', addr);
+            this._newQuad('=$', addr, rhs, '');
         }
         // 调函数
         if (node.match('IDENTIFIER args')) {
