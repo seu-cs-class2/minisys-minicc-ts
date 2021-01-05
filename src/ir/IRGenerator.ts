@@ -432,7 +432,6 @@ export class IRGenerator {
       return res
     }
     if (node.match('IDENTIFIER args')) {
-      console.log('herererererere')
       // 调用函数（有参）
       const funcName = node.$(1).literal
       assert(funcName !== 'main', '禁止手动或递归调用main函数')
