@@ -48,8 +48,12 @@ int main(void) {
   c = 0;
   a = 10;
   b = a / 10;
-  $0xFFFFFFFFF = a;
+  aa();
+  $0xFFFFFFFE = a;
   return b;
+}
+int aa(void) {
+  return;
 }
 `;
 const after = PreCompile_1.preCompile(CCode, path_1.default.join(__dirname, './'));
