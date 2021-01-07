@@ -13,7 +13,7 @@
 | call                                                         | id    | args  | -     | 调用函数 id，参数是一系列变量组成的 args |
 | return_void                                                  | -     | -     | label | 无返回值，返回到 label 位置              |
 | return_expr                                                  | expr  | -     | label | 有返回值 expr，返回到 label 位置         |
-| OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, <br>GE_OP, LE_OP, PLUS, MINUS, MULTIPLY, SLASH, <br/>PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, <br/>RIGHT_OP, BITOR_OP | op1   | op2   | res   | 二元表达式，res = op1 op op2             |
+| OR_OP, AND_OP, EQ_OP, NE_OP, GT_OP, LT_OP, <br>GE_OP, LE_OP, PLUS, MINUS, MULTIPLY, SLASH, <br/>PERCENT, BITAND_OP, BITOR_OP, LEFT_OP, <br/>RIGHT_OP, BITXOR_OP | op1   | op2   | res   | 二元表达式，res = op1 op op2             |
 | NOT_OP, MINUS, PLUS, DOLLAR, BITINV_OP                       | op1   | -     | res   | 一元表达式，res = op op1                 |
 
 
