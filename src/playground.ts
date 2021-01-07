@@ -49,8 +49,12 @@ int main(void) {
   c = 0;
   a = 10;
   b = a / 10;
-  $0xFFFFFFFFF = a;
+  aa();
+  $0xFFFFFFFE = a;
   return b;
+}
+int aa(void) {
+  return;
 }
 `
 
