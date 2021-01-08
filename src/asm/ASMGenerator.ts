@@ -8,7 +8,7 @@
  * 2020-12 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
-import { IRFunc, IRVar, MiniCType, Quad } from '../ir/IR'
+import { IRFunc, MiniCType, Quad } from '../ir/IR'
 import { GlobalScope, IRGenerator, LabelPrefix, VarPrefix } from '../ir/IRGenerator'
 import { assert } from '../seu-lex-yacc/utils'
 import { UsefulRegs, WordLengthByte } from './Arch'
@@ -24,7 +24,7 @@ export class ASMGenerator {
   private _stackStartAddr: number
   private _stackPtr: number
   private _stackArea: string[] // 栈区，每格32位
-  private _freeRegs: string[]
+  private _freeRegs: string[] // TODO: change freeRegs according to procedures
   private _registerDescriptors: Map<string, RegisterDescriptor> //寄存器描述符, 寄存器号->变量名(可多个)
   private _addressDescriptors: Map<string, AddressDescriptor> //变量描述符, 变量名->地址（可多个）
 
@@ -132,23 +132,20 @@ export class ASMGenerator {
    * 默认使用所有通用寄存器；
    * 4个以内参数不分配内存传实参，仅用寄存器；
    * 先不考虑数组
-   * 需要访问VARPOOL
-   * @param func 
    */
 
-   calcFrameSize(func: IRFunc) {
-
+   calcFrameSizes() {
+    // TODO: calculate frame sizes of ALL functions and store it according to IRFun's VARPOOL and sub-functions
    }
    
 
-  allocateProcMemory(func: IRFunc) {
+  allocateProcMemory(func: IRFunc | undefined) {
     // TODO: analyze VARPOOL
 
     // TODO: process AddressDescriptors
-    return 16
   }
 
-  deallocateProcMemory(func: IRFunc) {
+  deallocateProcMemory(func: IRFunc | undefined) {
     // TODO: analyze VARPOOL
 
     // TODO: process RegisterDescriptors
@@ -180,17 +177,14 @@ export class ASMGenerator {
           }
           case 'call': {
 
-            // TODO: Save arg2 number of arguments
+            // TODO: evaluate the called function to calculate possible addresses
 
             // TODO: under 4 arguments, use register
 
-            // TODO: over 4 arguments, save it to CALLEE's stack
-
-            // TODO: save return address to ra
+            // TODO: over 4 arguments, save it to CALLER's stack
 
             this.newAsm(`j ${arg1}`)
 
-            // TODO: restore SP
             break
           }
           // X = Y op Z
@@ -371,36 +365,29 @@ export class ASMGenerator {
             if (labelType == 'entry') {
               // find the function in symbol table
               const func = this._ir.funcPool.find(element => element.entryLabel == res)
+              let frameSize = 16 // TODO
+
               this.newAsm(func?.name + ':')
-
-              // TODO: calculate current frame size, store it
-
-              let frameSize = 16
-
-              this.newAsm(`addiu $sp, $sp, -${frameSize}`)
-
-              // TODO: push stack frame
-
-              // TODO: save return address
+              this.newAsm(`addiu $sp, $sp, -${frameSize}`) 
+              this.newAsm(`sw $ra, ${frameSize-4}($sp)`) // TODO: only emit this when it has child functions
 
               // TODO: save register values
+              
+              this.allocateProcMemory(func)
 
             }
             else if (labelType == 'exit') {
               // find the function in symbol table
               const func = this._ir.funcPool.find(element => element.entryLabel == res)
-              this.newAsm(func?.name + ':')
+              let frameSize = 16 // TODO
 
               // TODO: restore register values
 
-              // TODO: restore the return address
+              this.newAsm(`lw $ra, ${frameSize-4}($sp)`) // TODO: only emit this when it has child functions
+              this.newAsm(`addiu $sp, $sp, ${frameSize}`)
+              this.newAsm(`jr $ra`)
 
-              // TODO: retrieve current frame size
-
-              // TODO: pop stack frame
-
-              this.newAsm(`jr ra`)
-
+              this.deallocateProcMemory(func)
             }
             else {
               this.newAsm(res + ':')
