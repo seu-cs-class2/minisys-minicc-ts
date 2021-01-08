@@ -9,7 +9,7 @@ import { IRGenerator } from './ir/IRGenerator'
 import path from 'path'
 import { IROptimizer } from './ir/IROptimizer'
 import { preCompile } from './pre-compile/PreCompile'
-import { UNMATCH_TOKENNAME } from './seu-lex-yacc/utils'
+import { SeuError, UNMATCH_TOKENNAME } from './seu-lex-yacc/utils'
 
 // 测试代码
 const CCode1 = `
@@ -67,10 +67,15 @@ let tokens = lexSourceCode(after, lexDFA)
 const lalr = LALRAnalyzer.load(path.join(__dirname, '../syntax/MiniC/MiniC-LALRParse.json'))
 const root = parseTokensLALR(tokens, lalr) as ASTNode
 
-const ir = new IRGenerator(root)
-console.log(ir.toIRString())
+try {
+  const ir = new IRGenerator(root)
+  console.log(ir.toIRString())
 
-const opt = new IROptimizer(ir)
-console.log(opt.quads.map(v => v.toString()))
+  const opt = new IROptimizer(ir)
+  console.log(opt.quads.map(v => v.toString()))
 
-console.log(opt.printLogs())
+  console.log(opt.printLogs())
+} catch (ex) {
+  if (ex instanceof SeuError) console.error('[SeuError] ' + ex.message)
+  throw ex
+}

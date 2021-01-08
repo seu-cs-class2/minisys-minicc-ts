@@ -67,11 +67,13 @@ export const WHITESPACE_TOKENNAME = '_WHITESPACE'
 export const UNMATCH_TOKENNAME = '_UNMATCH'
 export const COMMENT_TOKENNAME = '_COMMENT'
 
+export class SeuError extends Error {}
+
 /**
  * Ensure `condition`. Else throw Error `hint`.
  */
 export function assert(condition: unknown, hint: string): void {
-  if (!condition) throw new Error(hint)
+  if (!condition) throw new SeuError(hint)
 }
 
 /**
