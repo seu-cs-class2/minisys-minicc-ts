@@ -31,9 +31,15 @@ export class IRGenerator {
   get funcPool() {
     return this._funcPool
   }
+  set funcPool(val: IRFunc[]) {
+    this._funcPool = val
+  }
   private _quads: Quad[] // 所有四元式
   get quads() {
     return this._quads
+  }
+  set quads(val: Quad[]) {
+    this._quads = val
   }
   private _basicBlocks: BasicBlock[] // 经过基本块划分的四元式
   get basicBlocks() {
@@ -50,6 +56,9 @@ export class IRGenerator {
   private _varPool: (IRVar | IRArray)[] // 所有变量
   get varPool() {
     return this._varPool
+  }
+  set varPool(val: (IRVar | IRArray)[]) {
+    this._varPool = val
   }
   private _varCount: number // 变量计数
   get varCount() {
@@ -153,6 +162,10 @@ export class IRGenerator {
    */
   postCheck() {
     for (let check of this._postChecks) assert(check.checker(), check.hint)
+    assert(
+      this._funcPool.some(v => v.name == 'main'),
+      '程序没有 main 函数'
+    )
   }
 
   /**

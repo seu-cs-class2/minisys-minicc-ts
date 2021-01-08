@@ -15,9 +15,7 @@ const IRGenerator_1 = require("./IRGenerator");
 class IROptimizer {
     constructor(ir) {
         this._ir = ir;
-        this._quads = [...ir.quads];
         this._logs = [];
-        this._varPool = [...ir.varPool];
         // 不动点法
         let unfix;
         do {
@@ -40,18 +38,6 @@ class IROptimizer {
     set ir(val) {
         this._ir = val;
     }
-    get quads() {
-        return this._quads;
-    }
-    set quads(val) {
-        this._quads = val;
-    }
-    get varPool() {
-        return this._varPool;
-    }
-    set varPool(val) {
-        this._varPool = val;
-    }
     printLogs() {
         return this._logs.join('\n');
     }
@@ -63,8 +49,8 @@ class IROptimizer {
         // 找出所有变量被更新的所有地方
         for (let i = 0; i < this._ir.varCount; i++)
             varUpdates.set(IRGenerator_1.VarPrefix + String(i), []);
-        for (let i = 0; i < this._quads.length; i++) {
-            const quad = this._quads[i];
+        for (let i = 0; i < this._ir.quads.length; i++) {
+            const quad = this._ir.quads[i];
             quad.res.startsWith(IRGenerator_1.VarPrefix) && varUpdates.set(quad.res, varUpdates.get(quad.res).concat([i]));
         }
         const quadsToRemove = [];
@@ -75,8 +61,8 @@ class IROptimizer {
             // 向后寻找该变量是否被使用过
             const finalIndex = indices.sort((a, b) => b - a)[0]; // 最后一次被更新的地方
             let used = false;
-            for (let i = finalIndex + 1; i < this._quads.length; i++) {
-                const quad = this._quads[i];
+            for (let i = finalIndex + 1; i < this._ir.quads.length; i++) {
+                const quad = this._ir.quads[i];
                 // 只要出现在arg1 / arg2 / res，就是被使用过的活变量
                 if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_) {
                     used = true;
@@ -92,17 +78,16 @@ class IROptimizer {
         // 执行删除
         // @ts-ignore
         for (let quadIndex of quadsToRemove)
-            this._quads[quadIndex] = void 0;
-        this._quads = this._quads.filter(Boolean);
+            this._ir.quads[quadIndex] = void 0;
+        this._ir.quads = this._ir.quads.filter(Boolean);
         return !!quadsToRemove.length;
     }
     /**
      * 删除变量池中的死变量（从未出现在任何四元式中的变量）
      */
     deadVarEliminate() {
-        //
         let usedVars = [];
-        for (let quad of this._quads) {
+        for (let quad of this._ir.quads) {
             if (quad.op == 'call') {
                 quad.arg2.trim() && usedVars.push(...quad.arg2.split('&'));
             }
@@ -113,42 +98,44 @@ class IROptimizer {
             quad.res.startsWith(IRGenerator_1.VarPrefix) && usedVars.push(quad.res);
         }
         usedVars = [...new Set(usedVars)];
-        const unusedVars = this._varPool.filter(v => !usedVars.includes(v.id));
+        const unusedVars = this._ir.varPool.filter(v => !usedVars.includes(v.id));
         unusedVars.length && this._logs.push(`消除了死变量：${JSON.stringify(unusedVars.map(v => v.id))}`);
-        this._varPool = this._varPool.filter(v => usedVars.includes(v.id));
+        this._ir.varPool = this._ir.varPool.filter(v => usedVars.includes(v.id));
         return !!unusedVars.length;
     }
     /**
-     * 删除从未成为跳转目标的函数
+     * 删除从未成为调用目标的函数
      */
     deadFuncEliminate() {
-        // 所有跳转目标
-        const jTargets = this._quads.filter(v => ['j', 'j_false'].includes(v.op)).map(x => x.res);
-        // 所有调用目标
-        const callTargets = this._quads.filter(v => v.op == 'call').map(x => x.arg1);
-        // 所有声明过的标签
-        const labels = this._quads.filter(v => v.op == 'set_label').map(x => x.res);
-        // 消除从未成为跳转目标的函数
-        const neverJLabels = labels.filter(v => jTargets.every(x => x != v));
-        const neverJFuncs = neverJLabels
-            .filter(v => v.endsWith('_entry'))
-            .map(x => x.match(new RegExp(/^_label_\d+_(.*?)_entry$/))[1])
-            .filter(y => y != 'main')
-            .filter(z => !callTargets.includes(z));
+        // 寻找所有可能被调用的函数（从main开始深搜）
+        const jFuncs = ['main'];
+        let unfix;
+        do {
+            unfix = false;
+            for (let func of jFuncs) {
+                for (let target of this._ir.funcPool.find(v => v.name == func).childFuncs) {
+                    !jFuncs.includes(target) && (unfix = true) && jFuncs.push(target);
+                }
+            }
+        } while (unfix);
+        // 找出不可能被调用的函数
+        const neverJFuncs = this._ir.funcPool.filter(v => !jFuncs.includes(v.name));
         const rangesToRemove = [];
-        // 找到对应的四元式下标
         for (let func of neverJFuncs) {
-            const start = this._quads.findIndex(v => v.op == 'set_label' && v.res == this._ir.funcPool.find(x => x.name == func).entryLabel);
-            const end = this._quads.findIndex(v => v.op == 'set_label' && v.res == this._ir.funcPool.find(x => x.name == func).exitLabel);
-            rangesToRemove.push({ start, end });
-            this._logs.push(`消除了函数 ${func}`);
+            rangesToRemove.push({
+                start: this._ir.quads.findIndex(v => v.op == 'set_label' && v.res == func.entryLabel),
+                end: this._ir.quads.findIndex(v => v.op == 'set_label' && v.res == func.exitLabel),
+            });
+            this._logs.push(`删除从未被调用的函数 ${func.name}`);
         }
-        // 删除之
+        // 从函数池中删除这些函数
+        this._ir.funcPool = this._ir.funcPool.filter(v => jFuncs.includes(v.name));
+        // 删除四元式
         for (let range of rangesToRemove)
             for (let i = range.start; i <= range.end; i++)
                 // @ts-ignore
-                this._quads[i] = void 0;
-        this._quads = this._quads.filter(Boolean);
+                this._ir.quads[i] = void 0;
+        this._ir.quads = this._ir.quads.filter(Boolean);
         return !!rangesToRemove.length;
     }
     /**
@@ -157,17 +144,17 @@ class IROptimizer {
      */
     constPropPeepHole() {
         // 找出所有=var的四元式
-        const eqVars = this._quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
+        const eqVars = this._ir.quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
         const patches = [];
         // 替换符合上述模式的四元式
         for (let eqVar of eqVars) {
             const rhs = eqVar.v.arg1;
             for (let i = eqVar.i - 1; i >= 0; i--) {
-                if (this._quads[i].op == '=const' && this._quads[i].res == rhs) {
+                if (this._ir.quads[i].op == '=const' && this._ir.quads[i].res == rhs) {
                     patches.push({
                         index: eqVar.i,
-                        source: this._quads[i].toString(0),
-                        target: new IR_1.Quad('=const', this._quads[i].arg1, '', eqVar.v.res),
+                        source: this._ir.quads[i].toString(0),
+                        target: new IR_1.Quad('=const', this._ir.quads[i].arg1, '', eqVar.v.res),
                     });
                     // 不需要删除原有的=const产生式，因为死代码消除部分会负责清除
                 }
@@ -175,7 +162,7 @@ class IROptimizer {
         }
         // 应用修改
         for (let patch of patches) {
-            this._quads[patch.index] = patch.target;
+            this._ir.quads[patch.index] = patch.target;
             this._logs.push(`常量传播，将位于 ${patch.index} 的 ${patch.source} 改写为 ${patch.target.toString(0)}`);
         }
         return !!patches.length;
@@ -185,7 +172,7 @@ class IROptimizer {
      */
     constPropAndFold() {
         // 找出所有=var的四元式
-        const eqVars = this._quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
+        const eqVars = this._ir.quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
         // 处理复杂的常量传播和常量折叠情况
         // 借助回溯法构造表达式树，可以同时完成常量传播和常量折叠
         for (let eqVar of eqVars) {
@@ -201,7 +188,7 @@ class IROptimizer {
      */
     algebraOptimize() {
         // 找出所有算术计算四元式
-        const calcQuads = this._quads
+        const calcQuads = this._ir.quads
             .map((v, i) => ({ v, i }))
             .filter(x => ['PLUS', 'MINUS', 'MULTIPLY', 'SLASH'].includes(x.v.op));
         let undone = false;
@@ -221,7 +208,7 @@ class IROptimizer {
             // 向上找最近相关的=const，并且过程中不应被作为其他res覆写过
             function checkHelper(varId, record) {
                 for (let j = i - 1; j >= 0; j--) {
-                    const quad = that._quads[j];
+                    const quad = that._ir.quads[j];
                     if (quad.op == '=const' && quad.res == varId) {
                         record.optimizable = true;
                         record.constant = quad.arg1;
@@ -238,13 +225,13 @@ class IROptimizer {
             checkHelper(v.arg1, record.arg1);
             checkHelper(v.arg2, record.arg2);
             function _modify(to) {
-                that._logs.push(`代数优化，将位于 ${i} 的 ${that._quads[i].toString(0)} 优化为 ${to.toString(0)}`);
-                that._quads[i] = to;
+                that._logs.push(`代数优化，将位于 ${i} 的 ${that._ir.quads[i].toString(0)} 优化为 ${to.toString(0)}`);
+                that._ir.quads[i] = to;
                 undone = true;
             }
             // 应用规则优化之
             function optimArg1() {
-                const quad = that._quads[i];
+                const quad = that._ir.quads[i];
                 if (record.arg1.optimizable && record.arg1.constant == '0') {
                     switch (v.op) {
                         case 'PLUS':
@@ -279,7 +266,7 @@ class IROptimizer {
                 }
             }
             function optimArg2() {
-                const quad = that._quads[i];
+                const quad = that._ir.quads[i];
                 if (record.arg2.optimizable && record.arg2.constant == '0') {
                     switch (v.op) {
                         case 'PLUS':
@@ -318,17 +305,17 @@ class IROptimizer {
      * 对不合理的命令立即拒绝
      */
     earlyReject() {
-        for (let i = 0; i < this._quads.length; i++) {
-            const quad = this._quads[i];
+        for (let i = 0; i < this._ir.quads.length; i++) {
+            const quad = this._ir.quads[i];
             // 编译期可以确定的除以0
             if (quad.op == 'SLASH' || quad.op == 'PERCENT') {
                 for (let j = i - 1; j >= 0; j--) {
-                    if (this._quads[j].op == '=const' && this._quads[j].res == quad.arg2 && this._quads[j].arg1 == '0') {
+                    if (this._ir.quads[j].op == '=const' && this._ir.quads[j].res == quad.arg2 && this._ir.quads[j].arg1 == '0') {
                         // 上次赋值确定是常数0
                         utils_1.assert(false, `位于 ${i} 的四元式 ${quad.toString(0)} 存在除以0错误`);
                         break;
                     }
-                    if (this._quads[j].res == quad.arg2) {
+                    if (this._ir.quads[j].res == quad.arg2) {
                         // 被写入值不能确定的情况
                         break;
                     }
@@ -337,15 +324,15 @@ class IROptimizer {
             // 越界的端口访问
             if (quad.op == '=$') {
                 for (let j = i - 1; j >= 0; j--) {
-                    if (this._quads[j].op == '=const' && this._quads[j].res == quad.arg1) {
+                    if (this._ir.quads[j].op == '=const' && this._ir.quads[j].res == quad.arg1) {
                         // 上次赋值确定是某常数
-                        const addr = this._quads[j].arg1.startsWith('0x')
-                            ? parseInt(this._quads[j].arg1, 16)
-                            : parseInt(this._quads[j].arg1, 10);
+                        const addr = this._ir.quads[j].arg1.startsWith('0x')
+                            ? parseInt(this._ir.quads[j].arg1, 16)
+                            : parseInt(this._ir.quads[j].arg1, 10);
                         utils_1.assert(addr <= Arch_1.IOMaxAddr, `位于 ${i} 的四元式 ${quad.toString(0)} 存在越界端口访问`);
                         break;
                     }
-                    if (this._quads[j].res == quad.arg2) {
+                    if (this._ir.quads[j].res == quad.arg2) {
                         // 被写入值不能确定的情况
                         break;
                     }

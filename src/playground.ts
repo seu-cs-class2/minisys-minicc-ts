@@ -43,6 +43,9 @@ int main(void) {
 
 const CCode = `
 int a;
+void fake(int a){
+  return;
+}
 int main(void) {
   int b;
   int c;
@@ -59,6 +62,9 @@ int aa(void) {
   b = 20;
   return a;
 }
+int bb(void) {
+  return 2;
+}
 `
 
 const after = preCompile(CCode, path.join(__dirname, './'))
@@ -73,12 +79,12 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 try {
   const ir = new IRGenerator(root)
   console.log(ir.toIRString())
-  console.dir(ir.funcPool, { depth: 4 })
+  // console.dir(ir.funcPool, { depth: 4 })
 
-  // const opt = new IROptimizer(ir)
-  // console.log(opt.quads.map(v => v.toString()))
+  const opt = new IROptimizer(ir)
+  console.log(opt.ir.quads.map(v => v.toString()))
 
-  // console.log(opt.printLogs())
+  console.log(opt.printLogs())
 } catch (ex) {
   if (ex instanceof SeuError) console.error('[SeuError] ' + ex.message)
   throw ex

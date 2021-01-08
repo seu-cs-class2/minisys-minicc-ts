@@ -40,8 +40,14 @@ class IRGenerator {
     get funcPool() {
         return this._funcPool;
     }
+    set funcPool(val) {
+        this._funcPool = val;
+    }
     get quads() {
         return this._quads;
+    }
+    set quads(val) {
+        this._quads = val;
     }
     get basicBlocks() {
         return this._basicBlocks;
@@ -56,6 +62,9 @@ class IRGenerator {
     }
     get varPool() {
         return this._varPool;
+    }
+    set varPool(val) {
+        this._varPool = val;
     }
     get varCount() {
         return this._varCount;
@@ -136,6 +145,7 @@ class IRGenerator {
     postCheck() {
         for (let check of this._postChecks)
             utils_1.assert(check.checker(), check.hint);
+        utils_1.assert(this._funcPool.some(v => v.name == 'main'), '程序没有 main 函数');
     }
     /**
      * 后处理
