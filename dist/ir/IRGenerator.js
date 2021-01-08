@@ -31,8 +31,10 @@ class IRGenerator {
         this._scopeCount = 0;
         this._loopStack = [];
         this._postChecks = [];
+        this._callsInScope = [];
         this.start(root);
         this.postCheck();
+        this.postProcess();
         this._basicBlocks = this._toBasicBlocks();
     }
     get funcPool() {
@@ -95,6 +97,17 @@ class IRGenerator {
         return scope1.join('/') == scope2.join('/');
     }
     /**
+     * 判断作用域包含关系
+     */
+    static inScope(bigScope, smallScope) {
+        if (bigScope.length > smallScope.length)
+            return false;
+        for (let i = 0; i < bigScope.length; i++)
+            if (smallScope[i] != bigScope[i])
+                return false;
+        return true;
+    }
+    /**
      * 结合当前所在的作用域寻找最近的名字相符的变量
      */
     _findVar(name) {
@@ -117,9 +130,23 @@ class IRGenerator {
     duplicateCheck(v1, v2) {
         return v1.name == v2.name && v1.scope.join('/') == v2.scope.join('/');
     }
+    /**
+     * 后检查
+     */
     postCheck() {
         for (let check of this._postChecks)
             utils_1.assert(check.checker(), check.hint);
+    }
+    /**
+     * 后处理
+     */
+    postProcess() {
+        for (let func of this._funcPool) {
+            // 填充函数的局部变量
+            func.localVars.push(...this._varPool.filter(v => IRGenerator.inScope(func.scopePath, v.scope)));
+            // 填充函数内部调用的其他函数
+            func.childFuncs.push(...new Set(this._callsInScope.filter(v => IRGenerator.inScope(func.scopePath, v.scopePath)).map(x => x.funcName)));
+        }
     }
     start(node) {
         if (!node)
@@ -178,10 +205,14 @@ class IRGenerator {
         // 参数列表在parse_params时会填上
         const entryLabel = this._newLabel(funcName + '_entry');
         const exitLabel = this._newLabel(funcName + '_exit');
-        this._funcPool.push(new IR_1.IRFunc(funcName, retType, [], entryLabel, exitLabel));
+        // 进一层作用域
         this.pushScope();
+        // 添加新函数
+        this._funcPool.push(new IR_1.IRFunc(funcName, retType, [], entryLabel, exitLabel, [...this._scopePath]));
         this._newQuad('set_label', '', '', entryLabel); // 函数入口
+        // 解析函数参数
         this.parse_params(node.$(3), funcName);
+        // 解析函数体
         if (node.children.length == 5) {
             this.parse_local_decls(node.$(4));
             this.parse_stmt_list(node.$(5), { entryLabel, exitLabel, funcName });
@@ -191,6 +222,7 @@ class IRGenerator {
             this.parse_stmt_list(node.$(4), { entryLabel, exitLabel, funcName });
         }
         this._newQuad('set_label', '', '', exitLabel); // 函数出口
+        // 退一层作用域
         this.popScope();
     }
     parse_params(node, funcName) {
@@ -317,27 +349,31 @@ class IRGenerator {
         // 调函数
         if (node.match('IDENTIFIER args')) {
             const args = this.parse_args(node.$(2));
+            const funcName = node.$(1).literal;
             this._postChecks.push({
-                checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(node.$(1).literal),
-                hint: `未声明就调用了函数 ${node.$(1).literal}`,
+                checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(funcName),
+                hint: `未声明就调用了函数 ${funcName}`,
             });
             this._postChecks.push({
-                checker: ((_args, _funcName) => () => _args.length == this._funcPool.find(v => v.name == _funcName).paramList.length)(args, node.$(1).literal),
-                hint: `函数 ${node.$(1).literal} 调用参数数量不匹配`,
+                checker: ((_args, _funcName) => () => _args.length == this._funcPool.find(v => v.name == _funcName).paramList.length)(args, funcName),
+                hint: `函数 ${funcName} 调用参数数量不匹配`,
             });
-            this._newQuad('call', node.$(1).literal, args.join('&'), '');
+            this._newQuad('call', funcName, args.join('&'), '');
+            this._callsInScope.push({ scopePath: [...this._scopePath], funcName });
         }
         // 调函数（无参）
         if (node.match('IDENTIFIER LPAREN RPAREN')) {
+            const funcName = node.$(1).literal;
             this._postChecks.push({
-                checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(node.$(1).literal),
-                hint: `未声明就调用了函数 ${node.$(1).literal}`,
+                checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(funcName),
+                hint: `未声明就调用了函数 ${funcName}`,
             });
             this._postChecks.push({
-                checker: (_funcName => () => 0 == this._funcPool.find(v => v.name == _funcName).paramList.length)(node.$(1).literal),
-                hint: `函数 ${node.$(1).literal} 调用参数数量不匹配`,
+                checker: (_funcName => () => 0 == this._funcPool.find(v => v.name == _funcName).paramList.length)(funcName),
+                hint: `函数 ${funcName} 调用参数数量不匹配`,
             });
-            this._newQuad('call', node.$(1).literal, '', '');
+            this._newQuad('call', funcName, '', '');
+            this._callsInScope.push({ scopePath: [...this._scopePath], funcName });
         }
     }
     parse_local_decls(node) {
@@ -425,6 +461,7 @@ class IRGenerator {
             let res = this._newVarId();
             utils_1.assert(args.length == this._funcPool.find(v => v.name == funcName).paramList.length, `函数 ${funcName} 调用参数数量不匹配`);
             this._newQuad('call', funcName, args.join('&'), res);
+            this._callsInScope.push({ scopePath: [...this._scopePath], funcName });
             return res;
         }
         if (node.match('IDENTIFIER LPAREN RPAREN')) {
@@ -438,6 +475,7 @@ class IRGenerator {
             });
             let res = this._newVarId();
             this._newQuad('call', funcName, '', res);
+            this._callsInScope.push({ scopePath: [...this._scopePath], funcName });
             return res;
         }
         if (node.match('CONSTANT')) {

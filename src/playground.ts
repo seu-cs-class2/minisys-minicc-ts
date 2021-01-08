@@ -50,11 +50,14 @@ int main(void) {
   a = 10;
   b = a / 10;
   aa();
+  aa();
   $0xFFFFFFFE = a;
   return b;
 }
 int aa(void) {
-  return;
+  int b;
+  b = 20;
+  return a;
 }
 `
 
@@ -70,11 +73,12 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 try {
   const ir = new IRGenerator(root)
   console.log(ir.toIRString())
+  console.dir(ir.funcPool, { depth: 4 })
 
-  const opt = new IROptimizer(ir)
-  console.log(opt.quads.map(v => v.toString()))
+  // const opt = new IROptimizer(ir)
+  // console.log(opt.quads.map(v => v.toString()))
 
-  console.log(opt.printLogs())
+  // console.log(opt.printLogs())
 } catch (ex) {
   if (ex instanceof SeuError) console.error('[SeuError] ' + ex.message)
   throw ex

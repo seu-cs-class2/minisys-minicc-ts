@@ -191,6 +191,12 @@ export class IRFunc {
   private _exitLabel: string
   // 形参仍然分配变量位，当需要调用时，将实参变量赋给形参变量即可
   private _paramList: IRVar[] // 形参列表
+  // 所有所属的局部变量
+  private _localVars: (IRVar | IRArray)[]
+  // 内部调用过的其他函数
+  private _childFuncs: string[]
+  // 基层作用域路径
+  private _scopePath: number[]
 
   get name() {
     return this._name
@@ -232,12 +238,46 @@ export class IRFunc {
     this._paramList = val
   }
 
-  constructor(name: string, retType: MiniCType, paramList: IRVar[], entryLabel: string, exitLabel: string) {
+  get localVars() {
+    return this._localVars
+  }
+
+  set localVars(val: (IRVar | IRArray)[]) {
+    this._localVars = val
+  }
+
+  get childFuncs() {
+    return this._childFuncs
+  }
+
+  set childFuncs(val: string[]) {
+    this._childFuncs = val
+  }
+
+  get scopePath() {
+    return this._scopePath
+  }
+
+  set scopePath(val: number[]) {
+    this._scopePath = val
+  }
+
+  constructor(
+    name: string,
+    retType: MiniCType,
+    paramList: IRVar[],
+    entryLabel: string,
+    exitLabel: string,
+    scopePath: number[]
+  ) {
     this._name = name
     this._retType = retType
     this._paramList = paramList
     this._entryLabel = entryLabel
     this._exitLabel = exitLabel
+    this._localVars = []
+    this._childFuncs = []
+    this._scopePath = [...scopePath]
   }
 }
 
