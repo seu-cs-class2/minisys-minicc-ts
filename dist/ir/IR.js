@@ -134,12 +134,15 @@ exports.IRArray = IRArray;
  * IR阶段函数信息存储
  */
 class IRFunc {
-    constructor(name, retType, paramList, entryLabel, exitLabel) {
+    constructor(name, retType, paramList, entryLabel, exitLabel, scopePath) {
         this._name = name;
         this._retType = retType;
         this._paramList = paramList;
         this._entryLabel = entryLabel;
         this._exitLabel = exitLabel;
+        this._localVars = [];
+        this._childFuncs = [];
+        this._scopePath = [...scopePath];
     }
     get name() {
         return this._name;
@@ -170,6 +173,24 @@ class IRFunc {
     }
     set paramList(val) {
         this._paramList = val;
+    }
+    get localVars() {
+        return this._localVars;
+    }
+    set localVars(val) {
+        this._localVars = val;
+    }
+    get childFuncs() {
+        return this._childFuncs;
+    }
+    set childFuncs(val) {
+        this._childFuncs = val;
+    }
+    get scopePath() {
+        return this._scopePath;
+    }
+    set scopePath(val) {
+        this._scopePath = val;
     }
 }
 exports.IRFunc = IRFunc;

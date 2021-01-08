@@ -4,7 +4,7 @@
  * 2020-05 @ https://github.com/z0gSh1u/seu-lex-yacc
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.isAlpha = exports.splitAndKeep = exports.getMatchedRanges = exports.inRange = exports.inStr = exports.stdoutPrint = exports.assert = exports.COMMENT_TOKENNAME = exports.UNMATCH_TOKENNAME = exports.WHITESPACE_TOKENNAME = exports.cookString = exports.ESCAPE_CONVERT = exports.ESCAPE_REVERSE = exports.PATTERN_ENDOF_PRODUCER = exports.PATTERN_CONTINUED_PRODUCER = exports.PATTERN_INITIAL_PRODUCER = exports.PATTERN_BLOCK_PRODUCER = exports.PATTERN_RANGE_NOTSLASH = exports.PATTERN_INSIDEQUOTE_NOTSLASH = exports.SUPPORTED_ESCAPE = exports.ASCII_MAX = exports.ASCII_MIN = void 0;
+exports.isAlpha = exports.splitAndKeep = exports.getMatchedRanges = exports.inRange = exports.inStr = exports.stdoutPrint = exports.assert = exports.SeuError = exports.COMMENT_TOKENNAME = exports.UNMATCH_TOKENNAME = exports.WHITESPACE_TOKENNAME = exports.cookString = exports.ESCAPE_CONVERT = exports.ESCAPE_REVERSE = exports.PATTERN_ENDOF_PRODUCER = exports.PATTERN_CONTINUED_PRODUCER = exports.PATTERN_INITIAL_PRODUCER = exports.PATTERN_BLOCK_PRODUCER = exports.PATTERN_RANGE_NOTSLASH = exports.PATTERN_INSIDEQUOTE_NOTSLASH = exports.SUPPORTED_ESCAPE = exports.ASCII_MAX = exports.ASCII_MIN = void 0;
 // ASCII打印字符范围
 exports.ASCII_MIN = 32;
 exports.ASCII_MAX = 126;
@@ -73,12 +73,15 @@ exports.cookString = cookString;
 exports.WHITESPACE_TOKENNAME = '_WHITESPACE';
 exports.UNMATCH_TOKENNAME = '_UNMATCH';
 exports.COMMENT_TOKENNAME = '_COMMENT';
+class SeuError extends Error {
+}
+exports.SeuError = SeuError;
 /**
  * Ensure `condition`. Else throw Error `hint`.
  */
 function assert(condition, hint) {
     if (!condition)
-        throw new Error(hint);
+        throw new SeuError(hint);
 }
 exports.assert = assert;
 /**
