@@ -61,8 +61,9 @@ function preCompile(sourceCode, basePath) {
             `// ****** ${patch.relativePath} ****** //`,
             ...patch.content,
             `// ****** ${patch.relativePath} ****** //`,
+            '',
         ]);
-        bias += patch.content.length + 2;
+        bias += patch.content.length + 3 - 1;
     }
     return lines.join('\n');
 }

@@ -45,9 +45,10 @@ export function preCompile(sourceCode: string, basePath: string) {
         `// ****** ${patch.relativePath} ****** //`,
         ...patch.content,
         `// ****** ${patch.relativePath} ****** //`,
+        '',
       ]
     )
-    bias += patch.content.length + 2
+    bias += patch.content.length + 3 - 1
   }
 
   return lines.join('\n')
