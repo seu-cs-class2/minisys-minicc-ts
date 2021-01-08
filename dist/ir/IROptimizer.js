@@ -5,6 +5,8 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.IROptimizer = void 0;
+const Arch_1 = require("../asm/Arch");
+const utils_1 = require("../seu-lex-yacc/utils");
 const IR_1 = require("./IR");
 const IRGenerator_1 = require("./IRGenerator");
 /**
@@ -26,9 +28,10 @@ class IROptimizer {
             unfix = unfix || this.deadVarUseEliminate();
             // 常量传播和常量折叠
             unfix = unfix || this.constPropPeepHole();
-            unfix = unfix || this.constPropAndFold();
+            // unfix = unfix || this.constPropAndFold()
             // 代数优化
-            // TODO
+            unfix = unfix || this.algebraOptimize();
+            this.earlyReject();
         } while (unfix);
     }
     get ir() {
@@ -70,20 +73,20 @@ class IROptimizer {
             if (indices.length == 0)
                 continue;
             // 向后寻找该变量是否被使用过
-            const finalIndex = indices.sort((a, b) => b - a)[0];
+            const finalIndex = indices.sort((a, b) => b - a)[0]; // 最后一次被更新的地方
             let used = false;
             for (let i = finalIndex + 1; i < this._quads.length; i++) {
                 const quad = this._quads[i];
-                // 只要出现在arg1 / arg2 / res，就是被使用过的活变量？
+                // 只要出现在arg1 / arg2 / res，就是被使用过的活变量
                 if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_) {
                     used = true;
                     break;
                 }
             }
-            // 没被使用过，那么之前对它的所有赋值都没有意义
+            // 没被使用过，那么对它的最后一次赋值没有意义
             if (!used) {
                 this._logs.push(`删除从未被使用的变量 ${var_}，对应四元式索引 ${indices}`);
-                quadsToRemove.push(...indices);
+                quadsToRemove.push(finalIndex);
             }
         }
         // 执行删除
@@ -191,7 +194,164 @@ class IROptimizer {
     }
     /**
      * 代数规则优化
+     * PLUS: a+0=a
+     * MINUS: a-0=0; 0-a=-a
+     * MULTIPLY: a*1=a; a*0=0
+     * SLASH: 0/a=0; a/1=a
      */
-    algebraOptimize() { }
+    algebraOptimize() {
+        // 找出所有算术计算四元式
+        const calcQuads = this._quads
+            .map((v, i) => ({ v, i }))
+            .filter(x => ['PLUS', 'MINUS', 'MULTIPLY', 'SLASH'].includes(x.v.op));
+        let undone = false;
+        // 对每条四元式的arg1、arg2
+        for (let { v, i } of calcQuads) {
+            let record = {
+                arg1: {
+                    optimizable: void 0,
+                    constant: void 0,
+                },
+                arg2: {
+                    optimizable: void 0,
+                    constant: void 0,
+                },
+            };
+            const that = this;
+            // 向上找最近相关的=const，并且过程中不应被作为其他res覆写过
+            function checkHelper(varId, record) {
+                for (let j = i - 1; j >= 0; j--) {
+                    const quad = that._quads[j];
+                    if (quad.op == '=const' && quad.res == varId) {
+                        record.optimizable = true;
+                        record.constant = quad.arg1;
+                        return;
+                    }
+                    if (quad.res == varId) {
+                        record.optimizable = false;
+                        return;
+                    }
+                }
+                record.optimizable = false;
+                return;
+            }
+            checkHelper(v.arg1, record.arg1);
+            checkHelper(v.arg2, record.arg2);
+            function _modify(to) {
+                that._logs.push(`代数优化，将位于 ${i} 的 ${that._quads[i].toString(0)} 优化为 ${to.toString(0)}`);
+                that._quads[i] = to;
+                undone = true;
+            }
+            // 应用规则优化之
+            function optimArg1() {
+                const quad = that._quads[i];
+                if (record.arg1.optimizable && record.arg1.constant == '0') {
+                    switch (v.op) {
+                        case 'PLUS':
+                            // 0 + a = a
+                            _modify(new IR_1.Quad('=var', quad.arg2, '', quad.res));
+                            break;
+                        case 'MINUS':
+                            // 0 - a = -a
+                            // Minisys架构没有比较高效的取相反数指令，优化与否区别不大，这里不优化
+                            break;
+                        case 'MULTIPLY':
+                            // 0 * a = 0
+                            _modify(new IR_1.Quad('=const', '0', '', quad.res));
+                            break;
+                        case 'SLASH':
+                            // 0 / a = 0
+                            _modify(new IR_1.Quad('=const', '0', '', quad.res));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                if (record.arg1.optimizable && record.arg1.constant == '1') {
+                    switch (v.op) {
+                        case 'MULTIPLY':
+                            // 1 * a = a
+                            _modify(new IR_1.Quad('=var', quad.arg2, '', quad.res));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            function optimArg2() {
+                const quad = that._quads[i];
+                if (record.arg2.optimizable && record.arg2.constant == '0') {
+                    switch (v.op) {
+                        case 'PLUS':
+                            // a + 0 = a
+                            _modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
+                            break;
+                        case 'MINUS':
+                            // a - 0 = a
+                            _modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
+                            break;
+                        case 'MULTIPLY':
+                            // a * 0 = 0
+                            _modify(new IR_1.Quad('=const', '0', '', quad.res));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                if (record.arg2.optimizable && record.arg2.constant == '1') {
+                    switch (v.op) {
+                        case 'MULTIPLY':
+                            // a * 1 = a
+                            _modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            optimArg1();
+            optimArg2();
+        }
+        return undone;
+    }
+    /**
+     * 对不合理的命令立即拒绝
+     */
+    earlyReject() {
+        for (let i = 0; i < this._quads.length; i++) {
+            const quad = this._quads[i];
+            // 编译期可以确定的除以0
+            if (quad.op == 'SLASH' || quad.op == 'PERCENT') {
+                for (let j = i - 1; j >= 0; j--) {
+                    if (this._quads[j].op == '=const' && this._quads[j].res == quad.arg2 && this._quads[j].arg1 == '0') {
+                        // 上次赋值确定是常数0
+                        utils_1.assert(false, `位于 ${i} 的四元式 ${quad.toString(0)} 存在除以0错误`);
+                        break;
+                    }
+                    if (this._quads[j].res == quad.arg2) {
+                        // 被写入值不能确定的情况
+                        break;
+                    }
+                }
+            }
+            // 越界的端口访问
+            if (quad.op == '=$') {
+                for (let j = i - 1; j >= 0; j--) {
+                    if (this._quads[j].op == '=const' && this._quads[j].res == quad.arg1) {
+                        // 上次赋值确定是某常数
+                        const addr = this._quads[j].arg1.startsWith('0x')
+                            ? parseInt(this._quads[j].arg1, 16)
+                            : parseInt(this._quads[j].arg1, 10);
+                        utils_1.assert(addr <= Arch_1.IOMaxAddr, `位于 ${i} 的四元式 ${quad.toString(0)} 存在越界端口访问`);
+                        break;
+                    }
+                    if (this._quads[j].res == quad.arg2) {
+                        // 被写入值不能确定的情况
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }
 exports.IROptimizer = IROptimizer;

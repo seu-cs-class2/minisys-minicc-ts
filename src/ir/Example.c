@@ -6,10 +6,10 @@ int a; // global constant
 void func(int a, int b) {
   int z;
   z = a / b; // div
-  return z;
+  return;
 }
 int foo(int x) {
-  return; // return nothing
+  return 2; // return nothing
 }
 int main(void) {
   // local decl
@@ -41,5 +41,5 @@ int main(void) {
     a = !a;
     a = a || b;
   }
-  return;
+  return 0;
 }

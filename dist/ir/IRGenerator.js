@@ -30,7 +30,9 @@ class IRGenerator {
         this._labelCount = 0;
         this._scopeCount = 0;
         this._loopStack = [];
+        this._postChecks = [];
         this.start(root);
+        this.postCheck();
         this._basicBlocks = this._toBasicBlocks();
     }
     get funcPool() {
@@ -115,6 +117,10 @@ class IRGenerator {
     duplicateCheck(v1, v2) {
         return v1.name == v2.name && v1.scope.join('/') == v2.scope.join('/');
     }
+    postCheck() {
+        for (let check of this._postChecks)
+            utils_1.assert(check.checker(), check.hint);
+    }
     start(node) {
         if (!node)
             utils_1.assert(false, 'AST根节点为null');
@@ -167,22 +173,22 @@ class IRGenerator {
     parse_fun_decl(node) {
         // 规定所有的函数都在全局作用域
         const retType = this.parse_type_spec(node.$(1));
-        const name = node.$(2).literal;
-        utils_1.assert(!this._funcPool.some(v => v.name == name), `函数重复定义：${name}`);
+        const funcName = node.$(2).literal;
+        utils_1.assert(!this._funcPool.some(v => v.name == funcName), `函数重复定义：${funcName}`);
         // 参数列表在parse_params时会填上
-        const entryLabel = this._newLabel(name + '_entry');
-        const exitLabel = this._newLabel(name + '_exit');
-        this._funcPool.push(new IR_1.IRFunc(name, retType, [], entryLabel, exitLabel));
+        const entryLabel = this._newLabel(funcName + '_entry');
+        const exitLabel = this._newLabel(funcName + '_exit');
+        this._funcPool.push(new IR_1.IRFunc(funcName, retType, [], entryLabel, exitLabel));
         this.pushScope();
         this._newQuad('set_label', '', '', entryLabel); // 函数入口
-        this.parse_params(node.$(3), name);
+        this.parse_params(node.$(3), funcName);
         if (node.children.length == 5) {
             this.parse_local_decls(node.$(4));
-            this.parse_stmt_list(node.$(5), { entryLabel, exitLabel });
+            this.parse_stmt_list(node.$(5), { entryLabel, exitLabel, funcName });
         }
         else if (node.children.length == 4) {
             // 没有局部变量
-            this.parse_stmt_list(node.$(4), { entryLabel, exitLabel });
+            this.parse_stmt_list(node.$(4), { entryLabel, exitLabel, funcName });
         }
         this._newQuad('set_label', '', '', exitLabel); // 函数出口
         this.popScope();
@@ -209,7 +215,7 @@ class IRGenerator {
         const type = this.parse_type_spec(node.$(1));
         utils_1.assert(type != 'void', '不可以用void作参数类型。函数：' + funcName);
         const name = node.$(2).literal;
-        const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath, false);
+        const var_ = new IR_1.IRVar(this._newVarId(), name, type, this._scopePath, true);
         this._newVar(var_);
         // 将形参送给函数
         this._funcPool.find(v => v.name == funcName).paramList.push(var_);
@@ -237,7 +243,7 @@ class IRGenerator {
             this.parse_while_stmt(node.$(1));
         }
         if (node.$(1).name == 'return_stmt') {
-            this.parse_return_stmt(node.$(1), context.exitLabel);
+            this.parse_return_stmt(node.$(1), context);
         }
         if (node.$(1).name == 'continue_stmt') {
             this.parse_continue_stmt(node.$(1));
@@ -306,19 +312,31 @@ class IRGenerator {
         if (node.match('DOLLAR expr ASSIGN expr')) {
             const addr = this.parse_expr(node.$(2));
             const rhs = this.parse_expr(node.$(4));
-            this._newQuad('=$', rhs, '', addr);
+            this._newQuad('=$', addr, rhs, '');
         }
         // 调函数
         if (node.match('IDENTIFIER args')) {
             const args = this.parse_args(node.$(2));
-            utils_1.assert(this._funcPool.find(v => v.name == node.$(1).literal), `未声明就调用了函数 ${node.$(1).literal}`);
-            utils_1.assert(args.length == this._funcPool.find(v => v.name == node.$(1).literal).paramList.length, `函数 ${node.$(1).literal} 调用参数数量不匹配`);
+            this._postChecks.push({
+                checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(node.$(1).literal),
+                hint: `未声明就调用了函数 ${node.$(1).literal}`,
+            });
+            this._postChecks.push({
+                checker: ((_args, _funcName) => () => _args.length == this._funcPool.find(v => v.name == _funcName).paramList.length)(args, node.$(1).literal),
+                hint: `函数 ${node.$(1).literal} 调用参数数量不匹配`,
+            });
             this._newQuad('call', node.$(1).literal, args.join('&'), '');
         }
         // 调函数（无参）
         if (node.match('IDENTIFIER LPAREN RPAREN')) {
-            utils_1.assert(this._funcPool.find(v => v.name == node.$(1).literal), `未声明就调用了函数 ${node.$(1).literal}`);
-            utils_1.assert(0 == this._funcPool.find(v => v.name == node.$(1).literal).paramList.length, `函数 ${node.$(1).literal} 调用参数数量不匹配`);
+            this._postChecks.push({
+                checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(node.$(1).literal),
+                hint: `未声明就调用了函数 ${node.$(1).literal}`,
+            });
+            this._postChecks.push({
+                checker: (_funcName => () => 0 == this._funcPool.find(v => v.name == _funcName).paramList.length)(node.$(1).literal),
+                hint: `函数 ${node.$(1).literal} 调用参数数量不匹配`,
+            });
             this._newQuad('call', node.$(1).literal, '', '');
         }
     }
@@ -351,13 +369,21 @@ class IRGenerator {
             this._newVar(arr);
         }
     }
-    parse_return_stmt(node, exitLabel) {
+    parse_return_stmt(node, context) {
         if (node.children.length == 0) {
-            this._newQuad('return_void', '', '', exitLabel);
+            this._postChecks.push({
+                checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName).retType == 'void')(context.funcName),
+                hint: `函数 ${context.funcName} 没有返回值`,
+            });
+            this._newQuad('return_void', '', '', context.exitLabel);
         }
         if (node.children.length == 1) {
+            this._postChecks.push({
+                checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName).retType != 'void')(context.funcName),
+                hint: `函数 ${context.funcName} 声明返回值类型是 void，却有返回值`,
+            });
             const expr = this.parse_expr(node.$(1));
-            this._newQuad('return_expr', expr, '', exitLabel);
+            this._newQuad('return_expr', expr, '', context.exitLabel);
         }
     }
     /**
@@ -387,10 +413,14 @@ class IRGenerator {
             return res;
         }
         if (node.match('IDENTIFIER args')) {
-            console.log('herererererere');
             // 调用函数（有参）
             const funcName = node.$(1).literal;
             utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数');
+            // 作为表达式的函数调用应该有返回值
+            this._postChecks.push({
+                checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName).retType !== 'void')(funcName),
+                hint: `函数 ${funcName} 没有返回值，其调用不能作为表达式`,
+            });
             const args = this.parse_args(node.$(2));
             let res = this._newVarId();
             utils_1.assert(args.length == this._funcPool.find(v => v.name == funcName).paramList.length, `函数 ${funcName} 调用参数数量不匹配`);
@@ -401,6 +431,11 @@ class IRGenerator {
             // 调用函数（无参）
             const funcName = node.$(1).literal;
             utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数');
+            // 作为表达式的函数调用应该有返回值
+            this._postChecks.push({
+                checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName).retType !== 'void')(funcName),
+                hint: `函数 ${funcName} 没有返回值，其调用不能作为表达式`,
+            });
             let res = this._newVarId();
             this._newQuad('call', funcName, '', res);
             return res;

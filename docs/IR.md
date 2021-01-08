@@ -9,7 +9,7 @@
 | =const                                                       | rhs   | -     | lhs   | 将**字面常量** rhs 赋值给 lhs            |
 | =[]                                                          | index | rhs   | arr   | 写数组， arr[index]  = rhs               |
 | []                                                           | arr   | index | res   | 读数组，res = arr[index]                 |
-| =$                                                           | rhs   | -     | addr  | 向端口地址 addr 送 rhs                   |
+| =$                                                           | addr  | rhs   | -  | 向端口地址 addr 送 rhs                   |
 | call                                                         | id    | args  | -     | 调用函数 id，参数是一系列变量组成的 args |
 | return_void                                                  | -     | -     | label | 无返回值，返回到 label 位置              |
 | return_expr                                                  | expr  | -     | label | 有返回值 expr，返回到 label 位置         |

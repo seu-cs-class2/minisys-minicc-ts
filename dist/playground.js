@@ -12,6 +12,7 @@ const IRGenerator_1 = require("./ir/IRGenerator");
 const path_1 = __importDefault(require("path"));
 const IROptimizer_1 = require("./ir/IROptimizer");
 const PreCompile_1 = require("./pre-compile/PreCompile");
+const utils_1 = require("./seu-lex-yacc/utils");
 // 测试代码
 const CCode1 = `
 // hello
@@ -28,7 +29,7 @@ int main(void) {
   return 0;
 }
 `;
-const CCode = `
+const CCode2 = `
 int a;
 int main(void) {
   int b;
@@ -40,14 +41,37 @@ int main(void) {
   return b;
 }
 `;
+const CCode = `
+int a;
+int main(void) {
+  int b;
+  int c;
+  c = 0;
+  a = 10;
+  b = a / 10;
+  aa();
+  $0xFFFFFFFE = a;
+  return b;
+}
+int aa(void) {
+  return;
+}
+`;
 const after = PreCompile_1.preCompile(CCode, path_1.default.join(__dirname, './'));
 console.log(after);
 const lexDFA = DFA_1.DFA.fromFile(path_1.default.join(__dirname, '../syntax/MiniC/MiniC-Lex.json'));
 let tokens = Lex_1.lexSourceCode(after, lexDFA);
 const lalr = LALR_1.LALRAnalyzer.load(path_1.default.join(__dirname, '../syntax/MiniC/MiniC-LALRParse.json'));
 const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
-const ir = new IRGenerator_1.IRGenerator(root);
-console.log(ir.toIRString());
-const opt = new IROptimizer_1.IROptimizer(ir);
-console.log(opt.quads.map(v => v.toString()));
-console.log(opt.printLogs());
+try {
+    const ir = new IRGenerator_1.IRGenerator(root);
+    console.log(ir.toIRString());
+    const opt = new IROptimizer_1.IROptimizer(ir);
+    console.log(opt.quads.map(v => v.toString()));
+    console.log(opt.printLogs());
+}
+catch (ex) {
+    if (ex instanceof utils_1.SeuError)
+        console.error('[SeuError] ' + ex.message);
+    throw ex;
+}
