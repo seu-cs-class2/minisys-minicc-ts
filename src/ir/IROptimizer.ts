@@ -96,10 +96,10 @@ export class IROptimizer {
           break
         }
       }
-      // 没被使用过，那么之前对它的所有赋值都没有意义
+      // 没被使用过，那么对它的最后一次赋值没有意义
       if (!used) {
         this._logs.push(`删除从未被使用的变量 ${var_}，对应四元式索引 ${indices}`)
-        quadsToRemove.push(...indices)
+        quadsToRemove.push(finalIndex)
       }
     }
 
