@@ -25,7 +25,6 @@ class IROptimizer {
             unfix = unfix || this.deadFuncEliminate();
             unfix = unfix || this.deadVarUseEliminate();
             // 常量传播和常量折叠
-            // unfix = unfix || this.constPropPeepHole()
             unfix = unfix || this.constPropAndFold();
             // 代数优化
             unfix = unfix || this.algebraOptimize();
@@ -65,8 +64,11 @@ class IROptimizer {
                 const quad = this._ir.quads[i];
                 // 只要出现在arg1 / arg2 / res，就是被使用过的活变量
                 // 若最后一次被更新后存在跳转操作，放弃对该赋值的优化
-                if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_
-                    || ['j', 'j_false', 'call', 'return_void', 'return_expr'].includes(quad.op)) {
+                if (quad.arg1 == var_ ||
+                    quad.arg2 == var_ ||
+                    quad.arg2.split('&').includes(var_) ||
+                    quad.res == var_ ||
+                    ['j', 'j_false', 'call', 'return_void', 'return_expr'].includes(quad.op)) {
                     used = true;
                     break;
                 }
@@ -141,35 +143,6 @@ class IROptimizer {
         return !!rangesToRemove.length;
     }
     /**
-     * 处理常量传播的一种窥孔级边界情况
-     *  - (=const, xxx, , _var_1), (=var, _var_1, , _var_2) --> (=const, xxx, , _var_2)
-     */
-    constPropPeepHole() {
-        // 找出所有=var的四元式
-        const eqVars = this._ir.quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
-        const patches = [];
-        // 替换符合上述模式的四元式
-        for (let eqVar of eqVars) {
-            const rhs = eqVar.v.arg1;
-            for (let i = eqVar.i - 1; i >= 0; i--) {
-                if (this._ir.quads[i].op == '=const' && this._ir.quads[i].res == rhs) {
-                    patches.push({
-                        index: eqVar.i,
-                        source: this._ir.quads[i].toString(0),
-                        target: new IR_1.Quad('=const', this._ir.quads[i].arg1, '', eqVar.v.res),
-                    });
-                    // 不需要删除原有的=const产生式，因为死代码消除部分会负责清除
-                }
-            }
-        }
-        // 应用修改
-        for (let patch of patches) {
-            this._ir.quads[patch.index] = patch.target;
-            this._logs.push(`常量传播，将位于 ${patch.index} 的 ${patch.source} 改写为 ${patch.target.toString(0)}`);
-        }
-        return !!patches.length;
-    }
-    /**
      * 常量传播和常量折叠
      */
     constPropAndFold() {
@@ -177,10 +150,12 @@ class IROptimizer {
         const eqVars = this._ir.quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
         // 处理复杂的常量传播和常量折叠情况
         // 借助回溯法构造表达式树，可以同时完成常量传播和常量折叠
+        // prettier-ignore
         let optimizableOp = ['=var', 'OR_OP', 'AND_OP', 'EQ_OP', 'NE_OP', 'GT_OP', 'LT_OP',
             'GE_OP', 'LE_OP', 'PLUS', 'MINUS', 'MULTIPLY', 'SLASH',
             'PERCENT', 'BITAND_OP', 'BITOR_OP', 'LEFT_OP',
             'RIGHT_OP', 'NOT_OP', 'MINUS', 'PLUS', 'BITINV_OP'];
+        let unfix = false;
         for (let eqVar of eqVars) {
             let constStk = [], nodeStk = [];
             // node类型为op时，i表示该运算涉及的操作数数；node类型为var时，i表示该变量通过第i个四元式被加入到栈中
@@ -220,10 +195,10 @@ class IROptimizer {
                         args.push(constStk.pop());
                     switch (node.name) {
                         case 'OR_OP':
-                            constStk.push((Number(args[0]) || Number(args[1])) ? '1' : '0');
+                            constStk.push(Number(args[0]) || Number(args[1]) ? '1' : '0');
                             break;
                         case 'AND_OP':
-                            constStk.push((Number(args[0]) && Number(args[1])) ? '1' : '0');
+                            constStk.push(Number(args[0]) && Number(args[1]) ? '1' : '0');
                             break;
                         case 'EQ_OP':
                             constStk.push(Number(Number(args[0]) == Number(args[1])).toString());
@@ -289,10 +264,12 @@ class IROptimizer {
             }
             if (optimizable) {
                 let newQuad = new IR_1.Quad('=const', constStk[0], '', eqVar.v.res);
+                unfix = true;
                 this._logs.push(`常量传播与常量折叠，将位于 ${eqVar.i} 的 ${eqVar.v.toString(0)} 优化为 ${newQuad.toString(0)}`);
                 this._ir.quads[eqVar.i] = newQuad;
             }
         }
+        return unfix;
     }
     /**
      * 代数规则优化
@@ -339,7 +316,7 @@ class IROptimizer {
             }
             checkHelper(v.arg1, record.arg1);
             checkHelper(v.arg2, record.arg2);
-            function _modify(to) {
+            function modify(to) {
                 that._logs.push(`代数优化，将位于 ${i} 的 ${that._ir.quads[i].toString(0)} 优化为 ${to.toString(0)}`);
                 that._ir.quads[i] = to;
                 undone = true;
@@ -351,7 +328,7 @@ class IROptimizer {
                     switch (v.op) {
                         case 'PLUS':
                             // 0 + a = a
-                            _modify(new IR_1.Quad('=var', quad.arg2, '', quad.res));
+                            modify(new IR_1.Quad('=var', quad.arg2, '', quad.res));
                             break;
                         case 'MINUS':
                             // 0 - a = -a
@@ -359,11 +336,11 @@ class IROptimizer {
                             break;
                         case 'MULTIPLY':
                             // 0 * a = 0
-                            _modify(new IR_1.Quad('=const', '0', '', quad.res));
+                            modify(new IR_1.Quad('=const', '0', '', quad.res));
                             break;
                         case 'SLASH':
                             // 0 / a = 0
-                            _modify(new IR_1.Quad('=const', '0', '', quad.res));
+                            modify(new IR_1.Quad('=const', '0', '', quad.res));
                             break;
                         default:
                             break;
@@ -373,7 +350,7 @@ class IROptimizer {
                     switch (v.op) {
                         case 'MULTIPLY':
                             // 1 * a = a
-                            _modify(new IR_1.Quad('=var', quad.arg2, '', quad.res));
+                            modify(new IR_1.Quad('=var', quad.arg2, '', quad.res));
                             break;
                         default:
                             break;
@@ -386,15 +363,15 @@ class IROptimizer {
                     switch (v.op) {
                         case 'PLUS':
                             // a + 0 = a
-                            _modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
+                            modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
                             break;
                         case 'MINUS':
                             // a - 0 = a
-                            _modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
+                            modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
                             break;
                         case 'MULTIPLY':
                             // a * 0 = 0
-                            _modify(new IR_1.Quad('=const', '0', '', quad.res));
+                            modify(new IR_1.Quad('=const', '0', '', quad.res));
                             break;
                         default:
                             break;
@@ -404,7 +381,7 @@ class IROptimizer {
                     switch (v.op) {
                         case 'MULTIPLY':
                             // a * 1 = a
-                            _modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
+                            modify(new IR_1.Quad('=var', quad.arg1, '', quad.res));
                             break;
                         default:
                             break;
