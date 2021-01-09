@@ -231,7 +231,7 @@ export class IRGenerator {
       const name = node.$(2).literal
       let len = Number(node.$(3).literal)
       this._scopePath = GlobalScope
-      assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`)
+      assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`)
       this._newVar(new IRArray(this._newVarId(), type, name, len, this._scopePath))
     }
   }
@@ -455,7 +455,7 @@ export class IRGenerator {
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
       const len = Number(node.$(3).literal)
-      assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}`)
+      assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`)
       const arr = new IRArray(this._newVarId(), type, name, len, this._scopePath)
       assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name)
       this._newVar(arr)
