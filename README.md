@@ -77,7 +77,7 @@ $ ./generate-minic.sh
 
   - [x] 从 AST 到 IR 的转换
   
-  - [ ] IR 的优化
+  - [x] IR 的优化
   
 - 目标代码生成
 
