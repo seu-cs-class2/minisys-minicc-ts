@@ -43,22 +43,7 @@ int main(void) {
 `;
 const CCode = `
 int main(void) {
-  int a;
-  int b;
-  int c;
-  a = 3;
-  b = a;
-  c = a + b;
-  a = c & 2;
-  if (a < 1) {
-    c = 1;
-  }
-  b = 2 + c;
-  while (1) {
-    a = 3;
-    b = 2 + a * 2;
-  }
-  return b;
+  __asm("addi $1, $2, 30");
 }
 `;
 const after = PreCompile_1.preCompile(CCode, path_1.default.join(__dirname, './'));

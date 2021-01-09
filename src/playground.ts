@@ -2,7 +2,7 @@
 
 import { lexSourceCode } from './lexer/Lex'
 import { DFA } from './seu-lex-yacc/seulex/DFA'
-import { ASTNode } from './ir/AST'
+import { ASTNode, visualizeAST } from './ir/AST'
 import { LALRAnalyzer } from './seu-lex-yacc/seuyacc/LALR'
 import { parseTokensLALR } from './parser/ParseLALR'
 import { IRGenerator } from './ir/IRGenerator'
@@ -43,22 +43,7 @@ int main(void) {
 
 const CCode = `
 int main(void) {
-  int a;
-  int b;
-  int c;
-  a = 3;
-  b = a;
-  c = a + b;
-  a = c & 2;
-  if (a < 1) {
-    c = 1;
-  }
-  b = 2 + c;
-  while (1) {
-    a = 3;
-    b = 2 + a * 2;
-  }
-  return b;
+  __asm("addi $1, $2, 30");
 }
 `
 
@@ -80,7 +65,6 @@ try {
   console.log(opt.ir.quads.map(v => v.toString()))
 
   console.log(opt.printLogs())
-
 } catch (ex) {
   if (ex instanceof SeuError) console.error('[SeuError] ' + ex.message)
   throw ex
