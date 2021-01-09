@@ -23,9 +23,7 @@ export class ASMGenerator {
   private _asm: string[]
 
   private _stackStartAddr: number
-  private _stackPtr: number
-  private _stackArea: string[] // 栈区，每格32位
-  private _freeRegs: string[]
+  private _GPRs: string[]
   private _registerDescriptors: Map<string, RegisterDescriptor> //寄存器描述符, 寄存器号->变量名(可多个)
   private _addressDescriptors: Map<string, AddressDescriptor> //变量描述符, 变量名->地址（可多个）
   private _stackFrameInfos: Map<string, StackFrameInfo>
@@ -35,15 +33,13 @@ export class ASMGenerator {
     this._ir = ir
     this._asm = []
     this._stackStartAddr = 1023 // 1024 * 32 bit
-    this._stackPtr = this._stackStartAddr // 高地址向低地址增长
-    this._stackArea = Array(this._stackStartAddr + 1).fill('none')
-    this._freeRegs = [...UsefulRegs]
+    this._GPRs = [...UsefulRegs]
     this._registerDescriptors = new Map();
     this._addressDescriptors = new Map();
     this._stackFrameInfos = new Map();
     this.calcFrameInfo()
-
-    for (const regName in this._freeRegs) {
+    // initialize all GPRs
+    for (const regName in this._GPRs) {
       this._registerDescriptors.set(regName, {recent:0, variables: new Set<string>()})
     }
     this.newAsm('.DATA 0x0')
@@ -56,22 +52,24 @@ export class ASMGenerator {
    * 从内存取变量到寄存器
    */
   loadVar(varId: string, register: string) {
-    const varLoc = this._stackArea.findIndex(v => v == varId) // TODO
-    assert(varLoc !== -1, '?')
-    const offset = (this._stackStartAddr - varLoc!) * WordLengthByte
-    this.newAsm(`addi $at, $zero, ${offset}`)
-    this.newAsm(`lw ${register}, ${this._stackStartAddr}($at)`)
+    const varLoc = this._addressDescriptors.get(varId)?.boundMemAddress
+    if (varLoc == undefined) throw new Error(`Cannot get the bound address for this variable: ${varId}`)
+    this.newAsm(`lw ${register}, ${varLoc}`)
+    // change the register descriptor so it holds only this var
+    this._registerDescriptors.get(register)?.variables.clear()
+    this._registerDescriptors.get(register)?.variables.add(varId)
+    // change the address descriptor by adding this register as an additonal location
+    this._addressDescriptors.get(varId)?.currentAddresses.add(register)
   }
 
   /**
    * 回写寄存器内容到内存
    */
   storeVar(varId: string, register: string) {
-    const varLoc = this._stackArea.findIndex(v => v == varId) // TODO
-    assert(varLoc !== -1, '?')
-    const offset = (this._stackStartAddr - varLoc!) * WordLengthByte
-    this.newAsm(`addi $at, $zero, ${offset}`)
-    this.newAsm(`sw ${register}, ${this._stackStartAddr}($at)`)
+    const varLoc = this._addressDescriptors.get(varId)?.boundMemAddress
+    if (varLoc == undefined) throw new Error(`Cannot get the bound address for this variable: ${varId}`)
+    this.newAsm(`sw ${register}, ${varLoc}`)
+    this._addressDescriptors.get(varId)?.currentAddresses.add(varLoc)
   }
 
   /**
@@ -112,15 +110,43 @@ export class ASMGenerator {
   }
 
   /**
-   * 为一条四元式获取每个变量可用的寄存器 // TODO: implement this
+   * 为一条四元式获取每个变量可用的寄存器
    * @param ir 
    */
   getRegs(ir: Quad) {
-    let res = []
-    for (let i = 0; i < 3; i++) {
-      res.push(this._freeRegs.shift()!)
+    const { op, arg1, arg2, res } = ir
+    const binaryOp = !!(arg1.trim() && arg2.trim()) // 是二元表达式
+    const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()) // 是一元表达式
+    let regs = ['']
+    if (op in ['=$', 'call', 'j_false', '=var', '=const']) {
+      // TODO
     }
-    return res
+    else if (binaryOp) {
+      let regY = '', regZ = '', regX = ''
+      const ad1 = this._addressDescriptors.get(arg1)?.currentAddresses
+      const ad2 = this._addressDescriptors.get(arg2)?.currentAddresses
+      let YAlreadyInReg = false
+      let ZAlreadyInReg = false
+      if (ad1 != undefined) {
+        for (const addr of ad1) {
+          if (addr[0] == '$') {
+            // Currently in a register, just pick this one
+            YAlreadyInReg = true
+            regY = addr
+            break
+          }
+        }
+      }
+      if (!YAlreadyInReg) {
+        // TODO
+      }
+    }
+    else {
+      //TODO
+    }
+
+
+    return regs
   }
 
   /**
@@ -194,6 +220,24 @@ export class ASMGenerator {
   }
 
   deallocateProcMemory(func: IRFunc) {
+    for (const kvpair of this._addressDescriptors.entries()) {
+      const boundMemAddress = kvpair[1].boundMemAddress
+      const currentAddresses = kvpair[1].currentAddresses
+      if(boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
+        // need to write this back to its bound memory location
+        if (currentAddresses.size > 0) {
+          for (const addr of currentAddresses.values()) {
+            if (addr[0] == '$') {
+              this.storeVar(kvpair[0], addr)
+              break
+            }
+          }
+        }
+        else {
+          throw new Error(`Attempted to store a variable that has no bound mem address: ${kvpair[0]}`)
+        }
+      }
+    }
     this._addressDescriptors.clear()
     for (let pair of this._registerDescriptors) {
       pair[1].recent = 0
@@ -220,7 +264,7 @@ export class ASMGenerator {
             break
           }
           case '=$': {
-            const [regZ] = this.getRegs(quad) // TODO: specifically handle this
+            const [regZ] = this.getRegs(quad)
             if (!this._registerDescriptors.get(regZ)?.variables.has(arg2)) {
               this.loadVar(arg2, regZ)
             }
@@ -229,6 +273,7 @@ export class ASMGenerator {
           case 'call': {
             const func = this._ir.funcPool.find(element => element.entryLabel == arg1)
             if (func == undefined) throw new Error('unidentified function')
+            assert(func.name != 'main', 'Cannot call main!')
             const actualArguments = arg2.split('&')
 
             for (let argNum = 0; argNum < func.paramList.length; argNum++) {
@@ -256,7 +301,7 @@ export class ASMGenerator {
                     this.newAsm(`mov $a${argNum}, ${regLoc}`)
                   }
                   else {
-                    this.newAsm(`sw ${4*argNum}($sp), ${regLoc}`)
+                    this.newAsm(`sw ${regLoc}, ${4*argNum}($sp)`)
                   }
                 }
                 else {
@@ -266,7 +311,7 @@ export class ASMGenerator {
                   else {
                     // since $v1 will not be used elsewhere, it is used to do this!
                     this.newAsm(`lw $v1, ${memLoc}`)
-                    this.newAsm(`sw ${4*argNum}($sp), $v1`)
+                    this.newAsm(`sw $v1, ${4*argNum}($sp)`)
                   }
                 }
               }
@@ -286,7 +331,7 @@ export class ASMGenerator {
 
             if (res.length > 0) {
               const ad =  this._addressDescriptors.get(res)
-              const regX = this.getRegs(quad) // TODO: specifically handle this in getRegs because it will always be a temp variable
+              const [regX] = this.getRegs(quad)
               this.newAsm(`mov ${regX}, $v0`)
             }
             break
@@ -422,29 +467,65 @@ export class ASMGenerator {
       }
       else if (unaryOp) {
         switch (op) {
+          case 'out_asm': {
+            // directly output assembly
+            this.newAsm(arg1)
+            break
+          }
           case 'j_false': {
-            // TODO
-            const [reg1] = this.getRegs(quad)
-            this.loadVar(arg1, reg1)
-            this.newAsm(`beq ${reg1}, $zero, ${res}`)
+            const [regY] = this.getRegs(quad)
+            if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+              this.loadVar(arg1, regY)
+            }
+            this.newAsm(`beq ${regY}, $zero, ${res}`)
             this.newAsm(`nop`) // delay-slot
             break
           }
-          case '=var': {
-            // TODO
-            const [reg1, reg2] = this.getRegs(quad)
-            this.loadVar(arg1, reg1)
-            this.newAsm(`or ${reg1}, $zero, ${reg2}`)
-            this.storeVar(res, reg2)
-            break
-          }
           case '=const': {
-            // TODO: 位数扩展
-            const [reg1] = this.getRegs(quad)
-            this.newAsm(`addi ${reg1}, $zero, ${arg1}`)
-            this.storeVar(res, reg1)
+            const [regX] = this.getRegs(quad)
+            const immediatteNum = parseInt(arg1)
+            if (immediatteNum <= 65535 && immediatteNum >= 0) {
+              this.newAsm(`addiu ${regX}, $zero, ${arg1}`)
+            }
+            else {
+              const lowerHalf = immediatteNum & 0x00ff
+              const higherHalf = immediatteNum >> 16
+              this.newAsm(`lui ${regX}, ${higherHalf}`)
+              this.newAsm(`ori ${regX}, ${regX}, ${lowerHalf}`)
+            }
+            
+            // Manage descriptors
+
+            // a. Change the register descriptor for regX so that it only holds res
+            this._registerDescriptors.get(regX)?.variables.clear()
+            this._registerDescriptors.get(regX)?.variables.add(res)
+
+            // b. Remove regX from the address descriptor of any variable other than res
+            for (let descriptor of this._addressDescriptors.values()) {
+              if (descriptor.currentAddresses.has(regX)) {
+                descriptor.currentAddresses.delete(regX)
+              }
+            }
+
+            // c. Change the address descriptor for res so that its only location is regX
+            // Note the memory location for res is NOT now in the address descriptor for res!
+            this._addressDescriptors.get(res)?.currentAddresses.clear()
+            this._addressDescriptors.get(res)?.currentAddresses.add(regX)
+
             break
           }
+          case '=var':
+            const [regY] = this.getRegs(quad)
+            if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+              this.loadVar(arg1, regY)
+            }
+
+            // Add res to the register descriptor for regY
+            this._registerDescriptors.get(regY)?.variables.add(res)
+            // Change the address descriptor for res so that its only location is regY
+            this._addressDescriptors.get(res)?.currentAddresses.clear()
+            this._addressDescriptors.get(res)?.currentAddresses.add(regY)
+            break
           case 'return_expr': {
             const ad =  this._addressDescriptors.get(arg1)
             if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
@@ -477,7 +558,8 @@ export class ASMGenerator {
           case 'NOT_OP':
           case 'MINUS':
           case 'PLUS':
-          case 'BITINV_OP': {
+          case 'BITINV_OP':
+          case 'j_false': {
             const [regY, regX] = this.getRegs(quad)
             if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
               this.loadVar(arg1, regY)
@@ -499,7 +581,24 @@ export class ASMGenerator {
                 break
             }
 
-            // TODO: deal with descriptors
+            // Manage descriptors
+
+            // a. Change the register descriptor for regX so that it only holds res
+            this._registerDescriptors.get(regX)?.variables.clear()
+            this._registerDescriptors.get(regX)?.variables.add(res)
+
+            // b. Remove regX from the address descriptor of any variable other than res
+            for (let descriptor of this._addressDescriptors.values()) {
+              if (descriptor.currentAddresses.has(regX)) {
+                descriptor.currentAddresses.delete(regX)
+              }
+            }
+
+            // c. Change the address descriptor for res so that its only location is regX
+            // Note the memory location for res is NOT now in the address descriptor for res!
+            this._addressDescriptors.get(res)?.currentAddresses.clear()
+            this._addressDescriptors.get(res)?.currentAddresses.add(regX)
+
             break
           }
           default:
