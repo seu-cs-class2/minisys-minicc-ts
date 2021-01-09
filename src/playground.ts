@@ -43,6 +43,9 @@ int main(void) {
 
 const CCode = `
 int a;
+void fake(int a){
+  return;
+}
 int main(void) {
   int b;
   int c;
@@ -50,11 +53,17 @@ int main(void) {
   a = 10;
   b = a / 10;
   aa();
+  aa();
   $0xFFFFFFFE = a;
   return b;
 }
 int aa(void) {
-  return;
+  int b;
+  b = 20;
+  return a;
+}
+int bb(void) {
+  return 2;
 }
 `
 
@@ -70,9 +79,10 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 try {
   const ir = new IRGenerator(root)
   console.log(ir.toIRString())
+  // console.dir(ir.funcPool, { depth: 4 })
 
   const opt = new IROptimizer(ir)
-  console.log(opt.quads.map(v => v.toString()))
+  console.log(opt.ir.quads.map(v => v.toString()))
 
   console.log(opt.printLogs())
 } catch (ex) {
