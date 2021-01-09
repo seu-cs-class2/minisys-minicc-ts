@@ -42,28 +42,23 @@ int main(void) {
 `
 
 const CCode = `
-int a;
-void fake(int a){
-  return;
-}
 int main(void) {
+  int a;
   int b;
   int c;
-  c = 0;
-  a = 10;
-  b = a / 10;
-  aa();
-  aa();
-  $0xFFFFFFFE = a;
+  a = 3;
+  b = a;
+  c = a + b;
+  a = c & 2;
+  if (a < 1) {
+    c = 1;
+  }
+  b = 2 + c;
+  while (1) {
+    a = 3;
+    b = 2 + a * 2;
+  }
   return b;
-}
-int aa(void) {
-  int b;
-  b = 20;
-  return a;
-}
-int bb(void) {
-  return 2;
 }
 `
 
@@ -85,6 +80,7 @@ try {
   console.log(opt.ir.quads.map(v => v.toString()))
 
   console.log(opt.printLogs())
+
 } catch (ex) {
   if (ex instanceof SeuError) console.error('[SeuError] ' + ex.message)
   throw ex

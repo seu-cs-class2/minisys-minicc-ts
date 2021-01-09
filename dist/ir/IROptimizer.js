@@ -25,8 +25,8 @@ class IROptimizer {
             unfix = unfix || this.deadFuncEliminate();
             unfix = unfix || this.deadVarUseEliminate();
             // 常量传播和常量折叠
-            unfix = unfix || this.constPropPeepHole();
-            // unfix = unfix || this.constPropAndFold()
+            // unfix = unfix || this.constPropPeepHole()
+            unfix = unfix || this.constPropAndFold();
             // 代数优化
             unfix = unfix || this.algebraOptimize();
             this.earlyReject();
@@ -177,8 +177,121 @@ class IROptimizer {
         const eqVars = this._ir.quads.map((v, i) => v.op == '=var' && { v, i }).filter(Boolean);
         // 处理复杂的常量传播和常量折叠情况
         // 借助回溯法构造表达式树，可以同时完成常量传播和常量折叠
+        let optimizableOp = ['=var', 'OR_OP', 'AND_OP', 'EQ_OP', 'NE_OP', 'GT_OP', 'LT_OP',
+            'GE_OP', 'LE_OP', 'PLUS', 'MINUS', 'MULTIPLY', 'SLASH',
+            'PERCENT', 'BITAND_OP', 'BITOR_OP', 'LEFT_OP',
+            'RIGHT_OP', 'NOT_OP', 'MINUS', 'PLUS', 'BITINV_OP'];
         for (let eqVar of eqVars) {
-            // TODO
+            let constStk = [], nodeStk = [];
+            // node类型为op时，i表示该运算涉及的操作数数；node类型为var时，i表示该变量通过第i个四元式被加入到栈中
+            let optimizable = true;
+            nodeStk.push({ type: 'var', name: eqVar.v.arg1, i: eqVar.i });
+            while (nodeStk.length) {
+                let node = nodeStk.pop();
+                if (node.type == 'var') {
+                    for (let i = node.i - 1; i >= 0; i--) {
+                        let op = this._ir.quads[i].op;
+                        if (op == 'set_label') {
+                            optimizable = false;
+                            break;
+                        }
+                        else if (this._ir.quads[i].res == node.name) {
+                            if (op == '=const') {
+                                constStk.push(this._ir.quads[i].arg1);
+                            }
+                            else if (optimizableOp.includes(op)) {
+                                let argNum = this._ir.quads[i].arg2.trim() ? 2 : 1;
+                                nodeStk.push({ type: 'op', name: op, i: argNum });
+                                nodeStk.push({ type: 'var', name: this._ir.quads[i].arg1, i: i });
+                                if (argNum > 1) {
+                                    nodeStk.push({ type: 'var', name: this._ir.quads[i].arg2, i: i });
+                                }
+                            }
+                            else {
+                                optimizable = false;
+                            }
+                            break;
+                        }
+                    }
+                }
+                else {
+                    let args = [];
+                    for (let i = 0; i < node.i; i++)
+                        args.push(constStk.pop());
+                    switch (node.name) {
+                        case 'OR_OP':
+                            constStk.push((Number(args[0]) || Number(args[1])) ? '1' : '0');
+                            break;
+                        case 'AND_OP':
+                            constStk.push((Number(args[0]) && Number(args[1])) ? '1' : '0');
+                            break;
+                        case 'EQ_OP':
+                            constStk.push(Number(Number(args[0]) == Number(args[1])).toString());
+                            break;
+                        case 'NE_OP':
+                            constStk.push(Number(Number(args[0]) != Number(args[1])).toString());
+                            break;
+                        case 'GT_OP':
+                            constStk.push(Number(Number(args[0]) > Number(args[1])).toString());
+                            break;
+                        case 'LT_OP':
+                            constStk.push(Number(Number(args[0]) < Number(args[1])).toString());
+                            break;
+                        case 'GE_OP':
+                            constStk.push(Number(Number(args[0]) >= Number(args[1])).toString());
+                            break;
+                        case 'LE_OP':
+                            constStk.push(Number(Number(args[0]) <= Number(args[1])).toString());
+                            break;
+                        case 'PLUS':
+                            if (node.i == 2)
+                                constStk.push((Number(args[0]) + Number(args[1])).toString());
+                            else
+                                constStk.push(Number(args[0]).toString());
+                            break;
+                        case 'MINUS':
+                            if (node.i == 2)
+                                constStk.push((Number(args[0]) - Number(args[1])).toString());
+                            else
+                                constStk.push((-Number(args[0])).toString());
+                            break;
+                        case 'MULTIPLY':
+                            constStk.push((Number(args[0]) * Number(args[1])).toString());
+                            break;
+                        case 'SLASH':
+                            constStk.push((Number(args[0]) / Number(args[1])).toString());
+                            break;
+                        case 'PERCENT':
+                            constStk.push((Number(args[0]) % Number(args[1])).toString());
+                            break;
+                        case 'BITAND_OP':
+                            constStk.push((Number(args[0]) & Number(args[1])).toString());
+                            break;
+                        case 'BITOR_OP':
+                            constStk.push((Number(args[0]) | Number(args[1])).toString());
+                            break;
+                        case 'LEFT_OP':
+                            constStk.push((Number(args[0]) << Number(args[1])).toString());
+                            break;
+                        case 'RIGHT_OP':
+                            constStk.push((Number(args[0]) >> Number(args[1])).toString());
+                            break;
+                        case 'NOT_OP':
+                            constStk.push(!Number(args[0]) ? '1' : '0');
+                            break;
+                        case 'BITINV_OP':
+                            constStk.push((~Number(args[0])).toString());
+                            break;
+                    }
+                }
+                if (!optimizable)
+                    break;
+            }
+            if (optimizable) {
+                let newQuad = new IR_1.Quad('=const', constStk[0], '', eqVar.v.res);
+                this._logs.push(`常量传播与常量折叠，将位于 ${eqVar.i} 的 ${eqVar.v.toString(0)} 优化为 ${newQuad.toString(0)}`);
+                this._ir.quads[eqVar.i] = newQuad;
+            }
         }
     }
     /**
