@@ -9,5 +9,15 @@ export interface RegisterDescriptor {
 }
 
 export interface AddressDescriptor {
-    addresses: Set<string>
+    currentAddresses: Set<string>
+    boundMemAddress: string | undefined // temporary variables should not have mem locations
+}
+
+export interface StackFrameInfo {
+    isLeaf: boolean
+    wordSize: number
+    outgoingSlots: number
+    localData: number
+    numRegs: number
+    numReturnAdd: number
 }

@@ -8,11 +8,12 @@
  * 2020-12 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
-import { IRFunc, MiniCType, Quad } from '../ir/IR'
+import { type } from 'os'
+import { IRFunc, IRVar, MiniCType, Quad } from '../ir/IR'
 import { GlobalScope, IRGenerator, LabelPrefix, VarPrefix } from '../ir/IRGenerator'
 import { assert } from '../seu-lex-yacc/utils'
 import { UsefulRegs, WordLengthByte } from './Arch'
-import { AddressDescriptor, RegisterDescriptor } from './Asm'
+import { AddressDescriptor, RegisterDescriptor, StackFrameInfo } from './Asm'
 
 /**
  * 汇编代码生成器
@@ -24,10 +25,12 @@ export class ASMGenerator {
   private _stackStartAddr: number
   private _stackPtr: number
   private _stackArea: string[] // 栈区，每格32位
-  private _freeRegs: string[] // TODO: change freeRegs according to procedures
+  private _freeRegs: string[]
   private _registerDescriptors: Map<string, RegisterDescriptor> //寄存器描述符, 寄存器号->变量名(可多个)
   private _addressDescriptors: Map<string, AddressDescriptor> //变量描述符, 变量名->地址（可多个）
+  private _stackFrameInfos: Map<string, StackFrameInfo>
 
+  // TODO: Array support
   constructor(ir: IRGenerator) {
     this._ir = ir
     this._asm = []
@@ -37,18 +40,11 @@ export class ASMGenerator {
     this._freeRegs = [...UsefulRegs]
     this._registerDescriptors = new Map();
     this._addressDescriptors = new Map();
-    // 给main函数局部变量分配栈位置
-    // FIXME: 规定main函数不准递归
-    // TODO: 数组支持
-    let allVar: string[] = []
-    this._ir.quads.forEach(v => {
-      v.arg1.startsWith(VarPrefix) && allVar.push(v.arg1)
-      v.arg2.startsWith(VarPrefix) && allVar.push(v.arg2)
-      v.res.startsWith(VarPrefix) && allVar.push(v.res)
-    })
-    allVar = [...new Set(allVar)]
-    for (let var_ of allVar) {
-      this._stackArea[this._stackPtr--] = var_
+    this._stackFrameInfos = new Map();
+    this.calcFrameInfo()
+
+    for (const regName in this._freeRegs) {
+      this._registerDescriptors.set(regName, {recent:0, variables: new Set<string>()})
     }
     this.newAsm('.DATA 0x0')
     this.processGlobalVars()
@@ -57,10 +53,10 @@ export class ASMGenerator {
   }
 
   /**
-   * 从内存取变量到寄存器 // TODO: Change this
+   * 从内存取变量到寄存器
    */
   loadVar(varId: string, register: string) {
-    const varLoc = this._stackArea.findIndex(v => v == varId)
+    const varLoc = this._stackArea.findIndex(v => v == varId) // TODO
     assert(varLoc !== -1, '?')
     const offset = (this._stackStartAddr - varLoc!) * WordLengthByte
     this.newAsm(`addi $at, $zero, ${offset}`)
@@ -68,10 +64,10 @@ export class ASMGenerator {
   }
 
   /**
-   * 回写寄存器内容到内存 // TODO: Change this
+   * 回写寄存器内容到内存
    */
   storeVar(varId: string, register: string) {
-    const varLoc = this._stackArea.findIndex(v => v == varId)
+    const varLoc = this._stackArea.findIndex(v => v == varId) // TODO
     assert(varLoc !== -1, '?')
     const offset = (this._stackStartAddr - varLoc!) * WordLengthByte
     this.newAsm(`addi $at, $zero, ${offset}`)
@@ -130,27 +126,79 @@ export class ASMGenerator {
   /**
    * 根据IRFunc计算该Procedure所需的Frame大小，
    * 默认使用所有通用寄存器；
-   * 4个以内参数不分配内存传实参，仅用寄存器；
+   * 没有子函数则不用存返回地址，否则需要，并且分配至少4个outgoing args块
    * 先不考虑数组
    */
 
-   calcFrameSizes() {
-    // TODO: calculate frame sizes of ALL functions and store it according to IRFun's VARPOOL and sub-functions
+   calcFrameInfo() {
+    for (const outer of this._ir.funcPool) {
+      // if it calls child function(s), it needs to save return address
+      // and allocate a minimum of 4 outgoing argument slots
+      let isLeaf = outer.childFuncs.length == 0
+      let maxArgs = 0
+      for (const inner of this._ir.funcPool) {
+        if (inner.name in outer.childFuncs) {
+          maxArgs = Math.max(maxArgs, inner.paramList.length)
+        }
+      }
+      let outgoingSlots = isLeaf ? 0 : Math.max(maxArgs, 4)
+      let localData = 0
+      for (const localVar of outer.localVars) {
+        if (localVar instanceof IRVar) localData++
+        else localData += localVar.len
+      }
+      let wordSize = (isLeaf ? 0 : 1 + localData + 8 + outgoingSlots) // allocate memory for all local variables (but not for temporary variables)
+      if (wordSize % 2 != 0) wordSize++ // padding
+      this._stackFrameInfos.set(outer.name, {isLeaf: isLeaf, wordSize: wordSize,
+         outgoingSlots: outgoingSlots, localData: localData, numRegs:8, numReturnAdd: isLeaf ? 0 : 1}) // for now allocate all regs
+    }
    }
    
 
-  allocateProcMemory(func: IRFunc | undefined) {
-    // TODO: analyze VARPOOL
+  allocateProcMemory(func: IRFunc) {
+    const frameInfo = this._stackFrameInfos.get(func?.name)
+    if (frameInfo == undefined) throw new Error('function name not in the pool')
+    // must save args passed by register to memory, otherwise they can be damaged.
+    for (let index = 0; index < func.paramList.length; index++) {
+      const memLoc = `${4*(frameInfo.wordSize + index)}($sp)`
+      if (index < 4) {
+        this.newAsm(`sw $a${index}, ${memLoc}`)
+      }
+      this._addressDescriptors.set(func.paramList[index].id, {currentAddresses: new Set<string>().add(memLoc), boundMemAddress: memLoc})
+    }
+    let remainingLVSlots = frameInfo.localData
+    for (const localVar of func.localVars) {
+      if (localVar instanceof IRVar) {
+        if (func.paramList.includes(localVar)) continue
+        else {
+          const memLoc = `${4*(frameInfo.wordSize - (frameInfo.isLeaf ? 0 : 1) - frameInfo.numRegs - remainingLVSlots-- )}($sp)`
+          this._addressDescriptors.set(localVar.id, {currentAddresses: new Set<string>().add(memLoc), boundMemAddress: memLoc})
+        }
+      }
+      else {
+        // TODO: array support
+      }
 
-    // TODO: process AddressDescriptors
+    }
+    
+    const globalVars = this._ir.varPool.filter(v => IRGenerator.sameScope(v.scope, GlobalScope))
+    for (const globalVar of globalVars) {
+      if (globalVar instanceof IRVar) {
+        this._addressDescriptors.set(globalVar.id, {currentAddresses: new Set<string>().add(globalVar.name), boundMemAddress: globalVar.name})
+      }
+      else {
+        // TODO: array support
+      }
+    }
+
   }
 
-  deallocateProcMemory(func: IRFunc | undefined) {
-    // TODO: analyze VARPOOL
-
-    // TODO: process RegisterDescriptors
-
-    // TODO: process AddressDescriptors
+  deallocateProcMemory(func: IRFunc) {
+    this._addressDescriptors.clear()
+    for (let pair of this._registerDescriptors) {
+      pair[1].recent = 0
+      pair[1].variables.clear()
+    }
   }
 
   /**
@@ -164,27 +212,83 @@ export class ASMGenerator {
       if (binaryOp) {
         switch (op) {
           case '=[]': {
-            // TODO: 数组支持
+            // TODO: array support
             break
           }
           case '[]': {
-            // TODO: 数组支持
+            // TODO: array support
             break
           }
           case '=$': {
-            // TODO: 需要硬件侧约定端口访问方法（编址等）
-            break
+            const [regZ] = this.getRegs(quad) // TODO: specifically handle this
+            if (!this._registerDescriptors.get(regZ)?.variables.has(arg2)) {
+              this.loadVar(arg2, regZ)
+            }
+            this.newAsm(`sw ${arg1}, ${regZ}`)
           }
           case 'call': {
+            const func = this._ir.funcPool.find(element => element.entryLabel == arg1)
+            if (func == undefined) throw new Error('unidentified function')
+            const actualArguments = arg2.split('&')
 
-            // TODO: evaluate the called function to calculate possible addresses
+            for (let argNum = 0; argNum < func.paramList.length; argNum++) {
+              const actualArg = actualArguments[argNum];
+              const ad =  this._addressDescriptors.get(actualArg)
+              if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
+                throw new Error('Actual argument does not have current address')
+              }
+              else {
+                let regLoc = ''
+                let memLoc = ''
+                for (const addr of ad.currentAddresses) {
+                  if (addr[0] == '$') {
+                    // register has higher priority
+                    regLoc = addr
+                    break
+                  }
+                  else {
+                    memLoc = addr
+                  }
+                }
 
-            // TODO: under 4 arguments, use register
+                if (regLoc.length > 0) {
+                  if (argNum < 4) {
+                    this.newAsm(`mov $a${argNum}, ${regLoc}`)
+                  }
+                  else {
+                    this.newAsm(`sw ${4*argNum}($sp), ${regLoc}`)
+                  }
+                }
+                else {
+                  if (argNum < 4) {
+                    this.newAsm(`lw $a${argNum}, ${memLoc}`)
+                  }
+                  else {
+                    // since $v1 will not be used elsewhere, it is used to do this!
+                    this.newAsm(`lw $v1, ${memLoc}`)
+                    this.newAsm(`sw ${4*argNum}($sp), $v1`)
+                  }
+                }
+              }
+            }
 
-            // TODO: over 4 arguments, save it to CALLER's stack
+            this.newAsm(`jal ${arg1}`) // jal will automatically save return address to $ra
 
-            this.newAsm(`j ${arg1}`)
+            // clear temporary registers because they might have been damaged
+            for (let kvpair of this._addressDescriptors.entries()) {
+              for(let addr of kvpair[1].currentAddresses) {
+                if (addr.substr(0, 2) == '$t') {
+                  kvpair[1].currentAddresses.delete(addr)
+                  this._registerDescriptors.get(addr)?.variables.delete(kvpair[0])
+                }
+              }
+            }
 
+            if (res.length > 0) {
+              const ad =  this._addressDescriptors.get(res)
+              const regX = this.getRegs(quad) // TODO: specifically handle this in getRegs because it will always be a temp variable
+              this.newAsm(`mov ${regX}, $v0`)
+            }
             break
           }
           // X = Y op Z
@@ -301,15 +405,15 @@ export class ASMGenerator {
 
               // b. Remove regX from the address descriptor of any variable other than res
               for (let descriptor of this._addressDescriptors.values()) {
-                if (descriptor.addresses.has(regX)) {
-                  descriptor.addresses.delete(regX)
+                if (descriptor.currentAddresses.has(regX)) {
+                  descriptor.currentAddresses.delete(regX)
                 }
               }
 
               // c. Change the address descriptor for res so that its only location is regX
               // Note the memory location for res is NOT now in the address descriptor for res!
-              this._addressDescriptors.get(res)?.addresses.clear()
-              this._addressDescriptors.get(res)?.addresses.add(regX)
+              this._addressDescriptors.get(res)?.currentAddresses.clear()
+              this._addressDescriptors.get(res)?.currentAddresses.add(regX)
             }
             break
           default:
@@ -342,49 +446,103 @@ export class ASMGenerator {
             break
           }
           case 'return_expr': {
-            // TODO: load return value into $v0
+            const ad =  this._addressDescriptors.get(arg1)
+            if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
+              throw new Error('Return value does not have current address')
+            }
+            else {
+              let regLoc = ''
+              let memLoc = ''
+              for (const addr of ad.currentAddresses) {
+                if (addr[0] == '$') {
+                  // register has higher priority
+                  regLoc = addr
+                  break
+                }
+                else {
+                  memLoc = addr
+                }
+              }
+              
+              if (regLoc.length > 0) {
+                this.newAsm(`mov $v0, ${regLoc}`)
+              }
+              else {
+                this.newAsm(`lw $v0, ${memLoc}`)
+              }
+            }
+            
             break
           }
           case 'NOT_OP':
           case 'MINUS':
           case 'PLUS':
-          case 'DOLLAR':
           case 'BITINV_OP': {
-            // TODO
+            const [regY, regX] = this.getRegs(quad)
+            if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+              this.loadVar(arg1, regY)
+            }
+            switch(op) {
+              case 'NOT_OP':
+                this.newAsm(`xor, ${regX}, $zero, ${regY}`)
+                break
+              case 'MINUS':
+                this.newAsm(`sub, ${regX}, $zero, ${regY}`)
+                break
+              case 'PLUS':
+                this.newAsm(`mov, ${regX}, ${regY}`)
+                break
+              case 'BITINV_OP':
+                this.newAsm(`nor, ${regX}, ${regY}, ${regY}`)
+                break
+              default:
+                break
+            }
+
+            // TODO: deal with descriptors
             break
           }
+          default:
+            break
         }
       }
       else {
         switch (op) {
           case 'set_label': {
-
             // parse the label to identify type
-            let labelContents = res.split('_')
-            let labelType = labelContents[labelContents.length - 1]
+            const labelContents = res.split('_')
+            const labelType = labelContents[labelContents.length - 1]
             if (labelType == 'entry') {
               // find the function in symbol table
               const func = this._ir.funcPool.find(element => element.entryLabel == res)
-              let frameSize = 16 // TODO
-
+              if (func == undefined) throw new Error('fuction name not in the pool')
+              const frameInfo = this._stackFrameInfos.get(func?.name)
+              if (frameInfo == undefined) throw new Error('function name not in the pool')
               this.newAsm(func?.name + ':')
-              this.newAsm(`addiu $sp, $sp, -${frameSize}`) 
-              this.newAsm(`sw $ra, ${frameSize-4}($sp)`) // TODO: only emit this when it has child functions
-
-              // TODO: save register values
-              
+              this.newAsm(`addiu $sp, $sp, -${4 * frameInfo.wordSize}`)
+              if (!frameInfo.isLeaf) {
+                this.newAsm(`sw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`)
+              }
+              for (let index = 0; index < frameInfo.numRegs; index++) {
+                this.newAsm(`sw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numRegs + index)}($sp)`)
+              }
               this.allocateProcMemory(func)
-
             }
             else if (labelType == 'exit') {
               // find the function in symbol table
               const func = this._ir.funcPool.find(element => element.entryLabel == res)
-              let frameSize = 16 // TODO
+              if (func == undefined) throw new Error('fuction name not in the pool')
+              const frameInfo = this._stackFrameInfos.get(func?.name)
+              if (frameInfo == undefined) throw new Error('function name not in the pool')
 
-              // TODO: restore register values
+              for (let index = 0; index < frameInfo.numRegs; index++) {
+                this.newAsm(`lw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numRegs + index)}($sp)`)
+              }
 
-              this.newAsm(`lw $ra, ${frameSize-4}($sp)`) // TODO: only emit this when it has child functions
-              this.newAsm(`addiu $sp, $sp, ${frameSize}`)
+              if (!frameInfo.isLeaf) {
+                this.newAsm(`lw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`)
+              }
+              this.newAsm(`addiu $sp, $sp, ${4 * frameInfo.wordSize}`)
               this.newAsm(`jr $ra`)
 
               this.deallocateProcMemory(func)
