@@ -71,7 +71,9 @@ export class IROptimizer {
       for (let i = finalIndex + 1; i < this._ir.quads.length; i++) {
         const quad = this._ir.quads[i]
         // 只要出现在arg1 / arg2 / res，就是被使用过的活变量
-        if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_) {
+        // 若最后一次被更新后存在跳转操作，放弃对该赋值的优化
+        if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_
+          || ['j', 'j_false', 'call', 'return_void', 'return_expr'].includes(quad.op)) {
           used = true
           break
         }
@@ -236,7 +238,7 @@ export class IROptimizer {
       }
       const that = this
 
-      // 向上找最近相关的=const，并且过程中不应被作为其他res覆写过
+      // 向上找最近相关的=const，并且过程中不应被作为其他res覆写过，二者间的指令也不应可能被跳转到
       function checkHelper(varId: string, record: Record) {
         for (let j = i - 1; j >= 0; j--) {
           const quad = that._ir.quads[j]
@@ -245,7 +247,7 @@ export class IROptimizer {
             record.constant = quad.arg1
             return
           }
-          if (quad.res == varId) {
+          if (quad.op == 'set_label' || quad.res == varId) {
             record.optimizable = false
             return
           }
@@ -351,7 +353,7 @@ export class IROptimizer {
             assert(false, `位于 ${i} 的四元式 ${quad.toString(0)} 存在除以0错误`)
             break
           }
-          if (this._ir.quads[j].res == quad.arg2) {
+          if (this._ir.quads[j].res == quad.arg2 || this._ir.quads[j].op == 'set_label') {
             // 被写入值不能确定的情况
             break
           }
@@ -369,7 +371,7 @@ export class IROptimizer {
             assert(addr <= IOMaxAddr, `位于 ${i} 的四元式 ${quad.toString(0)} 存在越界端口访问`)
             break
           }
-          if (this._ir.quads[j].res == quad.arg2) {
+          if (this._ir.quads[j].res == quad.arg2 || this._ir.quads[j].op == 'set_label') {
             // 被写入值不能确定的情况
             break
           }
