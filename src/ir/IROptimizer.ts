@@ -40,8 +40,8 @@ export class IROptimizer {
       unfix = unfix || this.deadFuncEliminate()
       unfix = unfix || this.deadVarUseEliminate()
       // 常量传播和常量折叠
-      unfix = unfix || this.constPropPeepHole()
-      // unfix = unfix || this.constPropAndFold()
+      // unfix = unfix || this.constPropPeepHole()
+      unfix = unfix || this.constPropAndFold()
       // 代数优化
       unfix = unfix || this.algebraOptimize()
       this.earlyReject()
@@ -71,7 +71,9 @@ export class IROptimizer {
       for (let i = finalIndex + 1; i < this._ir.quads.length; i++) {
         const quad = this._ir.quads[i]
         // 只要出现在arg1 / arg2 / res，就是被使用过的活变量
-        if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_) {
+        // 若最后一次被更新后存在跳转操作，放弃对该赋值的优化
+        if (quad.arg1 == var_ || quad.arg2 == var_ || quad.arg2.split('&').includes(var_) || quad.res == var_
+          || ['j', 'j_false', 'call', 'return_void', 'return_expr'].includes(quad.op)) {
           used = true
           break
         }
@@ -197,8 +199,116 @@ export class IROptimizer {
     // 处理复杂的常量传播和常量折叠情况
     // 借助回溯法构造表达式树，可以同时完成常量传播和常量折叠
 
+    let optimizableOp = ['=var', 'OR_OP', 'AND_OP', 'EQ_OP', 'NE_OP', 'GT_OP', 'LT_OP',
+      'GE_OP', 'LE_OP', 'PLUS', 'MINUS', 'MULTIPLY', 'SLASH',
+      'PERCENT', 'BITAND_OP', 'BITOR_OP', 'LEFT_OP',
+      'RIGHT_OP', 'NOT_OP', 'MINUS', 'PLUS', 'BITINV_OP']
     for (let eqVar of eqVars) {
-      // TODO
+      let constStk: string[] = [],
+        nodeStk: { type: 'op' | 'var', name: string, i: number }[] = []
+        // node类型为op时，i表示该运算涉及的操作数数；node类型为var时，i表示该变量通过第i个四元式被加入到栈中
+      let optimizable = true
+      nodeStk.push({ type: 'var', name: eqVar.v.arg1, i: eqVar.i })
+      while (nodeStk.length) {
+        let node = nodeStk.pop() as { type: 'op' | 'var', name: string, i: number }
+        if (node.type == 'var') {
+          for (let i = node.i - 1; i >= 0; i--) {
+            let op = this._ir.quads[i].op
+            if (op == 'set_label') {
+              optimizable = false
+              break
+            } else if (this._ir.quads[i].res == node.name) {
+              if (op == '=const') {
+                constStk.push(this._ir.quads[i].arg1)
+              } else if (optimizableOp.includes(op)) {
+                let argNum = this._ir.quads[i].arg2.trim() ? 2 : 1
+                nodeStk.push({ type: 'op', name: op, i: argNum })
+                nodeStk.push({ type: 'var', name: this._ir.quads[i].arg1, i: i })
+                if (argNum > 1) {
+                  nodeStk.push({ type: 'var', name: this._ir.quads[i].arg2, i: i })
+                }
+              } else {
+                optimizable = false
+              }
+              break
+            }
+          }
+        } else {
+          let args = []
+          for (let i = 0; i < node.i; i++) args.push(constStk.pop())
+          switch (node.name) {
+            case 'OR_OP':
+              constStk.push((Number(args[0]) || Number(args[1])) ? '1' : '0')
+              break
+            case 'AND_OP':
+              constStk.push((Number(args[0]) && Number(args[1])) ? '1' : '0')
+              break
+            case 'EQ_OP':
+              constStk.push(Number(Number(args[0]) == Number(args[1])).toString())
+              break
+            case 'NE_OP':
+              constStk.push(Number(Number(args[0]) != Number(args[1])).toString())
+              break
+            case 'GT_OP':
+              constStk.push(Number(Number(args[0]) > Number(args[1])).toString())
+              break
+            case 'LT_OP':
+              constStk.push(Number(Number(args[0]) < Number(args[1])).toString())
+              break
+            case 'GE_OP':
+              constStk.push(Number(Number(args[0]) >= Number(args[1])).toString())
+              break
+            case 'LE_OP':
+              constStk.push(Number(Number(args[0]) <= Number(args[1])).toString())
+              break
+            case 'PLUS':
+              if (node.i == 2)
+                constStk.push((Number(args[0]) + Number(args[1])).toString())
+              else
+                constStk.push(Number(args[0]).toString())
+              break
+            case 'MINUS':
+              if (node.i == 2)
+                constStk.push((Number(args[0]) - Number(args[1])).toString())
+              else
+                constStk.push((-Number(args[0])).toString())
+              break
+            case 'MULTIPLY':
+              constStk.push((Number(args[0]) * Number(args[1])).toString())
+              break
+            case 'SLASH':
+              constStk.push((Number(args[0]) / Number(args[1])).toString())
+              break
+            case 'PERCENT':
+              constStk.push((Number(args[0]) % Number(args[1])).toString())
+              break
+            case 'BITAND_OP':
+              constStk.push((Number(args[0]) & Number(args[1])).toString())
+              break
+            case 'BITOR_OP':
+              constStk.push((Number(args[0]) | Number(args[1])).toString())
+              break
+            case 'LEFT_OP':
+              constStk.push((Number(args[0]) << Number(args[1])).toString())
+              break
+            case 'RIGHT_OP':
+              constStk.push((Number(args[0]) >> Number(args[1])).toString())
+              break
+            case 'NOT_OP':
+              constStk.push(!Number(args[0]) ? '1' : '0')
+              break
+            case 'BITINV_OP':
+              constStk.push((~Number(args[0])).toString())
+              break
+          }
+        }
+        if (!optimizable) break
+      }
+      if (optimizable) {
+        let newQuad = new Quad('=const', constStk[0], '', eqVar.v.res)
+        this._logs.push(`常量传播与常量折叠，将位于 ${eqVar.i} 的 ${eqVar.v.toString(0)} 优化为 ${newQuad.toString(0)}`)
+        this._ir.quads[eqVar.i] = newQuad
+      }
     }
   }
 
@@ -236,7 +346,7 @@ export class IROptimizer {
       }
       const that = this
 
-      // 向上找最近相关的=const，并且过程中不应被作为其他res覆写过
+      // 向上找最近相关的=const，并且过程中不应被作为其他res覆写过，二者间的指令也不应可能被跳转到
       function checkHelper(varId: string, record: Record) {
         for (let j = i - 1; j >= 0; j--) {
           const quad = that._ir.quads[j]
@@ -245,7 +355,7 @@ export class IROptimizer {
             record.constant = quad.arg1
             return
           }
-          if (quad.res == varId) {
+          if (quad.op == 'set_label' || quad.res == varId) {
             record.optimizable = false
             return
           }
@@ -351,7 +461,7 @@ export class IROptimizer {
             assert(false, `位于 ${i} 的四元式 ${quad.toString(0)} 存在除以0错误`)
             break
           }
-          if (this._ir.quads[j].res == quad.arg2) {
+          if (this._ir.quads[j].res == quad.arg2 || this._ir.quads[j].op == 'set_label') {
             // 被写入值不能确定的情况
             break
           }
@@ -369,7 +479,7 @@ export class IROptimizer {
             assert(addr <= IOMaxAddr, `位于 ${i} 的四元式 ${quad.toString(0)} 存在越界端口访问`)
             break
           }
-          if (this._ir.quads[j].res == quad.arg2) {
+          if (this._ir.quads[j].res == quad.arg2 || this._ir.quads[j].op == 'set_label') {
             // 被写入值不能确定的情况
             break
           }
