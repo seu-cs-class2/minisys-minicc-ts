@@ -151,9 +151,29 @@ export class IRGenerator {
     this._loopStack = []
     this._postChecks = []
     this._callsInScope = []
+
+    // 开始遍历
     this.start(root)
+
+    // 添加内置函数__asm
+    this.pushScope()
+    this._funcPool.push(
+      new IRFunc(
+        '__asm',
+        'void',
+        [new IRVar(this._newVarId(), 'asm', 'string', this._scopePath, true)],
+        this._newLabel('__asm_entry'),
+        this._newLabel('__asm_exit'),
+        this._scopePath,
+        true
+      )
+    )
+    this.popScope()
+
+    // 后置检查与处理
+    this.postProcess1()
     this.postCheck()
-    this.postProcess()
+    this.postProcess2()
     this._basicBlocks = this._toBasicBlocks()
   }
 
@@ -166,12 +186,17 @@ export class IRGenerator {
       this._funcPool.some(v => v.name == 'main'),
       '程序没有 main 函数'
     )
+    for (let func of this._funcPool) {
+      // 有可能通过内联汇编自行处理了return
+      assert(func.hasReturn || func.childFuncs.includes('__asm'), `函数 ${func.name} 没有 return 语句`)
+    }
   }
 
   /**
-   * 后处理
+   * 后处理1
    */
-  postProcess() {
+  postProcess1() {
+    // 补充函数信息，供汇编生成使用
     for (let func of this._funcPool) {
       // 填充函数的局部变量
       func.localVars.push(...this._varPool.filter(v => IRGenerator.inScope(func.scopePath, v.scope)))
@@ -182,6 +207,28 @@ export class IRGenerator {
         )
       )
     }
+  }
+
+  /**
+   * 后处理2
+   */
+  postProcess2() {
+    // 折叠 __asm
+    // (=const, "str", , _var_0), (call, __asm, _var_0, ) --> (out_asm, "str", ,)
+    for (let i = 0; i < this._quads.length; i++) {
+      const quad = this._quads[i]
+      if (quad.op == 'call' && quad.arg1 == '__asm') {
+        assert(i >= 1, '对 __asm 的调用出现在不正确的位置')
+        const prev = this._quads[i - 1]
+        assert(quad.arg2.split('&').length == 1, '__asm 只接受一个字符串字面参数')
+        assert(prev.op == '=string' && prev.res == quad.arg2, '未找到 __asm 的调用参数')
+        assert(prev.arg1.match(/^".*"$/), '__asm 只接受一个字符串字面参数')
+        this._quads[i] = new Quad('out_asm', prev.arg1, '', '')
+        // @ts-ignore
+        this._quads[i - 1] = void 0
+      }
+    }
+    this._quads = this._quads.filter(Boolean)
   }
 
   start(node: ASTNode) {
@@ -231,7 +278,10 @@ export class IRGenerator {
       const name = node.$(2).literal
       let len = Number(node.$(3).literal)
       this._scopePath = GlobalScope
-      assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`)
+      assert(
+        !isNaN(len) && len > 0 && Math.floor(len) == len,
+        `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`
+      )
       this._newVar(new IRArray(this._newVarId(), type, name, len, this._scopePath))
     }
   }
@@ -403,6 +453,8 @@ export class IRGenerator {
     if (node.match('IDENTIFIER args')) {
       const args = this.parse_args(node.$(2))
       const funcName = node.$(1).literal
+      assert(funcName !== 'main', '禁止手动或递归调用main函数')
+
       this._postChecks.push({
         checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(funcName),
         hint: `未声明就调用了函数 ${funcName}`,
@@ -418,6 +470,7 @@ export class IRGenerator {
     // 调函数（无参）
     if (node.match('IDENTIFIER LPAREN RPAREN')) {
       const funcName = node.$(1).literal
+      assert(funcName !== 'main', '禁止手动或递归调用main函数')
       this._postChecks.push({
         checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(funcName),
         hint: `未声明就调用了函数 ${funcName}`,
@@ -455,7 +508,10 @@ export class IRGenerator {
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
       const len = Number(node.$(3).literal)
-      assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`)
+      assert(
+        !isNaN(len) && len > 0 && Math.floor(len) == len,
+        `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`
+      )
       const arr = new IRArray(this._newVarId(), type, name, len, this._scopePath)
       assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name)
       this._newVar(arr)
@@ -463,6 +519,8 @@ export class IRGenerator {
   }
 
   parse_return_stmt(node: ASTNode, context: any) {
+    this._funcPool.find(v => v.name == context.funcName)!.hasReturn = true
+    // return;
     if (node.children.length == 0) {
       this._postChecks.push({
         checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName)!.retType == 'void')(
@@ -472,6 +530,7 @@ export class IRGenerator {
       })
       this._newQuad('return_void', '', '', context.exitLabel)
     }
+    // return expr;
     if (node.children.length == 1) {
       this._postChecks.push({
         checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName)!.retType != 'void')(

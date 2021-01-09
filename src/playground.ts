@@ -2,7 +2,7 @@
 
 import { lexSourceCode } from './lexer/Lex'
 import { DFA } from './seu-lex-yacc/seulex/DFA'
-import { ASTNode } from './ir/AST'
+import { ASTNode, visualizeAST } from './ir/AST'
 import { LALRAnalyzer } from './seu-lex-yacc/seuyacc/LALR'
 import { parseTokensLALR } from './parser/ParseLALR'
 import { IRGenerator } from './ir/IRGenerator'
@@ -42,28 +42,8 @@ int main(void) {
 `
 
 const CCode = `
-int a;
-void fake(int a){
-  return;
-}
 int main(void) {
-  int b;
-  int c;
-  c = 0;
-  a = 10;
-  b = a / 10;
-  aa();
-  aa();
-  $0xFFFFFFFE = a;
-  return b;
-}
-int aa(void) {
-  int b;
-  b = 20;
-  return a;
-}
-int bb(void) {
-  return 2;
+  __asm("addi $1, $2, 30");
 }
 `
 

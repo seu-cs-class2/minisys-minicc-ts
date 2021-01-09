@@ -71,7 +71,7 @@ export class IRVar {
   private _name: string // 变量名
   private _type: MiniCType // 变量类型
   private _scope: number[] // 作用域路径
-  private _inited: boolean
+  private _inited: boolean // 是否初始化过
 
   get id() {
     return this._id
@@ -187,8 +187,9 @@ export class IRArray {
 export class IRFunc {
   private _name: string // 函数名
   private _retType: MiniCType // 函数返回值类型
-  private _entryLabel: string
-  private _exitLabel: string
+  private _entryLabel: string // 入口标签
+  private _exitLabel: string // 出口标签
+  private _hasReturn: boolean // 内部是否有return语句
   // 形参仍然分配变量位，当需要调用时，将实参变量赋给形参变量即可
   private _paramList: IRVar[] // 形参列表
   // 所有所属的局部变量
@@ -230,6 +231,14 @@ export class IRFunc {
     this._exitLabel = val
   }
 
+  get hasReturn() {
+    return this._hasReturn
+  }
+
+  set hasReturn(val: boolean) {
+    this._hasReturn = val
+  }
+
   get paramList() {
     return this._paramList
   }
@@ -268,7 +277,8 @@ export class IRFunc {
     paramList: IRVar[],
     entryLabel: string,
     exitLabel: string,
-    scopePath: number[]
+    scopePath: number[],
+    hasReturn = false
   ) {
     this._name = name
     this._retType = retType
@@ -278,6 +288,7 @@ export class IRFunc {
     this._localVars = []
     this._childFuncs = []
     this._scopePath = [...scopePath]
+    this._hasReturn = hasReturn
   }
 }
 

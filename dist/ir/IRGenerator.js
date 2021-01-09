@@ -32,9 +32,16 @@ class IRGenerator {
         this._loopStack = [];
         this._postChecks = [];
         this._callsInScope = [];
+        // 开始遍历
         this.start(root);
+        // 添加内置函数__asm
+        this.pushScope();
+        this._funcPool.push(new IR_1.IRFunc('__asm', 'void', [new IR_1.IRVar(this._newVarId(), 'asm', 'string', this._scopePath, true)], this._newLabel('__asm_entry'), this._newLabel('__asm_exit'), this._scopePath, true));
+        this.popScope();
+        // 后置检查与处理
+        this.postProcess1();
         this.postCheck();
-        this.postProcess();
+        this.postProcess2();
         this._basicBlocks = this._toBasicBlocks();
     }
     get funcPool() {
@@ -146,17 +153,43 @@ class IRGenerator {
         for (let check of this._postChecks)
             utils_1.assert(check.checker(), check.hint);
         utils_1.assert(this._funcPool.some(v => v.name == 'main'), '程序没有 main 函数');
+        for (let func of this._funcPool) {
+            // 有可能通过内联汇编自行处理了return
+            utils_1.assert(func.hasReturn || func.childFuncs.includes('__asm'), `函数 ${func.name} 没有 return 语句`);
+        }
     }
     /**
-     * 后处理
+     * 后处理1
      */
-    postProcess() {
+    postProcess1() {
+        // 补充函数信息，供汇编生成使用
         for (let func of this._funcPool) {
             // 填充函数的局部变量
             func.localVars.push(...this._varPool.filter(v => IRGenerator.inScope(func.scopePath, v.scope)));
             // 填充函数内部调用的其他函数
             func.childFuncs.push(...new Set(this._callsInScope.filter(v => IRGenerator.inScope(func.scopePath, v.scopePath)).map(x => x.funcName)));
         }
+    }
+    /**
+     * 后处理2
+     */
+    postProcess2() {
+        // 折叠 __asm
+        // (=const, "str", , _var_0), (call, __asm, _var_0, ) --> (out_asm, "str", ,)
+        for (let i = 0; i < this._quads.length; i++) {
+            const quad = this._quads[i];
+            if (quad.op == 'call' && quad.arg1 == '__asm') {
+                utils_1.assert(i >= 1, '对 __asm 的调用出现在不正确的位置');
+                const prev = this._quads[i - 1];
+                utils_1.assert(quad.arg2.split('&').length == 1, '__asm 只接受一个字符串字面参数');
+                utils_1.assert(prev.op == '=string' && prev.res == quad.arg2, '未找到 __asm 的调用参数');
+                utils_1.assert(prev.arg1.match(/^".*"$/), '__asm 只接受一个字符串字面参数');
+                this._quads[i] = new IR_2.Quad('out_asm', prev.arg1, '', '');
+                // @ts-ignore
+                this._quads[i - 1] = void 0;
+            }
+        }
+        this._quads = this._quads.filter(Boolean);
     }
     start(node) {
         if (!node)
@@ -360,6 +393,7 @@ class IRGenerator {
         if (node.match('IDENTIFIER args')) {
             const args = this.parse_args(node.$(2));
             const funcName = node.$(1).literal;
+            utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数');
             this._postChecks.push({
                 checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(funcName),
                 hint: `未声明就调用了函数 ${funcName}`,
@@ -374,6 +408,7 @@ class IRGenerator {
         // 调函数（无参）
         if (node.match('IDENTIFIER LPAREN RPAREN')) {
             const funcName = node.$(1).literal;
+            utils_1.assert(funcName !== 'main', '禁止手动或递归调用main函数');
             this._postChecks.push({
                 checker: (_funcName => () => !!this._funcPool.find(v => v.name == _funcName))(funcName),
                 hint: `未声明就调用了函数 ${funcName}`,
@@ -416,6 +451,8 @@ class IRGenerator {
         }
     }
     parse_return_stmt(node, context) {
+        this._funcPool.find(v => v.name == context.funcName).hasReturn = true;
+        // return;
         if (node.children.length == 0) {
             this._postChecks.push({
                 checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName).retType == 'void')(context.funcName),
@@ -423,6 +460,7 @@ class IRGenerator {
             });
             this._newQuad('return_void', '', '', context.exitLabel);
         }
+        // return expr;
         if (node.children.length == 1) {
             this._postChecks.push({
                 checker: (_funcName => () => this._funcPool.find(v => v.name == _funcName).retType != 'void')(context.funcName),

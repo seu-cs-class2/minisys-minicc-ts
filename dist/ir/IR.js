@@ -134,7 +134,7 @@ exports.IRArray = IRArray;
  * IR阶段函数信息存储
  */
 class IRFunc {
-    constructor(name, retType, paramList, entryLabel, exitLabel, scopePath) {
+    constructor(name, retType, paramList, entryLabel, exitLabel, scopePath, hasReturn = false) {
         this._name = name;
         this._retType = retType;
         this._paramList = paramList;
@@ -143,6 +143,7 @@ class IRFunc {
         this._localVars = [];
         this._childFuncs = [];
         this._scopePath = [...scopePath];
+        this._hasReturn = hasReturn;
     }
     get name() {
         return this._name;
@@ -167,6 +168,12 @@ class IRFunc {
     }
     set exitLabel(val) {
         this._exitLabel = val;
+    }
+    get hasReturn() {
+        return this._hasReturn;
+    }
+    set hasReturn(val) {
+        this._hasReturn = val;
     }
     get paramList() {
         return this._paramList;
