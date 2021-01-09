@@ -8,10 +8,12 @@
  * 2020-12 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
-import { IRVar, MiniCType } from '../ir/IR'
+import { type } from 'os'
+import { IRFunc, IRVar, MiniCType, Quad } from '../ir/IR'
 import { GlobalScope, IRGenerator, LabelPrefix, VarPrefix } from '../ir/IRGenerator'
 import { assert } from '../seu-lex-yacc/utils'
 import { UsefulRegs, WordLengthByte } from './Arch'
+import { AddressDescriptor, RegisterDescriptor, StackFrameInfo } from './Asm'
 
 /**
  * 汇编代码生成器
@@ -21,31 +23,25 @@ export class ASMGenerator {
   private _asm: string[]
 
   private _stackStartAddr: number
-  private _stackPtr: number
-  private _stackArea: string[] // 栈区，每格32位
-  private _freeRegs: string[]
+  private _GPRs: string[]
+  private _registerDescriptors: Map<string, RegisterDescriptor> //寄存器描述符, 寄存器号->变量名(可多个)
+  private _addressDescriptors: Map<string, AddressDescriptor> //变量描述符, 变量名->地址（可多个）
+  private _stackFrameInfos: Map<string, StackFrameInfo>
 
+  // TODO: Array support
   constructor(ir: IRGenerator) {
     this._ir = ir
     this._asm = []
     this._stackStartAddr = 1023 // 1024 * 32 bit
-    this._stackPtr = this._stackStartAddr // 高地址向低地址增长
-    this._stackArea = Array(this._stackStartAddr + 1).fill('none')
-    this._freeRegs = [...UsefulRegs]
-    // 给main函数局部变量分配栈位置 // TODO: 设计栈空间，支持函数调用
-    // FIXME: 规定main函数不准递归
-    // TODO: 数组支持
-    let allVar: string[] = []
-    this._ir.quads.forEach(v => {
-      v.arg1.startsWith(VarPrefix) && allVar.push(v.arg1)
-      v.arg2.startsWith(VarPrefix) && allVar.push(v.arg2)
-      v.res.startsWith(VarPrefix) && allVar.push(v.res)
-    })
-    allVar = [...new Set(allVar)]
-    for (let var_ of allVar) {
-      this._stackArea[this._stackPtr--] = var_
+    this._GPRs = [...UsefulRegs]
+    this._registerDescriptors = new Map();
+    this._addressDescriptors = new Map();
+    this._stackFrameInfos = new Map();
+    this.calcFrameInfo()
+    // initialize all GPRs
+    for (const regName in this._GPRs) {
+      this._registerDescriptors.set(regName, {recent:0, variables: new Set<string>()})
     }
-    // TODO: 科学的寄存器分配
     this.newAsm('.DATA 0x0')
     this.processGlobalVars()
     this.newAsm('.TEXT 0x0')
@@ -56,22 +52,24 @@ export class ASMGenerator {
    * 从内存取变量到寄存器
    */
   loadVar(varId: string, register: string) {
-    const varLoc = this._stackArea.findIndex(v => v == varId)
-    assert(varLoc !== -1, '?')
-    const offset = (this._stackStartAddr - varLoc!) * WordLengthByte
-    this.newAsm(`addi $at, $zero, ${offset}`)
-    this.newAsm(`lw ${register}, ${this._stackStartAddr}($at)`)
+    const varLoc = this._addressDescriptors.get(varId)?.boundMemAddress
+    if (varLoc == undefined) throw new Error(`Cannot get the bound address for this variable: ${varId}`)
+    this.newAsm(`lw ${register}, ${varLoc}`)
+    // change the register descriptor so it holds only this var
+    this._registerDescriptors.get(register)?.variables.clear()
+    this._registerDescriptors.get(register)?.variables.add(varId)
+    // change the address descriptor by adding this register as an additonal location
+    this._addressDescriptors.get(varId)?.currentAddresses.add(register)
   }
 
   /**
    * 回写寄存器内容到内存
    */
   storeVar(varId: string, register: string) {
-    const varLoc = this._stackArea.findIndex(v => v == varId)
-    assert(varLoc !== -1, '?')
-    const offset = (this._stackStartAddr - varLoc!) * WordLengthByte
-    this.newAsm(`addi $at, $zero, ${offset}`)
-    this.newAsm(`sw ${register}, ${this._stackStartAddr}($at)`)
+    const varLoc = this._addressDescriptors.get(varId)?.boundMemAddress
+    if (varLoc == undefined) throw new Error(`Cannot get the bound address for this variable: ${varId}`)
+    this.newAsm(`sw ${register}, ${varLoc}`)
+    this._addressDescriptors.get(varId)?.currentAddresses.add(varLoc)
   }
 
   /**
@@ -111,16 +109,140 @@ export class ASMGenerator {
     }
   }
 
-  getRegs(count = 1) {
-    let res = []
-    for (let i = 0; i < count; i++) {
-      res.push(this._freeRegs.shift()!)
+  /**
+   * 为一条四元式获取每个变量可用的寄存器
+   * @param ir 
+   */
+  getRegs(ir: Quad) {
+    const { op, arg1, arg2, res } = ir
+    const binaryOp = !!(arg1.trim() && arg2.trim()) // 是二元表达式
+    const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()) // 是一元表达式
+    let regs = ['']
+    if (op in ['=$', 'call', 'j_false', '=var', '=const']) {
+      // TODO
     }
-    return res
+    else if (binaryOp) {
+      let regY = '', regZ = '', regX = ''
+      const ad1 = this._addressDescriptors.get(arg1)?.currentAddresses
+      const ad2 = this._addressDescriptors.get(arg2)?.currentAddresses
+      let YAlreadyInReg = false
+      let ZAlreadyInReg = false
+      if (ad1 != undefined) {
+        for (const addr of ad1) {
+          if (addr[0] == '$') {
+            // Currently in a register, just pick this one
+            YAlreadyInReg = true
+            regY = addr
+            break
+          }
+        }
+      }
+      if (!YAlreadyInReg) {
+        // TODO
+      }
+    }
+    else {
+      //TODO
+    }
+
+
+    return regs
   }
 
-  freeRegs(regs: string[]) {
-    this._freeRegs.unshift(...regs)
+  /**
+   * 根据IRFunc计算该Procedure所需的Frame大小，
+   * 默认使用所有通用寄存器；
+   * 没有子函数则不用存返回地址，否则需要，并且分配至少4个outgoing args块
+   * 先不考虑数组
+   */
+
+   calcFrameInfo() {
+    for (const outer of this._ir.funcPool) {
+      // if it calls child function(s), it needs to save return address
+      // and allocate a minimum of 4 outgoing argument slots
+      let isLeaf = outer.childFuncs.length == 0
+      let maxArgs = 0
+      for (const inner of this._ir.funcPool) {
+        if (inner.name in outer.childFuncs) {
+          maxArgs = Math.max(maxArgs, inner.paramList.length)
+        }
+      }
+      let outgoingSlots = isLeaf ? 0 : Math.max(maxArgs, 4)
+      let localData = 0
+      for (const localVar of outer.localVars) {
+        if (localVar instanceof IRVar) localData++
+        else localData += localVar.len
+      }
+      let wordSize = (isLeaf ? 0 : 1 + localData + 8 + outgoingSlots) // allocate memory for all local variables (but not for temporary variables)
+      if (wordSize % 2 != 0) wordSize++ // padding
+      this._stackFrameInfos.set(outer.name, {isLeaf: isLeaf, wordSize: wordSize,
+         outgoingSlots: outgoingSlots, localData: localData, numRegs:8, numReturnAdd: isLeaf ? 0 : 1}) // for now allocate all regs
+    }
+   }
+   
+
+  allocateProcMemory(func: IRFunc) {
+    const frameInfo = this._stackFrameInfos.get(func?.name)
+    if (frameInfo == undefined) throw new Error('function name not in the pool')
+    // must save args passed by register to memory, otherwise they can be damaged.
+    for (let index = 0; index < func.paramList.length; index++) {
+      const memLoc = `${4*(frameInfo.wordSize + index)}($sp)`
+      if (index < 4) {
+        this.newAsm(`sw $a${index}, ${memLoc}`)
+      }
+      this._addressDescriptors.set(func.paramList[index].id, {currentAddresses: new Set<string>().add(memLoc), boundMemAddress: memLoc})
+    }
+    let remainingLVSlots = frameInfo.localData
+    for (const localVar of func.localVars) {
+      if (localVar instanceof IRVar) {
+        if (func.paramList.includes(localVar)) continue
+        else {
+          const memLoc = `${4*(frameInfo.wordSize - (frameInfo.isLeaf ? 0 : 1) - frameInfo.numRegs - remainingLVSlots-- )}($sp)`
+          this._addressDescriptors.set(localVar.id, {currentAddresses: new Set<string>().add(memLoc), boundMemAddress: memLoc})
+        }
+      }
+      else {
+        // TODO: array support
+      }
+
+    }
+    
+    const globalVars = this._ir.varPool.filter(v => IRGenerator.sameScope(v.scope, GlobalScope))
+    for (const globalVar of globalVars) {
+      if (globalVar instanceof IRVar) {
+        this._addressDescriptors.set(globalVar.id, {currentAddresses: new Set<string>().add(globalVar.name), boundMemAddress: globalVar.name})
+      }
+      else {
+        // TODO: array support
+      }
+    }
+
+  }
+
+  deallocateProcMemory(func: IRFunc) {
+    for (const kvpair of this._addressDescriptors.entries()) {
+      const boundMemAddress = kvpair[1].boundMemAddress
+      const currentAddresses = kvpair[1].currentAddresses
+      if(boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
+        // need to write this back to its bound memory location
+        if (currentAddresses.size > 0) {
+          for (const addr of currentAddresses.values()) {
+            if (addr[0] == '$') {
+              this.storeVar(kvpair[0], addr)
+              break
+            }
+          }
+        }
+        else {
+          throw new Error(`Attempted to store a variable that has no bound mem address: ${kvpair[0]}`)
+        }
+      }
+    }
+    this._addressDescriptors.clear()
+    for (let pair of this._registerDescriptors) {
+      pair[1].recent = 0
+      pair[1].variables.clear()
+    }
   }
 
   /**
@@ -131,199 +253,416 @@ export class ASMGenerator {
       const { op, arg1, arg2, res } = quad
       const binaryOp = !!(arg1.trim() && arg2.trim()) // 是二元表达式
       const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()) // 是一元表达式
-      switch (op) {
-        case 'set_label': {
-          this.newAsm(res + ':')
-          break
-        }
-        case 'j_false': {
-          const [reg1] = this.getRegs(1)
-          this.loadVar(arg1, reg1)
-          this.newAsm(`beq ${reg1}, $zero, ${res}`)
-          this.newAsm(`nop`) // delay-slot
-          this.freeRegs([reg1])
-          break
-        }
-        case 'j': {
-          this.newAsm(`j ${res}`)
-          this.newAsm(`nop`) // delay-slot
-          break
-        }
-        case '=var': {
-          const [reg1, reg2] = this.getRegs(2)
-          this.loadVar(arg1, reg1)
-          this.newAsm(`or ${reg1}, $zero, ${reg2}`)
-          this.storeVar(res, reg2)
-          this.freeRegs([reg1, reg2])
-          break
-        }
-        case '=const': {
-          // TODO: 位数扩展
-          const [reg1] = this.getRegs(1)
-          this.newAsm(`addi ${reg1}, $zero, ${arg1}`)
-          this.storeVar(res, reg1)
-          this.freeRegs([reg1])
-          break
-        }
-        case '=[]': {
-          // TODO: 数组支持
-          break
-        }
-        case '[]': {
-          // TODO: 数组支持
-          break
-        }
-        case '=$': {
-          // TODO: 需要硬件侧约定端口访问方法（编址等）
-          break
-        }
-        case 'call': {
-          // TODO: 设计函数调用
-          break
-        }
-        case 'return_void': {
-          // TODO: 设计函数调用
-          // 利用$ra
-          break
-        }
-        case 'return_expr': {
-          // TODO: 设计函数调用
-          // 利用$ra
-          break
-        }
-        case 'OR_OP': {
-          // TODO: 参考布尔值约定进行运算
-          break
-        }
-        case 'AND_OP': {
-          // TODO: 参考布尔值约定进行运算
-          break
-        }
-        case 'BITAND_OP': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`and ${reg1}, ${reg2}, ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'BITXOR_OP': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`xor ${reg1}, ${reg2}, ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'BITOR_OP': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`or ${reg1}, ${reg2}, ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'EQ_OP': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`sub ${reg1}, ${reg2}, ${reg3}`)
-          this.newAsm(`nor ${reg3}, ${reg3}, ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'NE_OP': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`sub ${reg1}, ${reg2}, ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'LT_OP': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`slt ${reg1}, ${reg2}, ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'GT_OP': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`slt ${reg2}, ${reg1}, ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'GE_OP': {
-          // TODO
-          break
-        }
-        case 'LE_OP': {
-          // TODO
-          break
-        }
-        case 'PLUS': {
-          // TODO
-          break
-        }
-        case 'MINUS': {
-          if (binaryOp) {
-            const [reg1, reg2, reg3] = this.getRegs(3)
-            this.loadVar(arg1, reg1)
-            this.loadVar(arg2, reg2)
-            this.newAsm(`sub ${reg1}, ${reg2}, ${reg3}`)
-            this.storeVar(res, reg3)
-            this.freeRegs([reg1, reg2, reg3])
+      if (binaryOp) {
+        switch (op) {
+          case '=[]': {
+            // TODO: array support
+            break
           }
-          if (unaryOp) {
-            const [reg1, reg2] = this.getRegs(2)
-            this.loadVar(arg1, reg1)
-            this.newAsm(`sub $zero, ${reg1}, ${reg2}`)
-            this.storeVar(res, reg2)
-            this.freeRegs([reg1, reg2])
+          case '[]': {
+            // TODO: array support
+            break
           }
-          break
+          case '=$': {
+            const [regZ] = this.getRegs(quad)
+            if (!this._registerDescriptors.get(regZ)?.variables.has(arg2)) {
+              this.loadVar(arg2, regZ)
+            }
+            this.newAsm(`sw ${arg1}, ${regZ}`)
+          }
+          case 'call': {
+            const func = this._ir.funcPool.find(element => element.entryLabel == arg1)
+            if (func == undefined) throw new Error('unidentified function')
+            assert(func.name != 'main', 'Cannot call main!')
+            const actualArguments = arg2.split('&')
+
+            for (let argNum = 0; argNum < func.paramList.length; argNum++) {
+              const actualArg = actualArguments[argNum];
+              const ad =  this._addressDescriptors.get(actualArg)
+              if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
+                throw new Error('Actual argument does not have current address')
+              }
+              else {
+                let regLoc = ''
+                let memLoc = ''
+                for (const addr of ad.currentAddresses) {
+                  if (addr[0] == '$') {
+                    // register has higher priority
+                    regLoc = addr
+                    break
+                  }
+                  else {
+                    memLoc = addr
+                  }
+                }
+
+                if (regLoc.length > 0) {
+                  if (argNum < 4) {
+                    this.newAsm(`mov $a${argNum}, ${regLoc}`)
+                  }
+                  else {
+                    this.newAsm(`sw ${regLoc}, ${4*argNum}($sp)`)
+                  }
+                }
+                else {
+                  if (argNum < 4) {
+                    this.newAsm(`lw $a${argNum}, ${memLoc}`)
+                  }
+                  else {
+                    // since $v1 will not be used elsewhere, it is used to do this!
+                    this.newAsm(`lw $v1, ${memLoc}`)
+                    this.newAsm(`sw $v1, ${4*argNum}($sp)`)
+                  }
+                }
+              }
+            }
+
+            this.newAsm(`jal ${arg1}`) // jal will automatically save return address to $ra
+
+            // clear temporary registers because they might have been damaged
+            for (let kvpair of this._addressDescriptors.entries()) {
+              for(let addr of kvpair[1].currentAddresses) {
+                if (addr.substr(0, 2) == '$t') {
+                  kvpair[1].currentAddresses.delete(addr)
+                  this._registerDescriptors.get(addr)?.variables.delete(kvpair[0])
+                }
+              }
+            }
+
+            if (res.length > 0) {
+              const ad =  this._addressDescriptors.get(res)
+              const [regX] = this.getRegs(quad)
+              this.newAsm(`mov ${regX}, $v0`)
+            }
+            break
+          }
+          // X = Y op Z
+          case 'OR_OP':
+          case 'AND_OP':
+          case 'LT_OP':
+          case 'PLUS':
+          case 'MINUS':
+          case 'BITAND_OP':
+          case 'BITOR_OP':
+          case 'BITXOR_OP':
+          case 'LEFT_OP':
+          case 'RIGHT_OP':
+          case 'EQ_OP':
+          case 'NE_OP':
+          case 'NE_OP':
+          case 'GT_OP':
+          case 'GE_OP':
+          case 'LE_OP':
+          case 'MULTIPLY':
+          case 'SLASH':
+          case 'PERCENT':
+            {
+              // register allocation
+              const [regY, regZ, regX] = this.getRegs(quad)
+              if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+                this.loadVar(arg1, regY)
+              }
+              if (!this._registerDescriptors.get(regZ)?.variables.has(arg2)) {
+                this.loadVar(arg2, regZ)
+              }
+
+              // emit respective instructions
+              switch (op) {
+                case 'BITOR_OP':
+                case 'OR_OP': {
+                  this.newAsm(`or ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'BITAND_OP':
+                case 'AND_OP': {
+                  this.newAsm(`and ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'BITXOR_OP': {
+                  this.newAsm(`xor ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'PLUS': {
+                  this.newAsm(`add ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'MINUS': {
+                  this.newAsm(`sub ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'LEFT_OP': {
+                  this.newAsm(`sllv ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'RIGHT_OP': {
+                  this.newAsm(`srlv ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'EQ_OP': {
+                  this.newAsm(`sub ${regY}, ${regZ}, ${regX}`)
+                  this.newAsm(`nor ${regX}, ${regX}, ${regX}`)
+                  break
+                }
+                case 'NE_OP': {
+                  this.newAsm(`sub ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'LT_OP': {
+                  this.newAsm(`slt ${regY}, ${regZ}, ${regX}`)
+                  break
+                }
+                case 'GT_OP': {
+                  this.newAsm(`slt ${regZ}, ${regY}, ${regX}`)
+                  break
+                }
+                case 'GE_OP': {
+                  this.newAsm(`slt ${regY}, ${regZ}, ${regX}`)
+                  this.newAsm(`nor ${regX}, ${regX}, ${regX}`)
+                  break
+                }
+                case 'LE_OP': {
+                  this.newAsm(`slt ${regZ}, ${regY}, ${regX}`)
+                  this.newAsm(`nor ${regX}, ${regX}, ${regX}`)
+                  break
+                }
+                case 'MULTIPLY': {
+                  this.newAsm(`mult ${regY}, ${regZ}`)
+                  this.newAsm(`mflo ${regX}`)
+                  break
+                }
+                case 'SLASH': {
+                  this.newAsm(`div ${regY}, ${regZ}`)
+                  this.newAsm(`mflo ${regX}`)
+                  break
+                }
+                case 'PERCENT': {
+                  this.newAsm(`div ${regY}, ${regZ}`)
+                  this.newAsm(`mfhi ${regX}`)
+                  break
+                }
+              }
+
+              // Manage descriptors
+
+              // a. Change the register descriptor for regX so that it only holds res
+              this._registerDescriptors.get(regX)?.variables.clear()
+              this._registerDescriptors.get(regX)?.variables.add(res)
+
+              // b. Remove regX from the address descriptor of any variable other than res
+              for (let descriptor of this._addressDescriptors.values()) {
+                if (descriptor.currentAddresses.has(regX)) {
+                  descriptor.currentAddresses.delete(regX)
+                }
+              }
+
+              // c. Change the address descriptor for res so that its only location is regX
+              // Note the memory location for res is NOT now in the address descriptor for res!
+              this._addressDescriptors.get(res)?.currentAddresses.clear()
+              this._addressDescriptors.get(res)?.currentAddresses.add(regX)
+            }
+            break
+          default:
+            break
         }
-        case 'MULTIPLY': {
-          // TODO
-          break
+      }
+      else if (unaryOp) {
+        switch (op) {
+          case 'out_asm': {
+            // directly output assembly
+            this.newAsm(arg1)
+            break
+          }
+          case 'j_false': {
+            const [regY] = this.getRegs(quad)
+            if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+              this.loadVar(arg1, regY)
+            }
+            this.newAsm(`beq ${regY}, $zero, ${res}`)
+            this.newAsm(`nop`) // delay-slot
+            break
+          }
+          case '=const': {
+            const [regX] = this.getRegs(quad)
+            const immediatteNum = parseInt(arg1)
+            if (immediatteNum <= 65535 && immediatteNum >= 0) {
+              this.newAsm(`addiu ${regX}, $zero, ${arg1}`)
+            }
+            else {
+              const lowerHalf = immediatteNum & 0x00ff
+              const higherHalf = immediatteNum >> 16
+              this.newAsm(`lui ${regX}, ${higherHalf}`)
+              this.newAsm(`ori ${regX}, ${regX}, ${lowerHalf}`)
+            }
+            
+            // Manage descriptors
+
+            // a. Change the register descriptor for regX so that it only holds res
+            this._registerDescriptors.get(regX)?.variables.clear()
+            this._registerDescriptors.get(regX)?.variables.add(res)
+
+            // b. Remove regX from the address descriptor of any variable other than res
+            for (let descriptor of this._addressDescriptors.values()) {
+              if (descriptor.currentAddresses.has(regX)) {
+                descriptor.currentAddresses.delete(regX)
+              }
+            }
+
+            // c. Change the address descriptor for res so that its only location is regX
+            // Note the memory location for res is NOT now in the address descriptor for res!
+            this._addressDescriptors.get(res)?.currentAddresses.clear()
+            this._addressDescriptors.get(res)?.currentAddresses.add(regX)
+
+            break
+          }
+          case '=var':
+            const [regY] = this.getRegs(quad)
+            if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+              this.loadVar(arg1, regY)
+            }
+
+            // Add res to the register descriptor for regY
+            this._registerDescriptors.get(regY)?.variables.add(res)
+            // Change the address descriptor for res so that its only location is regY
+            this._addressDescriptors.get(res)?.currentAddresses.clear()
+            this._addressDescriptors.get(res)?.currentAddresses.add(regY)
+            break
+          case 'return_expr': {
+            const ad =  this._addressDescriptors.get(arg1)
+            if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
+              throw new Error('Return value does not have current address')
+            }
+            else {
+              let regLoc = ''
+              let memLoc = ''
+              for (const addr of ad.currentAddresses) {
+                if (addr[0] == '$') {
+                  // register has higher priority
+                  regLoc = addr
+                  break
+                }
+                else {
+                  memLoc = addr
+                }
+              }
+              
+              if (regLoc.length > 0) {
+                this.newAsm(`mov $v0, ${regLoc}`)
+              }
+              else {
+                this.newAsm(`lw $v0, ${memLoc}`)
+              }
+            }
+            
+            break
+          }
+          case 'NOT_OP':
+          case 'MINUS':
+          case 'PLUS':
+          case 'BITINV_OP':
+          case 'j_false': {
+            const [regY, regX] = this.getRegs(quad)
+            if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+              this.loadVar(arg1, regY)
+            }
+            switch(op) {
+              case 'NOT_OP':
+                this.newAsm(`xor, ${regX}, $zero, ${regY}`)
+                break
+              case 'MINUS':
+                this.newAsm(`sub, ${regX}, $zero, ${regY}`)
+                break
+              case 'PLUS':
+                this.newAsm(`mov, ${regX}, ${regY}`)
+                break
+              case 'BITINV_OP':
+                this.newAsm(`nor, ${regX}, ${regY}, ${regY}`)
+                break
+              default:
+                break
+            }
+
+            // Manage descriptors
+
+            // a. Change the register descriptor for regX so that it only holds res
+            this._registerDescriptors.get(regX)?.variables.clear()
+            this._registerDescriptors.get(regX)?.variables.add(res)
+
+            // b. Remove regX from the address descriptor of any variable other than res
+            for (let descriptor of this._addressDescriptors.values()) {
+              if (descriptor.currentAddresses.has(regX)) {
+                descriptor.currentAddresses.delete(regX)
+              }
+            }
+
+            // c. Change the address descriptor for res so that its only location is regX
+            // Note the memory location for res is NOT now in the address descriptor for res!
+            this._addressDescriptors.get(res)?.currentAddresses.clear()
+            this._addressDescriptors.get(res)?.currentAddresses.add(regX)
+
+            break
+          }
+          default:
+            break
         }
-        case 'SLASH': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`div ${reg1}, ${reg2}`)
-          this.newAsm(`mflo ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
+      }
+      else {
+        switch (op) {
+          case 'set_label': {
+            // parse the label to identify type
+            const labelContents = res.split('_')
+            const labelType = labelContents[labelContents.length - 1]
+            if (labelType == 'entry') {
+              // find the function in symbol table
+              const func = this._ir.funcPool.find(element => element.entryLabel == res)
+              if (func == undefined) throw new Error('fuction name not in the pool')
+              const frameInfo = this._stackFrameInfos.get(func?.name)
+              if (frameInfo == undefined) throw new Error('function name not in the pool')
+              this.newAsm(func?.name + ':')
+              this.newAsm(`addiu $sp, $sp, -${4 * frameInfo.wordSize}`)
+              if (!frameInfo.isLeaf) {
+                this.newAsm(`sw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`)
+              }
+              for (let index = 0; index < frameInfo.numRegs; index++) {
+                this.newAsm(`sw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numRegs + index)}($sp)`)
+              }
+              this.allocateProcMemory(func)
+            }
+            else if (labelType == 'exit') {
+              // find the function in symbol table
+              const func = this._ir.funcPool.find(element => element.entryLabel == res)
+              if (func == undefined) throw new Error('fuction name not in the pool')
+              const frameInfo = this._stackFrameInfos.get(func?.name)
+              if (frameInfo == undefined) throw new Error('function name not in the pool')
+
+              for (let index = 0; index < frameInfo.numRegs; index++) {
+                this.newAsm(`lw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numRegs + index)}($sp)`)
+              }
+
+              if (!frameInfo.isLeaf) {
+                this.newAsm(`lw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`)
+              }
+              this.newAsm(`addiu $sp, $sp, ${4 * frameInfo.wordSize}`)
+              this.newAsm(`jr $ra`)
+
+              this.deallocateProcMemory(func)
+            }
+            else {
+              this.newAsm(res + ':')
+            }
+            break
+          }
+          case 'j': {
+            this.newAsm(`j ${res}`)
+            this.newAsm(`nop`) // delay-slot
+            break
+          }
+          case 'return_void': {
+            // nothing
+            break
+          }
+          default:
+            break
         }
-        case 'PERCENT': {
-          const [reg1, reg2, reg3] = this.getRegs(3)
-          this.loadVar(arg1, reg1)
-          this.loadVar(arg2, reg2)
-          this.newAsm(`div ${reg1}, ${reg2}`)
-          this.newAsm(`mfhi ${reg3}`)
-          this.storeVar(res, reg3)
-          this.freeRegs([reg1, reg2, reg3])
-          break
-        }
-        case 'NOT_OP': {
-          // TODO
-          break
-        }
-        // TODO: 其他op
-        default:
-          break
       }
     }
   }
