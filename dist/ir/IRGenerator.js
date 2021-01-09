@@ -276,13 +276,13 @@ class IRGenerator {
             this.parse_expr_stmt(node.$(1));
         }
         if (node.$(1).name == 'compound_stmt') {
-            this.parse_compound_stmt(node.$(1));
+            this.parse_compound_stmt(node.$(1), context);
         }
         if (node.$(1).name == 'if_stmt') {
-            this.parse_if_stmt(node.$(1));
+            this.parse_if_stmt(node.$(1), context);
         }
         if (node.$(1).name == 'while_stmt') {
-            this.parse_while_stmt(node.$(1));
+            this.parse_while_stmt(node.$(1), context);
         }
         if (node.$(1).name == 'return_stmt') {
             this.parse_return_stmt(node.$(1), context);
@@ -294,35 +294,35 @@ class IRGenerator {
             this.parse_break_stmt(node.$(1));
         }
     }
-    parse_compound_stmt(node) {
+    parse_compound_stmt(node, context) {
         this.pushScope();
         if (node.children.length == 2) {
             this.parse_local_decls(node.$(1));
-            this.parse_stmt_list(node.$(2));
+            this.parse_stmt_list(node.$(2), context);
         }
         else if (node.children.length == 1) {
             // 没有局部变量
-            this.parse_stmt_list(node.$(1));
+            this.parse_stmt_list(node.$(1), context);
         }
         this.popScope();
     }
-    parse_if_stmt(node) {
+    parse_if_stmt(node, context) {
         const expr = this.parse_expr(node.$(1));
         const trueLabel = this._newLabel('true'); // 真入口标号
         const falseLabel = this._newLabel('false'); // 假入口标号
         this._newQuad('set_label', '', '', trueLabel);
         this._newQuad('j_false', expr, '', falseLabel);
-        this.parse_stmt(node.$(2));
+        this.parse_stmt(node.$(2), context);
         this._newQuad('set_label', '', '', falseLabel);
     }
-    parse_while_stmt(node) {
+    parse_while_stmt(node, context) {
         const loopLabel = this._newLabel('loop'); // 入口标号
         const breakLabel = this._newLabel('break'); // 出口标号
         this._loopStack.push({ loopLabel, breakLabel });
         this._newQuad('set_label', '', '', loopLabel);
         const expr = this.parse_expr(node.$(1));
         this._newQuad('j_false', expr, '', breakLabel);
-        this.parse_stmt(node.$(2));
+        this.parse_stmt(node.$(2), context);
         this._newQuad('j', '', '', loopLabel);
         this._newQuad('set_label', '', '', breakLabel);
         this._loopStack.pop();
