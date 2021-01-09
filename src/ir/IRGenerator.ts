@@ -31,9 +31,15 @@ export class IRGenerator {
   get funcPool() {
     return this._funcPool
   }
+  set funcPool(val: IRFunc[]) {
+    this._funcPool = val
+  }
   private _quads: Quad[] // 所有四元式
   get quads() {
     return this._quads
+  }
+  set quads(val: Quad[]) {
+    this._quads = val
   }
   private _basicBlocks: BasicBlock[] // 经过基本块划分的四元式
   get basicBlocks() {
@@ -50,6 +56,9 @@ export class IRGenerator {
   private _varPool: (IRVar | IRArray)[] // 所有变量
   get varPool() {
     return this._varPool
+  }
+  set varPool(val: (IRVar | IRArray)[]) {
+    this._varPool = val
   }
   private _varCount: number // 变量计数
   get varCount() {
@@ -153,6 +162,10 @@ export class IRGenerator {
    */
   postCheck() {
     for (let check of this._postChecks) assert(check.checker(), check.hint)
+    assert(
+      this._funcPool.some(v => v.name == 'main'),
+      '程序没有 main 函数'
+    )
   }
 
   /**
@@ -218,7 +231,7 @@ export class IRGenerator {
       const name = node.$(2).literal
       let len = Number(node.$(3).literal)
       this._scopePath = GlobalScope
-      assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`)
+      assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`)
       this._newVar(new IRArray(this._newVarId(), type, name, len, this._scopePath))
     }
   }
@@ -301,13 +314,13 @@ export class IRGenerator {
       this.parse_expr_stmt(node.$(1))
     }
     if (node.$(1).name == 'compound_stmt') {
-      this.parse_compound_stmt(node.$(1))
+      this.parse_compound_stmt(node.$(1), context)
     }
     if (node.$(1).name == 'if_stmt') {
-      this.parse_if_stmt(node.$(1))
+      this.parse_if_stmt(node.$(1), context)
     }
     if (node.$(1).name == 'while_stmt') {
-      this.parse_while_stmt(node.$(1))
+      this.parse_while_stmt(node.$(1), context)
     }
     if (node.$(1).name == 'return_stmt') {
       this.parse_return_stmt(node.$(1), context)
@@ -320,36 +333,36 @@ export class IRGenerator {
     }
   }
 
-  parse_compound_stmt(node: ASTNode) {
+  parse_compound_stmt(node: ASTNode, context?: any) {
     this.pushScope()
     if (node.children.length == 2) {
       this.parse_local_decls(node.$(1))
-      this.parse_stmt_list(node.$(2))
+      this.parse_stmt_list(node.$(2), context)
     } else if (node.children.length == 1) {
       // 没有局部变量
-      this.parse_stmt_list(node.$(1))
+      this.parse_stmt_list(node.$(1), context)
     }
     this.popScope()
   }
 
-  parse_if_stmt(node: ASTNode) {
+  parse_if_stmt(node: ASTNode, context?: any) {
     const expr = this.parse_expr(node.$(1))
     const trueLabel = this._newLabel('true') // 真入口标号
     const falseLabel = this._newLabel('false') // 假入口标号
     this._newQuad('set_label', '', '', trueLabel)
     this._newQuad('j_false', expr, '', falseLabel)
-    this.parse_stmt(node.$(2))
+    this.parse_stmt(node.$(2), context)
     this._newQuad('set_label', '', '', falseLabel)
   }
 
-  parse_while_stmt(node: ASTNode) {
+  parse_while_stmt(node: ASTNode, context?: any) {
     const loopLabel = this._newLabel('loop') // 入口标号
     const breakLabel = this._newLabel('break') // 出口标号
     this._loopStack.push({ loopLabel, breakLabel })
     this._newQuad('set_label', '', '', loopLabel)
     const expr = this.parse_expr(node.$(1))
     this._newQuad('j_false', expr, '', breakLabel)
-    this.parse_stmt(node.$(2))
+    this.parse_stmt(node.$(2), context)
     this._newQuad('j', '', '', loopLabel)
     this._newQuad('set_label', '', '', breakLabel)
     this._loopStack.pop()
@@ -442,7 +455,7 @@ export class IRGenerator {
       const type = this.parse_type_spec(node.$(1))
       const name = node.$(2).literal
       const len = Number(node.$(3).literal)
-      assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}`)
+      assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`)
       const arr = new IRArray(this._newVarId(), type, name, len, this._scopePath)
       assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name)
       this._newVar(arr)

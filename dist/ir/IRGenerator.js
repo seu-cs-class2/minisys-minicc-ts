@@ -40,8 +40,14 @@ class IRGenerator {
     get funcPool() {
         return this._funcPool;
     }
+    set funcPool(val) {
+        this._funcPool = val;
+    }
     get quads() {
         return this._quads;
+    }
+    set quads(val) {
+        this._quads = val;
     }
     get basicBlocks() {
         return this._basicBlocks;
@@ -56,6 +62,9 @@ class IRGenerator {
     }
     get varPool() {
         return this._varPool;
+    }
+    set varPool(val) {
+        this._varPool = val;
     }
     get varCount() {
         return this._varCount;
@@ -136,6 +145,7 @@ class IRGenerator {
     postCheck() {
         for (let check of this._postChecks)
             utils_1.assert(check.checker(), check.hint);
+        utils_1.assert(this._funcPool.some(v => v.name == 'main'), '程序没有 main 函数');
     }
     /**
      * 后处理
@@ -189,7 +199,7 @@ class IRGenerator {
             const name = node.$(2).literal;
             let len = Number(node.$(3).literal);
             this._scopePath = exports.GlobalScope;
-            utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}。`);
+            utils_1.assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`);
             this._newVar(new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath));
         }
     }
@@ -266,13 +276,13 @@ class IRGenerator {
             this.parse_expr_stmt(node.$(1));
         }
         if (node.$(1).name == 'compound_stmt') {
-            this.parse_compound_stmt(node.$(1));
+            this.parse_compound_stmt(node.$(1), context);
         }
         if (node.$(1).name == 'if_stmt') {
-            this.parse_if_stmt(node.$(1));
+            this.parse_if_stmt(node.$(1), context);
         }
         if (node.$(1).name == 'while_stmt') {
-            this.parse_while_stmt(node.$(1));
+            this.parse_while_stmt(node.$(1), context);
         }
         if (node.$(1).name == 'return_stmt') {
             this.parse_return_stmt(node.$(1), context);
@@ -284,35 +294,35 @@ class IRGenerator {
             this.parse_break_stmt(node.$(1));
         }
     }
-    parse_compound_stmt(node) {
+    parse_compound_stmt(node, context) {
         this.pushScope();
         if (node.children.length == 2) {
             this.parse_local_decls(node.$(1));
-            this.parse_stmt_list(node.$(2));
+            this.parse_stmt_list(node.$(2), context);
         }
         else if (node.children.length == 1) {
             // 没有局部变量
-            this.parse_stmt_list(node.$(1));
+            this.parse_stmt_list(node.$(1), context);
         }
         this.popScope();
     }
-    parse_if_stmt(node) {
+    parse_if_stmt(node, context) {
         const expr = this.parse_expr(node.$(1));
         const trueLabel = this._newLabel('true'); // 真入口标号
         const falseLabel = this._newLabel('false'); // 假入口标号
         this._newQuad('set_label', '', '', trueLabel);
         this._newQuad('j_false', expr, '', falseLabel);
-        this.parse_stmt(node.$(2));
+        this.parse_stmt(node.$(2), context);
         this._newQuad('set_label', '', '', falseLabel);
     }
-    parse_while_stmt(node) {
+    parse_while_stmt(node, context) {
         const loopLabel = this._newLabel('loop'); // 入口标号
         const breakLabel = this._newLabel('break'); // 出口标号
         this._loopStack.push({ loopLabel, breakLabel });
         this._newQuad('set_label', '', '', loopLabel);
         const expr = this.parse_expr(node.$(1));
         this._newQuad('j_false', expr, '', breakLabel);
-        this.parse_stmt(node.$(2));
+        this.parse_stmt(node.$(2), context);
         this._newQuad('j', '', '', loopLabel);
         this._newQuad('set_label', '', '', breakLabel);
         this._loopStack.pop();
@@ -399,7 +409,7 @@ class IRGenerator {
             const type = this.parse_type_spec(node.$(1));
             const name = node.$(2).literal;
             const len = Number(node.$(3).literal);
-            utils_1.assert(!isNaN(len), `数组长度必须为数字，但取到 ${node.$(3).literal}`);
+            utils_1.assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`);
             const arr = new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath);
             utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name);
             this._newVar(arr);

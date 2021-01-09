@@ -10,6 +10,7 @@ const LALR_1 = require("./seu-lex-yacc/seuyacc/LALR");
 const ParseLALR_1 = require("./parser/ParseLALR");
 const IRGenerator_1 = require("./ir/IRGenerator");
 const path_1 = __importDefault(require("path"));
+const IROptimizer_1 = require("./ir/IROptimizer");
 const PreCompile_1 = require("./pre-compile/PreCompile");
 const utils_1 = require("./seu-lex-yacc/utils");
 // 测试代码
@@ -42,6 +43,9 @@ int main(void) {
 `;
 const CCode = `
 int a;
+void fake(int a){
+  return;
+}
 int main(void) {
   int b;
   int c;
@@ -58,6 +62,9 @@ int aa(void) {
   b = 20;
   return a;
 }
+int bb(void) {
+  return 2;
+}
 `;
 const after = PreCompile_1.preCompile(CCode, path_1.default.join(__dirname, './'));
 console.log(after);
@@ -68,10 +75,10 @@ const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
 try {
     const ir = new IRGenerator_1.IRGenerator(root);
     console.log(ir.toIRString());
-    console.dir(ir.funcPool, { depth: 4 });
-    // const opt = new IROptimizer(ir)
-    // console.log(opt.quads.map(v => v.toString()))
-    // console.log(opt.printLogs())
+    // console.dir(ir.funcPool, { depth: 4 })
+    const opt = new IROptimizer_1.IROptimizer(ir);
+    console.log(opt.ir.quads.map(v => v.toString()));
+    console.log(opt.printLogs());
 }
 catch (ex) {
     if (ex instanceof utils_1.SeuError)
