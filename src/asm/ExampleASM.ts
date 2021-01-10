@@ -44,6 +44,10 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 const ir = new IRGenerator(root)
 console.log(ir.toIRString())
 
+// for(const block of ir.basicBlocks) {
+//   console.log(block)
+// }
+
 const asm = new ASMGenerator(ir)
 console.log(asm.toAssembly())
 fs.writeFileSync(path.join(__dirname, './Example.asm'), asm.toAssembly())
