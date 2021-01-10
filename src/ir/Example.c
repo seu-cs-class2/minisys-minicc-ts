@@ -15,10 +15,10 @@ int main(void) {
   // local decl
   int a;
   int b;
-  int c[10]; // array definition
+  // int c[10]; // array definition
   a = 10;
   b = 20;
-  c[2] = c[1] + 2 + a + b; // array access
+  // c[2] = c[1] + 2 + a + b; // array access
   while (a > b) { // while
     a = 15;
     $0x00 = 1; // addr access
