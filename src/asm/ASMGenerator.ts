@@ -317,7 +317,7 @@ export class ASMGenerator {
           if (!outer.paramList.includes(localVar)) localData++
         } else localData += localVar.len
       }
-      let numGPRs2Save = outer.name == 'main' ? 0 : localData > 8 ? localData - 8 : 0
+      let numGPRs2Save = outer.name == 'main' ? 0 : localData > 10 ? (localData > 18 ? 8 : localData - 8) : 0
       let wordSize = (isLeaf ? 0 : 1) + localData + numGPRs2Save + outgoingSlots + numGPRs2Save // allocate memory for all local variables (but not for temporary variables)
       if (wordSize % 2 != 0) wordSize++ // padding
       this._stackFrameInfos.set(outer.name, {
@@ -445,6 +445,8 @@ export class ASMGenerator {
    * @see https://github.com/seu-cs-class2/minisys-minicc-ts/blob/master/docs/IR.md
    */
   processTextSegment() {
+    // TODO: DOLLAR
+    let currentFunc, currentFrameInfo
     for (let blockIndex = 0; blockIndex < this._ir.basicBlocks.length; blockIndex++) {
       const basicBlock = this._ir.basicBlocks[blockIndex]
       for (let irIndex = 0; irIndex < basicBlock.content.length; irIndex++) {
@@ -795,6 +797,18 @@ export class ASMGenerator {
                 }
               }
 
+              this.deallocateBlockMemory()
+
+              if (currentFrameInfo == undefined) throw new Error('undefined frame info')
+              for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
+                this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`)
+              }
+
+              if (!currentFrameInfo.isLeaf) {
+                this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`)
+              }
+              this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`)
+              this.newAsm(`jr $ra`)
               break
             }
             case 'NOT_OP':
@@ -860,45 +874,29 @@ export class ASMGenerator {
               const labelType = labelContents[labelContents.length - 1]
               if (labelType == 'entry') {
                 // find the function in symbol table
-                const func = this._ir.funcPool.find(element => element.entryLabel == res)!
-                assert(func, `Function name not in the pool: ${res}`)
-                const frameInfo = this._stackFrameInfos.get(func?.name)!
-                assert(frameInfo, `Function name not in the pool: ${res}`)
+                currentFunc = this._ir.funcPool.find(element => element.entryLabel == res)!
+                assert(currentFunc, `Function name not in the pool: ${res}`)
+                currentFrameInfo = this._stackFrameInfos.get(currentFunc?.name)!
+                assert(currentFrameInfo, `Function name not in the pool: ${res}`)
                 this.newAsm(
-                  func?.name +
+                  currentFunc?.name +
                     ':' +
-                    `\t\t # vars = ${frameInfo.localData}, regs to save($s#) = ${
-                      frameInfo.numGPRs2Save
-                    }, outgoing args = ${frameInfo.outgoingSlots}, ${
-                      frameInfo.numReturnAdd ? '' : 'do not '
+                    `\t\t # vars = ${currentFrameInfo.localData}, regs to save($s#) = ${
+                      currentFrameInfo.numGPRs2Save
+                    }, outgoing args = ${currentFrameInfo.outgoingSlots}, ${
+                      currentFrameInfo.numReturnAdd ? '' : 'do not '
                     }need to save return address`
                 )
-                this.newAsm(`addiu $sp, $sp, -${4 * frameInfo.wordSize}`)
-                if (!frameInfo.isLeaf) {
-                  this.newAsm(`sw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`)
+                this.newAsm(`addiu $sp, $sp, -${4 * currentFrameInfo.wordSize}`)
+                if (!currentFrameInfo.isLeaf) {
+                  this.newAsm(`sw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`)
                 }
-                for (let index = 0; index < frameInfo.numGPRs2Save; index++) {
-                  this.newAsm(`sw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numGPRs2Save + index)}($sp)`)
+                for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
+                  this.newAsm(`sw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`)
                 }
-                this.allocateProcMemory(func)
+                this.allocateProcMemory(currentFunc)
               } else if (labelType == 'exit') {
-                // find the function in symbol table
-                const func = this._ir.funcPool.find(element => element.exitLabel == res)!
-                assert(func, `Function name not in the pool: ${res}`)
-                const frameInfo = this._stackFrameInfos.get(func?.name)!
-                assert(frameInfo, `Function name not in the pool: ${res}`)
-
                 this.deallocateProcMemory()
-
-                for (let index = 0; index < frameInfo.numGPRs2Save; index++) {
-                  this.newAsm(`lw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numGPRs2Save + index)}($sp)`)
-                }
-
-                if (!frameInfo.isLeaf) {
-                  this.newAsm(`lw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`)
-                }
-                this.newAsm(`addiu $sp, $sp, ${4 * frameInfo.wordSize}`)
-                this.newAsm(`jr $ra`)
               } else {
                 this.newAsm(res + ':')
               }
@@ -911,7 +909,17 @@ export class ASMGenerator {
               break
             }
             case 'return_void': {
-              // nothing
+              this.deallocateBlockMemory()
+              if (currentFrameInfo == undefined) throw new Error('undefined frame info')
+              for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
+                this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`)
+              }
+
+              if (!currentFrameInfo.isLeaf) {
+                this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`)
+              }
+              this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`)
+              this.newAsm(`jr $ra`)
               break
             }
             default:
