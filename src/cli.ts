@@ -34,7 +34,7 @@ const codePath = args._[0]
 const outputPath = args.o || path.dirname(args._[0])
 const outputName = path.basename(args._[0], path.extname(args._[0]))
 const withIR = !!args.i
-const verbose = args.v
+const verbose = !!args.v
 
 const print = (message: string, style: string = '') => {
   if (!verbose) return

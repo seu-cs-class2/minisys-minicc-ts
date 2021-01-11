@@ -528,6 +528,7 @@ export class ASMGenerator {
               }
 
               this.newAsm(`jal ${arg1}`) // jal will automatically save return address to $ra
+              this.newAsm('nop')
 
               // clear temporary registers because they might have been damaged
               for (let kvpair of this._addressDescriptors.entries()) {
@@ -894,6 +895,7 @@ export class ASMGenerator {
                 }
                 this.newAsm(`addiu $sp, $sp, ${4 * frameInfo.wordSize}`)
                 this.newAsm(`jr $ra`)
+                this.newAsm('nop')
               } else {
                 this.newAsm(res + ':')
               }
