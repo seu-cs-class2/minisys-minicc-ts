@@ -379,7 +379,7 @@ export class ASMGenerator {
     const globalVars = this._ir.varPool.filter(v => IRGenerator.sameScope(v.scope, GlobalScope))
     for (const globalVar of globalVars) {
       if (globalVar instanceof IRVar) {
-        this._addressDescriptors.set(globalVar.id, {currentAddresses: new Set<string>().add(globalVar.name), boundMemAddress: globalVar.name})
+        this._addressDescriptors.set(globalVar.id, {currentAddresses: new Set<string>().add(globalVar.name), boundMemAddress: `${globalVar.name}($0)`})
       }
       else {
         // TODO: array support
