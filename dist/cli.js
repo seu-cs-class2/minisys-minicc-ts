@@ -36,7 +36,7 @@ const codePath = args._[0];
 const outputPath = args.o || path_1.default.dirname(args._[0]);
 const outputName = path_1.default.basename(args._[0], path_1.default.extname(args._[0]));
 const withIR = !!args.i;
-const verbose = args.v;
+const verbose = !!args.v;
 const print = (message, style = '') => {
     if (!verbose)
         return;

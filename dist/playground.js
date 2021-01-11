@@ -1,5 +1,24 @@
 "use strict";
 // Try something here.
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -10,58 +29,82 @@ const LALR_1 = require("./seu-lex-yacc/seuyacc/LALR");
 const ParseLALR_1 = require("./parser/ParseLALR");
 const IRGenerator_1 = require("./ir/IRGenerator");
 const path_1 = __importDefault(require("path"));
+const fs = __importStar(require("fs"));
 const IROptimizer_1 = require("./ir/IROptimizer");
 const PreCompile_1 = require("./pre-compile/PreCompile");
 const utils_1 = require("./seu-lex-yacc/utils");
-// 测试代码
+const ASMGenerator_1 = require("./asm/ASMGenerator");
 const CCode1 = `
-// hello
-#include "./test.c"
-
-string a;
-void proc(void) {
-  return;
-}
-int main(void) {
-  a = "hello, world!";
-  a = proc();
-  proc();
-  return 0;
-}
-`;
-const CCode2 = `
-int a;
-int main(void) {
+int fib(int x) {
+  int a;
   int b;
-  int c;
-  c = 5;
-  a = 20;
-  b = a + 20 * 2;
-  // c = b;
-  return b;
+  if (x == 1) {
+    return 1;
+  } 
+  if (x == 2) {
+    return 1;
+  }
+  a = fib(x - 1);
+  b = fib(x - 2);
+  // return fib(x - 1) + fib(x - 2);
+  return a + b;
+}
+int main(void) {
+  int result;
+  result = fib(8);
+  return result;
 }
 `;
 const CCode = `
+int func(int x) {
+  int a;
+  a = 20;
+  return x;
+}
+void delay(int cycle) {
+  int a;
+  a = cycle;
+  while (a > 0) {
+    a = a - 1;
+  }
+  return;
+}
+
 int main(void) {
-  __asm("addi $1, $2, 30");
+  int a;
+  int sum;
+  a = 5;
+  sum = 0;
+  while (a > 0) {
+    sum = sum + a;
+    a = a - 1;
+    delay(1000);
+  }
+  return sum;
 }
 `;
-const after = PreCompile_1.preCompile(CCode, path_1.default.join(__dirname, './'));
-console.log(after);
-const lexDFA = DFA_1.DFA.fromFile(path_1.default.join(__dirname, '../syntax/MiniC/MiniC-Lex.json'));
-let tokens = Lex_1.lexSourceCode(after, lexDFA);
-const lalr = LALR_1.LALRAnalyzer.load(path_1.default.join(__dirname, '../syntax/MiniC/MiniC-LALRParse.json'));
-const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
 try {
+    // 预编译
+    const cookedCCode = PreCompile_1.preCompile(CCode, path_1.default.join(__dirname, './'));
+    // 词法分析
+    const lexDFA = DFA_1.DFA.fromFile(path_1.default.join(__dirname, '../syntax/MiniC/MiniC-Lex.json'));
+    let tokens = Lex_1.lexSourceCode(cookedCCode, lexDFA);
+    // 语法分析
+    const lalr = LALR_1.LALRAnalyzer.load(path_1.default.join(__dirname, '../syntax/MiniC/MiniC-LALRParse.json'));
+    const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
+    // 中间代码生成
     const ir = new IRGenerator_1.IRGenerator(root);
-    console.log(ir.toIRString());
-    // console.dir(ir.funcPool, { depth: 4 })
+    // 中间代码优化
     const opt = new IROptimizer_1.IROptimizer(ir);
-    console.log(opt.ir.quads.map(v => v.toString()));
+    console.log(ir.toIRString());
     console.log(opt.printLogs());
+    // 目标代码生成
+    const asm = new ASMGenerator_1.ASMGenerator(ir);
+    fs.writeFileSync(path_1.default.join(__dirname, './output.asm'), asm.toAssembly());
 }
 catch (ex) {
     if (ex instanceof utils_1.SeuError)
         console.error('[SeuError] ' + ex.message);
-    throw ex;
+    else
+        throw ex;
 }

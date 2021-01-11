@@ -42,7 +42,7 @@ class IRGenerator {
         this.postProcess1();
         this.postCheck();
         this.postProcess2();
-        this._basicBlocks = this._toBasicBlocks();
+        this.toBasicBlocks();
     }
     get funcPool() {
         return this._funcPool;
@@ -607,7 +607,7 @@ class IRGenerator {
      * 对四元式进行基本块划分
      * 龙书算法8.5
      */
-    _toBasicBlocks() {
+    toBasicBlocks() {
         let leaders = []; // 首指令下标
         let nextFlag = false;
         for (let i = 0; i < this._quads.length; i++) {
@@ -645,7 +645,7 @@ class IRGenerator {
                 content: this._quads.slice(leaders[i], leaders[i + 1]),
             });
         }
-        return res;
+        this._basicBlocks = res;
     }
 }
 exports.IRGenerator = IRGenerator;

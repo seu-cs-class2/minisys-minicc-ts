@@ -13,14 +13,54 @@ import { preCompile } from './pre-compile/PreCompile'
 import { SeuError } from './seu-lex-yacc/utils'
 import { ASMGenerator } from './asm/ASMGenerator'
 
-const CCode = `
-int main(void) {
+const CCode1 = `
+int fib(int x) {
   int a;
   int b;
-  a = 10;
-  b = 20;
-  b = a + b;
-  return 0;
+  if (x == 1) {
+    return 1;
+  } 
+  if (x == 2) {
+    return 1;
+  }
+  a = fib(x - 1);
+  b = fib(x - 2);
+  // return fib(x - 1) + fib(x - 2);
+  return a + b;
+}
+int main(void) {
+  int result;
+  result = fib(8);
+  return result;
+}
+`
+
+const CCode = `
+int func(int x) {
+  int a;
+  a = 20;
+  return x;
+}
+void delay(int cycle) {
+  int a;
+  a = cycle;
+  while (a > 0) {
+    a = a - 1;
+  }
+  return;
+}
+
+int main(void) {
+  int a;
+  int sum;
+  a = 5;
+  sum = 0;
+  while (a > 0) {
+    sum = sum + a;
+    a = a - 1;
+    delay(1000);
+  }
+  return sum;
 }
 `
 
@@ -38,10 +78,10 @@ try {
 
   // 中间代码生成
   const ir = new IRGenerator(root)
-  console.log(ir.toIRString())
 
   // 中间代码优化
   const opt = new IROptimizer(ir)
+  console.log(ir.toIRString())
   console.log(opt.printLogs())
 
   // 目标代码生成

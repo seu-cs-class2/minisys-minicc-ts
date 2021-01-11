@@ -18,7 +18,6 @@ const CCode = fs_1.default
     .toString()
     .replace(/\r\n/g, '\n')
     .split('\n')
-    .slice(3)
     .join('\n');
 // const CCode = `
 //   int m;

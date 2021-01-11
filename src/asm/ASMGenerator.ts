@@ -35,9 +35,9 @@ export class ASMGenerator {
     for (const regName of this._GPRs) {
       this._registerDescriptors.set(regName, { usable: true, variables: new Set<string>() })
     }
-    this.newAsm('.data 0x0')
+    this.newAsm('.data')
     this.processGlobalVars()
-    this.newAsm('.text 0x0')
+    this.newAsm('.text')
     this.processTextSegment()
   }
 
@@ -457,23 +457,22 @@ export class ASMGenerator {
         const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()) // 是一元表达式
         if (op == 'call') {
           // parse the function name
-          const func = this._ir.funcPool.find(element => element.name == arg1)
-          if (func == undefined) throw new Error(`unidentified function:${arg1}`)
+          const func = this._ir.funcPool.find(element => element.name == arg1)!
+          assert(func, `Unidentified function:${arg1}`)
           assert(func.name != 'main', 'Cannot call main!')
           const actualArguments = arg2.split('&')
           // has arguments
           if (binaryOp) {
             for (let argNum = 0; argNum < func.paramList.length; argNum++) {
-              const actualArg = actualArguments[argNum];
-              const ad =  this._addressDescriptors.get(actualArg)
+              const actualArg = actualArguments[argNum]
+              const ad = this._addressDescriptors.get(actualArg)
               if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
-                throw new Error('Actual argument does not have current address')
-              }
-              else {
+                assert(false, 'Actual argument does not have current address')
+              } else {
                 for (const kvpair of this._addressDescriptors.entries()) {
                   const boundMemAddress = kvpair[1].boundMemAddress
                   const currentAddresses = kvpair[1].currentAddresses
-                  if(boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
+                  if (boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
                     // need to write this back to its bound memory location
                     if (currentAddresses.size > 0) {
                       for (const addr of currentAddresses.values()) {
@@ -482,9 +481,8 @@ export class ASMGenerator {
                           break
                         }
                       }
-                    }
-                    else {
-                      throw new Error(`Attempted to store a ghost variable: ${kvpair[0]}`)
+                    } else {
+                      assert(false, `Attempted to store a ghost variable: ${kvpair[0]}`)
                     }
                   }
                 }
@@ -495,28 +493,24 @@ export class ASMGenerator {
                     // register has higher priority
                     regLoc = addr
                     break
-                  }
-                  else {
+                  } else {
                     memLoc = addr
                   }
                 }
-  
+
                 if (regLoc.length > 0) {
                   if (argNum < 4) {
                     this.newAsm(`move $a${argNum}, ${regLoc}`)
+                  } else {
+                    this.newAsm(`sw ${regLoc}, ${4 * argNum}($sp)`)
                   }
-                  else {
-                    this.newAsm(`sw ${regLoc}, ${4*argNum}($sp)`)
-                  }
-                }
-                else {
+                } else {
                   if (argNum < 4) {
                     this.newAsm(`lw $a${argNum}, ${memLoc}`)
-                  }
-                  else {
+                  } else {
                     // since $v1 will not be used elsewhere, it is used to do this!
                     this.newAsm(`lw $v1, ${memLoc}`)
-                    this.newAsm(`sw $v1, ${4*argNum}($sp)`)
+                    this.newAsm(`sw $v1, ${4 * argNum}($sp)`)
                   }
                 }
               }
@@ -524,9 +518,10 @@ export class ASMGenerator {
           }
 
           this.newAsm(`jal ${arg1}`) // jal will automatically save return address to $ra
+          this.newAsm('nop')
           // clear temporary registers because they might have been damaged
           for (let kvpair of this._addressDescriptors.entries()) {
-            for(let addr of kvpair[1].currentAddresses) {
+            for (let addr of kvpair[1].currentAddresses) {
               if (addr.substr(0, 2) == '$t') {
                 kvpair[1].currentAddresses.delete(addr)
                 this._registerDescriptors.get(addr)?.variables.delete(kvpair[0])
@@ -537,7 +532,7 @@ export class ASMGenerator {
           if (res.length > 0) {
             const [regX] = this.getRegs(quad, blockIndex, irIndex)
             this.newAsm(`move ${regX}, $v0`)
-            
+
             // Manage descriptors
 
             // a. Change the register descriptor for regX so that it only holds res
@@ -553,16 +548,17 @@ export class ASMGenerator {
               }
               // c. Change the address descriptor for res so that its only location is regX
               // Note the memory location for res is NOT now in the address descriptor for res!
-              this._addressDescriptors.get(res)?.currentAddresses.clear()              
+              this._addressDescriptors.get(res)?.currentAddresses.clear()
               this._addressDescriptors.get(res)?.currentAddresses.add(regX)
-            }
-            else {
+            } else {
               // temporary vairable
-              this._addressDescriptors.set(res, {boundMemAddress: undefined, currentAddresses: new Set<string>().add(regX)})
+              this._addressDescriptors.set(res, {
+                boundMemAddress: undefined,
+                currentAddresses: new Set<string>().add(regX),
+              })
             }
           }
-        }
-        else if (binaryOp) {
+        } else if (binaryOp) {
           switch (op) {
             case '=[]': {
               // TODO: array support
@@ -801,7 +797,9 @@ export class ASMGenerator {
 
               if (currentFrameInfo == undefined) throw new Error('undefined frame info')
               for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
-                this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`)
+                this.newAsm(
+                  `lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`
+                )
               }
 
               if (!currentFrameInfo.isLeaf) {
@@ -809,6 +807,7 @@ export class ASMGenerator {
               }
               this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`)
               this.newAsm(`jr $ra`)
+              this.newAsm('nop')
               break
             }
             case 'NOT_OP':
@@ -892,7 +891,9 @@ export class ASMGenerator {
                   this.newAsm(`sw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`)
                 }
                 for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
-                  this.newAsm(`sw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`)
+                  this.newAsm(
+                    `sw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`
+                  )
                 }
                 this.allocateProcMemory(currentFunc)
               } else if (labelType == 'exit') {
@@ -912,7 +913,9 @@ export class ASMGenerator {
               this.deallocateBlockMemory()
               if (currentFrameInfo == undefined) throw new Error('undefined frame info')
               for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
-                this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`)
+                this.newAsm(
+                  `lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`
+                )
               }
 
               if (!currentFrameInfo.isLeaf) {
@@ -920,6 +923,7 @@ export class ASMGenerator {
               }
               this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`)
               this.newAsm(`jr $ra`)
+              this.newAsm('nop')
               break
             }
             default:

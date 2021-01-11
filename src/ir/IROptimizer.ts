@@ -45,6 +45,9 @@ export class IROptimizer {
       unfix = unfix || this.algebraOptimize()
       this.earlyReject()
     } while (unfix)
+
+    // 重新进行基本块划分
+    ir.toBasicBlocks()
   }
 
   /**

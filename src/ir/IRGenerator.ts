@@ -41,7 +41,7 @@ export class IRGenerator {
   set quads(val: Quad[]) {
     this._quads = val
   }
-  private _basicBlocks: BasicBlock[] // 经过基本块划分的四元式
+  private _basicBlocks!: BasicBlock[] // 经过基本块划分的四元式
   get basicBlocks() {
     return this._basicBlocks
   }
@@ -174,7 +174,7 @@ export class IRGenerator {
     this.postProcess1()
     this.postCheck()
     this.postProcess2()
-    this._basicBlocks = this._toBasicBlocks()
+    this.toBasicBlocks()
   }
 
   /**
@@ -686,7 +686,7 @@ export class IRGenerator {
    * 对四元式进行基本块划分
    * 龙书算法8.5
    */
-  private _toBasicBlocks(): BasicBlock[] {
+  toBasicBlocks() {
     let leaders = [] // 首指令下标
     let nextFlag = false
     for (let i = 0; i < this._quads.length; i++) {
@@ -725,6 +725,6 @@ export class IRGenerator {
       })
     }
 
-    return res
+    this._basicBlocks = res
   }
 }

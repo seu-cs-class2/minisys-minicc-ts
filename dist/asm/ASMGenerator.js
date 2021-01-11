@@ -27,9 +27,9 @@ class ASMGenerator {
         for (const regName of this._GPRs) {
             this._registerDescriptors.set(regName, { usable: true, variables: new Set() });
         }
-        this.newAsm('.data 0x0');
+        this.newAsm('.data');
         this.processGlobalVars();
-        this.newAsm('.text 0x0');
+        this.newAsm('.text');
         this.processTextSegment();
     }
     /**
@@ -312,7 +312,7 @@ class ASMGenerator {
                 else
                     localData += localVar.len;
             }
-            let numGPRs2Save = outer.name == 'main' ? 0 : localData > 8 ? localData - 8 : 0;
+            let numGPRs2Save = outer.name == 'main' ? 0 : localData > 10 ? (localData > 18 ? 8 : localData - 8) : 0;
             let wordSize = (isLeaf ? 0 : 1) + localData + numGPRs2Save + outgoingSlots + numGPRs2Save; // allocate memory for all local variables (but not for temporary variables)
             if (wordSize % 2 != 0)
                 wordSize++; // padding
@@ -437,6 +437,8 @@ class ASMGenerator {
      */
     processTextSegment() {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+        // TODO: DOLLAR
+        let currentFunc, currentFrameInfo;
         for (let blockIndex = 0; blockIndex < this._ir.basicBlocks.length; blockIndex++) {
             const basicBlock = this._ir.basicBlocks[blockIndex];
             for (let irIndex = 0; irIndex < basicBlock.content.length; irIndex++) {
@@ -446,7 +448,112 @@ class ASMGenerator {
                 const { op, arg1, arg2, res } = quad;
                 const binaryOp = !!(arg1.trim() && arg2.trim()); // 是二元表达式
                 const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()); // 是一元表达式
-                if (binaryOp) {
+                if (op == 'call') {
+                    // parse the function name
+                    const func = this._ir.funcPool.find(element => element.name == arg1);
+                    utils_1.assert(func, `Unidentified function:${arg1}`);
+                    utils_1.assert(func.name != 'main', 'Cannot call main!');
+                    const actualArguments = arg2.split('&');
+                    // has arguments
+                    if (binaryOp) {
+                        for (let argNum = 0; argNum < func.paramList.length; argNum++) {
+                            const actualArg = actualArguments[argNum];
+                            const ad = this._addressDescriptors.get(actualArg);
+                            if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
+                                utils_1.assert(false, 'Actual argument does not have current address');
+                            }
+                            else {
+                                for (const kvpair of this._addressDescriptors.entries()) {
+                                    const boundMemAddress = kvpair[1].boundMemAddress;
+                                    const currentAddresses = kvpair[1].currentAddresses;
+                                    if (boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
+                                        // need to write this back to its bound memory location
+                                        if (currentAddresses.size > 0) {
+                                            for (const addr of currentAddresses.values()) {
+                                                if (addr.substr(0, 2) == '$t') {
+                                                    this.storeVar(kvpair[0], addr);
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        else {
+                                            utils_1.assert(false, `Attempted to store a ghost variable: ${kvpair[0]}`);
+                                        }
+                                    }
+                                }
+                                let regLoc = '';
+                                let memLoc = '';
+                                for (const addr of ad.currentAddresses) {
+                                    if (addr[0] == '$') {
+                                        // register has higher priority
+                                        regLoc = addr;
+                                        break;
+                                    }
+                                    else {
+                                        memLoc = addr;
+                                    }
+                                }
+                                if (regLoc.length > 0) {
+                                    if (argNum < 4) {
+                                        this.newAsm(`move $a${argNum}, ${regLoc}`);
+                                    }
+                                    else {
+                                        this.newAsm(`sw ${regLoc}, ${4 * argNum}($sp)`);
+                                    }
+                                }
+                                else {
+                                    if (argNum < 4) {
+                                        this.newAsm(`lw $a${argNum}, ${memLoc}`);
+                                    }
+                                    else {
+                                        // since $v1 will not be used elsewhere, it is used to do this!
+                                        this.newAsm(`lw $v1, ${memLoc}`);
+                                        this.newAsm(`sw $v1, ${4 * argNum}($sp)`);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    this.newAsm(`jal ${arg1}`); // jal will automatically save return address to $ra
+                    this.newAsm('nop');
+                    // clear temporary registers because they might have been damaged
+                    for (let kvpair of this._addressDescriptors.entries()) {
+                        for (let addr of kvpair[1].currentAddresses) {
+                            if (addr.substr(0, 2) == '$t') {
+                                kvpair[1].currentAddresses.delete(addr);
+                                (_a = this._registerDescriptors.get(addr)) === null || _a === void 0 ? void 0 : _a.variables.delete(kvpair[0]);
+                            }
+                        }
+                    }
+                    if (res.length > 0) {
+                        const [regX] = this.getRegs(quad, blockIndex, irIndex);
+                        this.newAsm(`move ${regX}, $v0`);
+                        // Manage descriptors
+                        // a. Change the register descriptor for regX so that it only holds res
+                        (_b = this._registerDescriptors.get(regX)) === null || _b === void 0 ? void 0 : _b.variables.clear();
+                        (_c = this._registerDescriptors.get(regX)) === null || _c === void 0 ? void 0 : _c.variables.add(res);
+                        if (this._addressDescriptors.has(res)) {
+                            // b. Remove regX from the address descriptor of any variable other than res
+                            for (let descriptor of this._addressDescriptors.values()) {
+                                if (descriptor.currentAddresses.has(regX)) {
+                                    descriptor.currentAddresses.delete(regX);
+                                }
+                            }
+                            // c. Change the address descriptor for res so that its only location is regX
+                            // Note the memory location for res is NOT now in the address descriptor for res!
+                            (_d = this._addressDescriptors.get(res)) === null || _d === void 0 ? void 0 : _d.currentAddresses.clear();
+                            (_e = this._addressDescriptors.get(res)) === null || _e === void 0 ? void 0 : _e.currentAddresses.add(regX);
+                        }
+                        else {
+                            // temporary vairable
+                            this._addressDescriptors.set(res, {
+                                boundMemAddress: undefined,
+                                currentAddresses: new Set().add(regX),
+                            });
+                        }
+                    }
+                }
+                else if (binaryOp) {
                     switch (op) {
                         case '=[]': {
                             // TODO: array support
@@ -459,107 +566,6 @@ class ASMGenerator {
                         case '=$': {
                             const [regY, regZ] = this.getRegs(quad, blockIndex, irIndex);
                             this.newAsm(`sw ${regZ}, 0(${regY})`);
-                            break;
-                        }
-                        case 'call': {
-                            const func = this._ir.funcPool.find(element => element.name == arg1);
-                            utils_1.assert(func, `Unidentified function:${arg1}`);
-                            utils_1.assert(func.name != 'main', 'Cannot call main!');
-                            const actualArguments = arg2.split('&');
-                            for (let argNum = 0; argNum < func.paramList.length; argNum++) {
-                                const actualArg = actualArguments[argNum];
-                                const ad = this._addressDescriptors.get(actualArg);
-                                if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
-                                    utils_1.assert(false, 'Actual argument does not have current address');
-                                }
-                                else {
-                                    for (const kvpair of this._addressDescriptors.entries()) {
-                                        const boundMemAddress = kvpair[1].boundMemAddress;
-                                        const currentAddresses = kvpair[1].currentAddresses;
-                                        if (boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
-                                            // need to write this back to its bound memory location
-                                            if (currentAddresses.size > 0) {
-                                                for (const addr of currentAddresses.values()) {
-                                                    if (addr.substr(0, 2) == '$t') {
-                                                        this.storeVar(kvpair[0], addr);
-                                                        break;
-                                                    }
-                                                }
-                                            }
-                                            else {
-                                                utils_1.assert(false, `Attempted to store a ghost variable: ${kvpair[0]}`);
-                                            }
-                                        }
-                                    }
-                                    let regLoc = '';
-                                    let memLoc = '';
-                                    for (const addr of ad.currentAddresses) {
-                                        if (addr[0] == '$') {
-                                            // register has higher priority
-                                            regLoc = addr;
-                                            break;
-                                        }
-                                        else {
-                                            memLoc = addr;
-                                        }
-                                    }
-                                    if (regLoc.length > 0) {
-                                        if (argNum < 4) {
-                                            this.newAsm(`move $a${argNum}, ${regLoc}`);
-                                        }
-                                        else {
-                                            this.newAsm(`sw ${regLoc}, ${4 * argNum}($sp)`);
-                                        }
-                                    }
-                                    else {
-                                        if (argNum < 4) {
-                                            this.newAsm(`lw $a${argNum}, ${memLoc}`);
-                                        }
-                                        else {
-                                            // since $v1 will not be used elsewhere, it is used to do this!
-                                            this.newAsm(`lw $v1, ${memLoc}`);
-                                            this.newAsm(`sw $v1, ${4 * argNum}($sp)`);
-                                        }
-                                    }
-                                }
-                            }
-                            this.newAsm(`jal ${arg1}`); // jal will automatically save return address to $ra
-                            // clear temporary registers because they might have been damaged
-                            for (let kvpair of this._addressDescriptors.entries()) {
-                                for (let addr of kvpair[1].currentAddresses) {
-                                    if (addr.substr(0, 2) == '$t') {
-                                        kvpair[1].currentAddresses.delete(addr);
-                                        (_a = this._registerDescriptors.get(addr)) === null || _a === void 0 ? void 0 : _a.variables.delete(kvpair[0]);
-                                    }
-                                }
-                            }
-                            if (res.length > 0) {
-                                const [regX] = this.getRegs(quad, blockIndex, irIndex);
-                                this.newAsm(`move ${regX}, $v0`);
-                                // Manage descriptors
-                                // a. Change the register descriptor for regX so that it only holds res
-                                (_b = this._registerDescriptors.get(regX)) === null || _b === void 0 ? void 0 : _b.variables.clear();
-                                (_c = this._registerDescriptors.get(regX)) === null || _c === void 0 ? void 0 : _c.variables.add(res);
-                                if (this._addressDescriptors.has(res)) {
-                                    // b. Remove regX from the address descriptor of any variable other than res
-                                    for (let descriptor of this._addressDescriptors.values()) {
-                                        if (descriptor.currentAddresses.has(regX)) {
-                                            descriptor.currentAddresses.delete(regX);
-                                        }
-                                    }
-                                    // c. Change the address descriptor for res so that its only location is regX
-                                    // Note the memory location for res is NOT now in the address descriptor for res!
-                                    (_d = this._addressDescriptors.get(res)) === null || _d === void 0 ? void 0 : _d.currentAddresses.clear();
-                                    (_e = this._addressDescriptors.get(res)) === null || _e === void 0 ? void 0 : _e.currentAddresses.add(regX);
-                                }
-                                else {
-                                    // temporary vairable
-                                    this._addressDescriptors.set(res, {
-                                        boundMemAddress: undefined,
-                                        currentAddresses: new Set().add(regX),
-                                    });
-                                }
-                            }
                             break;
                         }
                         // X = Y op Z
@@ -782,6 +788,18 @@ class ASMGenerator {
                                     this.newAsm(`lw $v0, ${memLoc}`);
                                 }
                             }
+                            this.deallocateBlockMemory();
+                            if (currentFrameInfo == undefined)
+                                throw new Error('undefined frame info');
+                            for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
+                                this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`);
+                            }
+                            if (!currentFrameInfo.isLeaf) {
+                                this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`);
+                            }
+                            this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`);
+                            this.newAsm(`jr $ra`);
+                            this.newAsm('nop');
                             break;
                         }
                         case 'NOT_OP':
@@ -845,37 +863,24 @@ class ASMGenerator {
                             const labelType = labelContents[labelContents.length - 1];
                             if (labelType == 'entry') {
                                 // find the function in symbol table
-                                const func = this._ir.funcPool.find(element => element.entryLabel == res);
-                                utils_1.assert(func, `Function name not in the pool: ${res}`);
-                                const frameInfo = this._stackFrameInfos.get(func === null || func === void 0 ? void 0 : func.name);
-                                utils_1.assert(frameInfo, `Function name not in the pool: ${res}`);
-                                this.newAsm((func === null || func === void 0 ? void 0 : func.name) +
+                                currentFunc = this._ir.funcPool.find(element => element.entryLabel == res);
+                                utils_1.assert(currentFunc, `Function name not in the pool: ${res}`);
+                                currentFrameInfo = this._stackFrameInfos.get(currentFunc === null || currentFunc === void 0 ? void 0 : currentFunc.name);
+                                utils_1.assert(currentFrameInfo, `Function name not in the pool: ${res}`);
+                                this.newAsm((currentFunc === null || currentFunc === void 0 ? void 0 : currentFunc.name) +
                                     ':' +
-                                    `\t\t # vars = ${frameInfo.localData}, regs to save($s#) = ${frameInfo.numGPRs2Save}, outgoing args = ${frameInfo.outgoingSlots}, ${frameInfo.numReturnAdd ? '' : 'do not '}need to save return address`);
-                                this.newAsm(`addiu $sp, $sp, -${4 * frameInfo.wordSize}`);
-                                if (!frameInfo.isLeaf) {
-                                    this.newAsm(`sw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`);
+                                    `\t\t # vars = ${currentFrameInfo.localData}, regs to save($s#) = ${currentFrameInfo.numGPRs2Save}, outgoing args = ${currentFrameInfo.outgoingSlots}, ${currentFrameInfo.numReturnAdd ? '' : 'do not '}need to save return address`);
+                                this.newAsm(`addiu $sp, $sp, -${4 * currentFrameInfo.wordSize}`);
+                                if (!currentFrameInfo.isLeaf) {
+                                    this.newAsm(`sw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`);
                                 }
-                                for (let index = 0; index < frameInfo.numGPRs2Save; index++) {
-                                    this.newAsm(`sw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numGPRs2Save + index)}($sp)`);
+                                for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
+                                    this.newAsm(`sw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`);
                                 }
-                                this.allocateProcMemory(func);
+                                this.allocateProcMemory(currentFunc);
                             }
                             else if (labelType == 'exit') {
-                                // find the function in symbol table
-                                const func = this._ir.funcPool.find(element => element.exitLabel == res);
-                                utils_1.assert(func, `Function name not in the pool: ${res}`);
-                                const frameInfo = this._stackFrameInfos.get(func === null || func === void 0 ? void 0 : func.name);
-                                utils_1.assert(frameInfo, `Function name not in the pool: ${res}`);
                                 this.deallocateProcMemory();
-                                for (let index = 0; index < frameInfo.numGPRs2Save; index++) {
-                                    this.newAsm(`lw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numGPRs2Save + index)}($sp)`);
-                                }
-                                if (!frameInfo.isLeaf) {
-                                    this.newAsm(`lw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`);
-                                }
-                                this.newAsm(`addiu $sp, $sp, ${4 * frameInfo.wordSize}`);
-                                this.newAsm(`jr $ra`);
                             }
                             else {
                                 this.newAsm(res + ':');
@@ -889,7 +894,18 @@ class ASMGenerator {
                             break;
                         }
                         case 'return_void': {
-                            // nothing
+                            this.deallocateBlockMemory();
+                            if (currentFrameInfo == undefined)
+                                throw new Error('undefined frame info');
+                            for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
+                                this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`);
+                            }
+                            if (!currentFrameInfo.isLeaf) {
+                                this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`);
+                            }
+                            this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`);
+                            this.newAsm(`jr $ra`);
+                            this.newAsm('nop');
                             break;
                         }
                         default:
