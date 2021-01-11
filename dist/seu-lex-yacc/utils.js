@@ -77,7 +77,7 @@ class SeuError extends Error {
 }
 exports.SeuError = SeuError;
 /**
- * Ensure `condition`. Else throw Error `hint`.
+ * Ensure `condition`. Else throw SeuError `hint`.
  */
 function assert(condition, hint) {
     if (!condition)

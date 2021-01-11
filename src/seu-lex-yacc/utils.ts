@@ -70,7 +70,7 @@ export const COMMENT_TOKENNAME = '_COMMENT'
 export class SeuError extends Error {}
 
 /**
- * Ensure `condition`. Else throw Error `hint`.
+ * Ensure `condition`. Else throw SeuError `hint`.
  */
 export function assert(condition: unknown, hint: string): void {
   if (!condition) throw new SeuError(hint)
