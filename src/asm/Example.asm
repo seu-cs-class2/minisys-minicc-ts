@@ -1,67 +1,27 @@
 .DATA	0x0
 a:	.word 0x0
 .TEXT	0x0
-func:
-	addiu	$sp, $sp, -48
-	sw	$s0, 16($sp)
-	sw	$s1, 20($sp)
-	sw	$s2, 24($sp)
-	sw	$s3, 28($sp)
-	sw	$s4, 32($sp)
-	sw	$s5, 36($sp)
-	sw	$s6, 40($sp)
-	sw	$s7, 44($sp)
-	sw	$a0, 48($sp)
-	sw	$a1, 52($sp)
-	lw	$t0, 48($sp)
-	lw	$t1, 52($sp)
+func:			# vars = 1, regs to save($s#) = 0, outgoing args = 0, do not need to save return address
+	addiu	$sp, $sp, -8
+	sw	$a0, 8($sp)
+	sw	$a1, 12($sp)
+	lw	$t0, 8($sp)
+	lw	$t1, 12($sp)
 	div	$t0, $t1
 	mflo	$t2
 	sw	$t2, 4($sp)
-	lw	$s0, 16($sp)
-	lw	$s1, 20($sp)
-	lw	$s2, 24($sp)
-	lw	$s3, 28($sp)
-	lw	$s4, 32($sp)
-	lw	$s5, 36($sp)
-	lw	$s6, 40($sp)
-	lw	$s7, 44($sp)
-	addiu	$sp, $sp, 48
+	addiu	$sp, $sp, 8
 	jr	$ra
-foo:
-	addiu	$sp, $sp, -40
-	sw	$s0, 8($sp)
-	sw	$s1, 12($sp)
-	sw	$s2, 16($sp)
-	sw	$s3, 20($sp)
-	sw	$s4, 24($sp)
-	sw	$s5, 28($sp)
-	sw	$s6, 32($sp)
-	sw	$s7, 36($sp)
-	sw	$a0, 40($sp)
+foo:			# vars = 0, regs to save($s#) = 0, outgoing args = 0, do not need to save return address
+	addiu	$sp, $sp, -0
+	sw	$a0, 0($sp)
 	addiu	$t0, $zero, 2
 	move	$v0, $t0
-	lw	$s0, 8($sp)
-	lw	$s1, 12($sp)
-	lw	$s2, 16($sp)
-	lw	$s3, 20($sp)
-	lw	$s4, 24($sp)
-	lw	$s5, 28($sp)
-	lw	$s6, 32($sp)
-	lw	$s7, 36($sp)
-	addiu	$sp, $sp, 40
+	addiu	$sp, $sp, 0
 	jr	$ra
-main:
-	addiu	$sp, $sp, -64
-	sw	$ra, 60($sp)
-	sw	$s0, 32($sp)
-	sw	$s1, 36($sp)
-	sw	$s2, 40($sp)
-	sw	$s3, 44($sp)
-	sw	$s4, 48($sp)
-	sw	$s5, 52($sp)
-	sw	$s6, 56($sp)
-	sw	$s7, 60($sp)
+main:			# vars = 3, regs to save($s#) = 0, outgoing args = 4, need to save return address
+	addiu	$sp, $sp, -32
+	sw	$ra, 28($sp)
 	addiu	$t0, $zero, 10
 	addiu	$t1, $zero, 20
 	sw	$t0, 16($sp)
@@ -75,7 +35,7 @@ _label_6_loop:
 	addiu	$t0, $zero, 15
 	addiu	$t1, $zero, 0x00
 	addiu	$t2, $zero, 1
-	sw	_var_13, $t2
+	sw	$t2, 0($t1)
 	sw	$t0, 16($sp)
 _label_8_loop:
 	addiu	$t0, $zero, 1
@@ -133,14 +93,6 @@ _label_13_false:
 _label_7_break:
 	addiu	$t0, $zero, 0
 	move	$v0, $t0
-	lw	$s0, 32($sp)
-	lw	$s1, 36($sp)
-	lw	$s2, 40($sp)
-	lw	$s3, 44($sp)
-	lw	$s4, 48($sp)
-	lw	$s5, 52($sp)
-	lw	$s6, 56($sp)
-	lw	$s7, 60($sp)
-	lw	$ra, 60($sp)
-	addiu	$sp, $sp, 64
+	lw	$ra, 28($sp)
+	addiu	$sp, $sp, 32
 	jr	$ra

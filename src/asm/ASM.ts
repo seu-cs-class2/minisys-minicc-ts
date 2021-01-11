@@ -4,7 +4,7 @@
  */
 
 export interface RegisterDescriptor {
-    recent: number
+    usable: boolean
     variables: Set<string>
 }
 
@@ -18,6 +18,6 @@ export interface StackFrameInfo {
     wordSize: number
     outgoingSlots: number
     localData: number
-    numRegs: number
+    numGPRs2Save: number
     numReturnAdd: number
 }

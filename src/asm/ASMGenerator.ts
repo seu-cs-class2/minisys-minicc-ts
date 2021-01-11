@@ -7,11 +7,10 @@
  * 2020-1 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
-import { type } from 'os'
 import { IRFunc, IRVar, MiniCType, Quad } from '../ir/IR'
-import { GlobalScope, IRGenerator, LabelPrefix, VarPrefix } from '../ir/IRGenerator'
+import { GlobalScope, IRGenerator} from '../ir/IRGenerator'
 import { assert } from '../seu-lex-yacc/utils'
-import { UsefulRegs, WordLengthByte } from './Arch'
+import { UsefulRegs } from './Arch'
 import { AddressDescriptor, RegisterDescriptor, StackFrameInfo } from './Asm'
 
 /**
@@ -39,7 +38,7 @@ export class ASMGenerator {
     this.calcFrameInfo()
     // initialize all GPRs
     for (const regName of this._GPRs) {
-      this._registerDescriptors.set(regName, {recent:0, variables: new Set<string>()})
+      this._registerDescriptors.set(regName, {usable: true, variables: new Set<string>()})
     }
     this.newAsm('.DATA 0x0')
     this.processGlobalVars()
@@ -120,11 +119,15 @@ export class ASMGenerator {
     if (['=$', 'call', 'j_false', '=var', '=const'].includes(op)) {
       switch (op) {
         case '=$': {
+          let regY = this.allocateReg(blockIndex, irIndex, arg1, undefined, undefined)
+          if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
+            this.loadVar(arg1, regY)
+          }
           let regZ = this.allocateReg(blockIndex, irIndex, arg2, undefined, undefined)
           if (!this._registerDescriptors.get(regZ)?.variables.has(arg2)) {
             this.loadVar(arg2, regZ)
           }
-          regs = [regZ]
+          regs = [regY, regZ]
           break
         }
         case '=const':
@@ -164,7 +167,17 @@ export class ASMGenerator {
       if (!this._registerDescriptors.get(regZ)?.variables.has(arg2)) {
         this.loadVar(arg2, regZ)
       }
-      let regX = this.allocateReg(blockIndex, irIndex, res, undefined, undefined)
+      // if res is either of arg1 or arg2, then simply use the same register
+      let regX = ''
+      if (res == arg1) {
+        regX = regY
+      }
+      else if (res == arg2) {
+        regX = regZ
+      }
+      else {
+        regX = this.allocateReg(blockIndex, irIndex, res, undefined, undefined)
+      }
       regs = [regY, regZ, regX]
     }
     else if (unaryOp) {
@@ -173,7 +186,7 @@ export class ASMGenerator {
       if (!this._registerDescriptors.get(regY)?.variables.has(arg1)) {
         this.loadVar(arg1, regY)
       }
-      let regX = this.allocateReg(blockIndex, irIndex, res, undefined, undefined)
+      let regX = res == arg1 ? regY : this.allocateReg(blockIndex, irIndex, res, undefined, undefined)
       regs = [regY, regX]
     }
     else throw new Error("illegal op");
@@ -197,7 +210,7 @@ export class ASMGenerator {
     if (!alreadyInReg) {
       let freeReg = ''
       for (let kvPair of this._registerDescriptors.entries()) {
-        if (kvPair[1].variables.size == 0) {
+        if (kvPair[1].variables.size == 0 && kvPair[1].usable) {
           freeReg = kvPair[0]
           break
         }
@@ -213,6 +226,12 @@ export class ASMGenerator {
         for (let kvPair of this._registerDescriptors.entries()) {
           let scoreKey = kvPair[0]
           let scoreValue = 0
+          if (!kvPair[1].usable) {
+            // Not avaibale
+            scoreValue = Infinity
+            scores.set(scoreKey, scoreValue)
+            continue
+          }
           const curentVars = kvPair[1].variables
           for (const currentVar of curentVars) {
             if (currentVar == res && currentVar != otherArg) {
@@ -292,29 +311,31 @@ export class ASMGenerator {
    * 没有子函数则不用存返回地址，否则需要，并且分配至少4个outgoing args块
    * 先不考虑数组
    */
-
   calcFrameInfo() {
-  for (const outer of this._ir.funcPool) {
-    // if it calls child function(s), it needs to save return address
-    // and allocate a minimum of 4 outgoing argument slots
-    let isLeaf = outer.childFuncs.length == 0
-    let maxArgs = 0
-    for (const inner of this._ir.funcPool) {
-      if (inner.name in outer.childFuncs) {
-        maxArgs = Math.max(maxArgs, inner.paramList.length)
+    for (const outer of this._ir.funcPool) {
+      // if it calls child function(s), it needs to save return address
+      // and allocate a minimum of 4 outgoing argument slots
+      let isLeaf = outer.childFuncs.length == 0
+      let maxArgs = 0
+      for (const inner of this._ir.funcPool) {
+        if (inner.name in outer.childFuncs) {
+          maxArgs = Math.max(maxArgs, inner.paramList.length)
+        }
       }
+      let outgoingSlots = isLeaf ? 0 : Math.max(maxArgs, 4)
+      let localData = 0
+      for (const localVar of outer.localVars) {
+        if (localVar instanceof IRVar) {
+          if (!outer.paramList.includes(localVar)) localData++
+        }
+        else localData += localVar.len
+      }
+      let numGPRs2Save = outer.name == 'main' ? 0 : (localData > 8 ? localData - 8 : 0)
+      let wordSize = ((isLeaf ? 0 : 1) + localData + numGPRs2Save + outgoingSlots + numGPRs2Save) // allocate memory for all local variables (but not for temporary variables)
+      if (wordSize % 2 != 0) wordSize++ // padding
+      this._stackFrameInfos.set(outer.name, {isLeaf: isLeaf, wordSize: wordSize,
+          outgoingSlots: outgoingSlots, localData: localData, numGPRs2Save: numGPRs2Save, numReturnAdd: isLeaf ? 0 : 1}) // for now allocate all regs
     }
-    let outgoingSlots = isLeaf ? 0 : Math.max(maxArgs, 4)
-    let localData = 0
-    for (const localVar of outer.localVars) {
-      if (localVar instanceof IRVar) localData++
-      else localData += localVar.len
-    }
-    let wordSize = ((isLeaf ? 0 : 1) + localData + 8 + outgoingSlots) // allocate memory for all local variables (but not for temporary variables)
-    if (wordSize % 2 != 0) wordSize++ // padding
-    this._stackFrameInfos.set(outer.name, {isLeaf: isLeaf, wordSize: wordSize,
-        outgoingSlots: outgoingSlots, localData: localData, numRegs:8, numReturnAdd: isLeaf ? 0 : 1}) // for now allocate all regs
-  }
   }
 
   allocateProcMemory(func: IRFunc) {
@@ -328,12 +349,13 @@ export class ASMGenerator {
       }
       this._addressDescriptors.set(func.paramList[index].id, {currentAddresses: new Set<string>().add(memLoc), boundMemAddress: memLoc})
     }
+    
     let remainingLVSlots = frameInfo.localData
     for (const localVar of func.localVars) {
       if (localVar instanceof IRVar) {
         if (func.paramList.includes(localVar)) continue
         else {
-          const memLoc = `${4*(frameInfo.wordSize - (frameInfo.isLeaf ? 0 : 1) - frameInfo.numRegs - remainingLVSlots-- )}($sp)`
+          const memLoc = `${4*(frameInfo.wordSize - (frameInfo.isLeaf ? 0 : 1) - frameInfo.numGPRs2Save - remainingLVSlots-- )}($sp)`
           this._addressDescriptors.set(localVar.id, {currentAddresses: new Set<string>().add(memLoc), boundMemAddress: memLoc})
         }
       }
@@ -341,6 +363,15 @@ export class ASMGenerator {
         // TODO: array support
       }
     }
+    
+    const availableRSs = func.name == 'main' ? 8 : frameInfo.numGPRs2Save
+    
+    // allocate $s0 ~ $s8
+    for (let index = 0; index < 8; index++) {
+      let usable = index < availableRSs
+      this._registerDescriptors.set(`$s${index}`, {usable: usable, variables: new Set<string>()})
+    }
+
     this.allocateGlobalMemory()
   }
 
@@ -377,7 +408,6 @@ export class ASMGenerator {
     }
     this._addressDescriptors.clear()
     for (let pair of this._registerDescriptors) {
-      pair[1].recent = 0
       pair[1].variables.clear()
     }
   }
@@ -402,7 +432,6 @@ export class ASMGenerator {
       }
     }
     for (let pair of this._registerDescriptors) {
-      pair[1].recent = 0
       pair[1].variables.clear()
     }
     for (let value of this._addressDescriptors.values()) {
@@ -437,8 +466,8 @@ export class ASMGenerator {
               break
             }
             case '=$': {
-              const [regZ] = this.getRegs(quad, blockIndex, irIndex)
-              this.newAsm(`sw ${arg1}, ${regZ}`)
+              const [regY, regZ] = this.getRegs(quad, blockIndex, irIndex)
+              this.newAsm(`sw ${regZ}, 0(${regY})`)
               break
             }
             case 'call': {
@@ -825,7 +854,6 @@ export class ASMGenerator {
         else {
           switch (op) {
             case 'set_label': {
-              // TODO: main do not need to store registers
               // parse the label to identify type
               const labelContents = res.split('_')
               const labelType = labelContents[labelContents.length - 1]
@@ -835,13 +863,13 @@ export class ASMGenerator {
                 if (func == undefined) throw new Error(`fuction name not in the pool: ${res}`)
                 const frameInfo = this._stackFrameInfos.get(func?.name)
                 if (frameInfo == undefined) throw new Error(`fuction name not in the pool: ${res}`)
-                this.newAsm(func?.name + ':')
+                this.newAsm(func?.name + ':' + `\t\t # vars = ${frameInfo.localData}, regs to save($s#) = ${frameInfo.numGPRs2Save}, outgoing args = ${frameInfo.outgoingSlots}, ${frameInfo.numReturnAdd ? '' : 'do not '}need to save return address`)
                 this.newAsm(`addiu $sp, $sp, -${4 * frameInfo.wordSize}`)
                 if (!frameInfo.isLeaf) {
                   this.newAsm(`sw $ra, ${4 * (frameInfo.wordSize - 1)}($sp)`)
                 }
-                for (let index = 0; index < frameInfo.numRegs; index++) {
-                  this.newAsm(`sw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numRegs + index)}($sp)`)
+                for (let index = 0; index < frameInfo.numGPRs2Save; index++) {
+                  this.newAsm(`sw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numGPRs2Save + index)}($sp)`)
                 }
                 this.allocateProcMemory(func)
               }
@@ -854,8 +882,8 @@ export class ASMGenerator {
 
                 this.deallocateProcMemory()
 
-                for (let index = 0; index < frameInfo.numRegs; index++) {
-                  this.newAsm(`lw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numRegs + index)}($sp)`)
+                for (let index = 0; index < frameInfo.numGPRs2Save; index++) {
+                  this.newAsm(`lw $s${index}, ${4 * (frameInfo.wordSize - frameInfo.numGPRs2Save + index)}($sp)`)
                 }
 
                 if (!frameInfo.isLeaf) {
