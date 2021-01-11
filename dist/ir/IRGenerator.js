@@ -616,6 +616,10 @@ class IRGenerator {
                 leaders.push(i);
                 continue;
             }
+            if (this.quads[i].op == 'set_label' && this.quads[i].res.includes('entry')) {
+                leaders.push(i);
+                continue;
+            }
             if (this._quads[i].op == 'j' || this._quads[i].op == 'j_false') {
                 // 条件或无条件转移指令的目标指令是一个首指令
                 leaders.push(this._quads.findIndex(v => v.op == 'set_label' && v.res == this._quads[i].res));
@@ -630,8 +634,8 @@ class IRGenerator {
             }
         }
         leaders = [...new Set(leaders)].sort((a, b) => a - b);
-        if (leaders.slice(-1)[0] !== this._quads.length - 1)
-            leaders.push(this._quads.length - 1);
+        if (leaders.slice(-1)[0] !== this._quads.length)
+            leaders.push(this._quads.length);
         // 每个首指令左闭右开地划分了四元式
         let res = [];
         let id = 0;
