@@ -453,7 +453,114 @@ export class ASMGenerator {
         const { op, arg1, arg2, res } = quad
         const binaryOp = !!(arg1.trim() && arg2.trim()) // 是二元表达式
         const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()) // 是一元表达式
-        if (binaryOp) {
+        if (op == 'call') {
+          // parse the function name
+          const func = this._ir.funcPool.find(element => element.name == arg1)
+          if (func == undefined) throw new Error(`unidentified function:${arg1}`)
+          assert(func.name != 'main', 'Cannot call main!')
+          const actualArguments = arg2.split('&')
+          // has arguments
+          if (binaryOp) {
+            for (let argNum = 0; argNum < func.paramList.length; argNum++) {
+              const actualArg = actualArguments[argNum];
+              const ad =  this._addressDescriptors.get(actualArg)
+              if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
+                throw new Error('Actual argument does not have current address')
+              }
+              else {
+                for (const kvpair of this._addressDescriptors.entries()) {
+                  const boundMemAddress = kvpair[1].boundMemAddress
+                  const currentAddresses = kvpair[1].currentAddresses
+                  if(boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
+                    // need to write this back to its bound memory location
+                    if (currentAddresses.size > 0) {
+                      for (const addr of currentAddresses.values()) {
+                        if (addr.substr(0, 2) == '$t') {
+                          this.storeVar(kvpair[0], addr)
+                          break
+                        }
+                      }
+                    }
+                    else {
+                      throw new Error(`Attempted to store a ghost variable: ${kvpair[0]}`)
+                    }
+                  }
+                }
+                let regLoc = ''
+                let memLoc = ''
+                for (const addr of ad.currentAddresses) {
+                  if (addr[0] == '$') {
+                    // register has higher priority
+                    regLoc = addr
+                    break
+                  }
+                  else {
+                    memLoc = addr
+                  }
+                }
+  
+                if (regLoc.length > 0) {
+                  if (argNum < 4) {
+                    this.newAsm(`move $a${argNum}, ${regLoc}`)
+                  }
+                  else {
+                    this.newAsm(`sw ${regLoc}, ${4*argNum}($sp)`)
+                  }
+                }
+                else {
+                  if (argNum < 4) {
+                    this.newAsm(`lw $a${argNum}, ${memLoc}`)
+                  }
+                  else {
+                    // since $v1 will not be used elsewhere, it is used to do this!
+                    this.newAsm(`lw $v1, ${memLoc}`)
+                    this.newAsm(`sw $v1, ${4*argNum}($sp)`)
+                  }
+                }
+              }
+            }
+          }
+
+          this.newAsm(`jal ${arg1}`) // jal will automatically save return address to $ra
+          // clear temporary registers because they might have been damaged
+          for (let kvpair of this._addressDescriptors.entries()) {
+            for(let addr of kvpair[1].currentAddresses) {
+              if (addr.substr(0, 2) == '$t') {
+                kvpair[1].currentAddresses.delete(addr)
+                this._registerDescriptors.get(addr)?.variables.delete(kvpair[0])
+              }
+            }
+          }
+
+          if (res.length > 0) {
+            const [regX] = this.getRegs(quad, blockIndex, irIndex)
+            this.newAsm(`move ${regX}, $v0`)
+            
+            // Manage descriptors
+
+            // a. Change the register descriptor for regX so that it only holds res
+            this._registerDescriptors.get(regX)?.variables.clear()
+            this._registerDescriptors.get(regX)?.variables.add(res)
+
+            if (this._addressDescriptors.has(res)) {
+              // b. Remove regX from the address descriptor of any variable other than res
+              for (let descriptor of this._addressDescriptors.values()) {
+                if (descriptor.currentAddresses.has(regX)) {
+                  descriptor.currentAddresses.delete(regX)
+                }
+              }
+              // c. Change the address descriptor for res so that its only location is regX
+              // Note the memory location for res is NOT now in the address descriptor for res!
+              this._addressDescriptors.get(res)?.currentAddresses.clear()              
+              this._addressDescriptors.get(res)?.currentAddresses.add(regX)
+            }
+            else {
+              // temporary vairable
+              this._addressDescriptors.set(res, {boundMemAddress: undefined, currentAddresses: new Set<string>().add(regX)})
+            }
+          }
+        }
+        else if (binaryOp) {
           switch (op) {
             case '=[]': {
               // TODO: array support
@@ -466,109 +573,6 @@ export class ASMGenerator {
             case '=$': {
               const [regY, regZ] = this.getRegs(quad, blockIndex, irIndex)
               this.newAsm(`sw ${regZ}, 0(${regY})`)
-              break
-            }
-            case 'call': {
-              const func = this._ir.funcPool.find(element => element.name == arg1)!
-              assert(func, `Unidentified function:${arg1}`)
-              assert(func.name != 'main', 'Cannot call main!')
-              const actualArguments = arg2.split('&')
-
-              for (let argNum = 0; argNum < func.paramList.length; argNum++) {
-                const actualArg = actualArguments[argNum]
-                const ad = this._addressDescriptors.get(actualArg)
-                if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
-                  assert(false, 'Actual argument does not have current address')
-                } else {
-                  for (const kvpair of this._addressDescriptors.entries()) {
-                    const boundMemAddress = kvpair[1].boundMemAddress
-                    const currentAddresses = kvpair[1].currentAddresses
-                    if (boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
-                      // need to write this back to its bound memory location
-                      if (currentAddresses.size > 0) {
-                        for (const addr of currentAddresses.values()) {
-                          if (addr.substr(0, 2) == '$t') {
-                            this.storeVar(kvpair[0], addr)
-                            break
-                          }
-                        }
-                      } else {
-                        assert(false, `Attempted to store a ghost variable: ${kvpair[0]}`)
-                      }
-                    }
-                  }
-                  let regLoc = ''
-                  let memLoc = ''
-                  for (const addr of ad.currentAddresses) {
-                    if (addr[0] == '$') {
-                      // register has higher priority
-                      regLoc = addr
-                      break
-                    } else {
-                      memLoc = addr
-                    }
-                  }
-
-                  if (regLoc.length > 0) {
-                    if (argNum < 4) {
-                      this.newAsm(`move $a${argNum}, ${regLoc}`)
-                    } else {
-                      this.newAsm(`sw ${regLoc}, ${4 * argNum}($sp)`)
-                    }
-                  } else {
-                    if (argNum < 4) {
-                      this.newAsm(`lw $a${argNum}, ${memLoc}`)
-                    } else {
-                      // since $v1 will not be used elsewhere, it is used to do this!
-                      this.newAsm(`lw $v1, ${memLoc}`)
-                      this.newAsm(`sw $v1, ${4 * argNum}($sp)`)
-                    }
-                  }
-                }
-              }
-
-              this.newAsm(`jal ${arg1}`) // jal will automatically save return address to $ra
-              this.newAsm('nop')
-
-              // clear temporary registers because they might have been damaged
-              for (let kvpair of this._addressDescriptors.entries()) {
-                for (let addr of kvpair[1].currentAddresses) {
-                  if (addr.substr(0, 2) == '$t') {
-                    kvpair[1].currentAddresses.delete(addr)
-                    this._registerDescriptors.get(addr)?.variables.delete(kvpair[0])
-                  }
-                }
-              }
-
-              if (res.length > 0) {
-                const [regX] = this.getRegs(quad, blockIndex, irIndex)
-                this.newAsm(`move ${regX}, $v0`)
-
-                // Manage descriptors
-
-                // a. Change the register descriptor for regX so that it only holds res
-                this._registerDescriptors.get(regX)?.variables.clear()
-                this._registerDescriptors.get(regX)?.variables.add(res)
-
-                if (this._addressDescriptors.has(res)) {
-                  // b. Remove regX from the address descriptor of any variable other than res
-                  for (let descriptor of this._addressDescriptors.values()) {
-                    if (descriptor.currentAddresses.has(regX)) {
-                      descriptor.currentAddresses.delete(regX)
-                    }
-                  }
-                  // c. Change the address descriptor for res so that its only location is regX
-                  // Note the memory location for res is NOT now in the address descriptor for res!
-                  this._addressDescriptors.get(res)?.currentAddresses.clear()
-                  this._addressDescriptors.get(res)?.currentAddresses.add(regX)
-                } else {
-                  // temporary vairable
-                  this._addressDescriptors.set(res, {
-                    boundMemAddress: undefined,
-                    currentAddresses: new Set<string>().add(regX),
-                  })
-                }
-              }
               break
             }
             // X = Y op Z

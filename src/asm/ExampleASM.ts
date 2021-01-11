@@ -16,7 +16,6 @@ const CCode = fs
   .toString()
   .replace(/\r\n/g, '\n')
   .split('\n')
-  .slice(3)
   .join('\n')
 
 // const CCode = `

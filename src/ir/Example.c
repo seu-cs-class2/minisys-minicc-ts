@@ -1,45 +1,47 @@
-// 本例程充分测试了各项MiniC特性的支持
-// 前三行将被剔除
+void show_red_leds(int code) {
+  $0xFFFFC60 = code;
+  return;  
+}
 
-int a; // global constant
-// function definition
-void func(int a, int b) {
-  int z;
-  z = a / b; // div
+void show_yellow_leds(int code) {
+  $0xFFFFC62 = code;
+  return;  
+}
+
+void show_green_leds(int code) {
+  $0xFFFFC64 = code;
+  return;  
+}
+
+void delay(int ms) {
+  int count;
+  count = 10000;
+  while (count > 0) {
+    count = count - 1;
+  }
   return;
 }
-int foo(int x) {
-  return 2; // return nothing
+
+int get_switches_input(void) {
+  int result;
+  result = 0;
+  return result;
 }
+
 int main(void) {
-  // local decl
-  int a;
-  int b;
-  // int c[10]; // array definition
-  a = 10;
-  b = 20;
-  // c[2] = c[1] + 2 + a + b; // array access
-  while (a > b) { // while
-    a = 15;
-    $0x00 = 1; // addr access
-    while (a == 1) { // nested while
-      int c; // local decl in compound_stmt
-      b = b * 2;
-      foo(b); // function call
-      a = foo(b); // call and assign
-      break;
-    }
-    if (a > b) { // if
-      b = b + a;
-      continue; // break-continue control
-    }
-    if (a < b) {
-      break;
-    }
-    // ops
-    a = a ^ b;
-    a = !a;
-    a = a || b;
+  int switches;
+  int reds;
+  int yellows;
+  int greens;
+  while (1) {
+    switches = get_switches_input();
+    reds = switches >> 16;
+    yellows = (switches >> 8) & 0x000000ff;
+    greens = switches & 0x000000ff;
+    show_red_leds(reds);
+    show_yellow_leds(yellows);
+    show_green_leds(greens);
+    delay(100);
   }
   return 0;
 }
