@@ -39,6 +39,7 @@ export class ASMGenerator {
     this.initializeGlobalVars()
     this.newAsm('.text')
     this.processTextSegment()
+    this.peepholeOptimize()
   }
 
   /**
@@ -90,7 +91,7 @@ export class ASMGenerator {
   }
 
   /**
-   * 处理全局变量
+   * 生成声明全局变量代码
    */
   initializeGlobalVars() {
     const globalVars = this._ir.varPool.filter(v => IRGenerator.sameScope(v.scope, GlobalScope))
@@ -104,7 +105,7 @@ export class ASMGenerator {
   }
 
   /**
-   * 为一条四元式获取每个变量可用的寄存器
+   * 为一条四元式获取每个变量可用的寄存器（龙书8.6.3）
    */
   getRegs(ir: Quad, blockIndex: number, irIndex: number) {
     const { op, arg1, arg2, res } = ir
@@ -203,7 +204,9 @@ export class ASMGenerator {
     } else assert(false, 'Illegal op.')
     return regs
   }
-
+  /**
+   * 寄存器分配（龙书8.6.3）
+   */
   allocateReg(
     blockIndex: number,
     irIndex: number,
@@ -355,6 +358,9 @@ export class ASMGenerator {
     }
   }
 
+  /**
+   * 初始化该过程的寄存器和地址描述符
+   */
   allocateProcMemory(func: IRFunc) {
     const frameInfo = this._stackFrameInfos.get(func?.name)!
     assert(frameInfo, 'Function name not in the pool')
@@ -399,6 +405,9 @@ export class ASMGenerator {
     this.allocateGlobalMemory()
   }
 
+  /**
+   * 初始化全局变量的描述符
+   */
   allocateGlobalMemory() {
     const globalVars = this._ir.varPool.filter(v => IRGenerator.sameScope(v.scope, GlobalScope))
     for (const globalVar of globalVars) {
@@ -416,6 +425,9 @@ export class ASMGenerator {
     }
   }
 
+  /**
+   * 清除只属于该过程的描述符，并在必要时写回寄存器中的变量
+   */
   deallocateProcMemory() {
     for (const kvpair of this._addressDescriptors.entries()) {
       const boundMemAddress = kvpair[1].boundMemAddress
@@ -440,6 +452,9 @@ export class ASMGenerator {
     }
   }
 
+  /**
+   * 清除只属于该基本块的描述符，并在必要时写回寄存器中的变量
+   */
   deallocateBlockMemory() {
     for (const kvpair of this._addressDescriptors.entries()) {
       const boundMemAddress = kvpair[1].boundMemAddress
@@ -468,6 +483,9 @@ export class ASMGenerator {
     }
   }
 
+  /**
+   * 更新变量被赋值后的相应的描述符
+   */
   manageResDescriptors(regX: string, res: string) {
     // a. Change the register descriptor for regX so that it only holds res
     this._registerDescriptors.get(regX)?.variables.clear()
@@ -494,6 +512,7 @@ export class ASMGenerator {
   }
 
   /**
+   * 根据中间代码生成MIPS汇编
    * @see https://github.com/seu-cs-class2/minisys-minicc-ts/blob/master/docs/IR.md
    */
   processTextSegment() {
@@ -910,5 +929,37 @@ export class ASMGenerator {
         }
       }
     }
+  }
+
+  /**
+   * 窥孔优化
+   */
+  peepholeOptimize() {
+    let newAsm = []
+    newAsm.push(this._asm[0])
+    for (let index = 1; index < this._asm.length; index++) {
+      let asmElementsThisLine = this._asm[index].trim().split(/\,\s|\s/);
+      let asmElementsLastLine = this._asm[index - 1].trim().split(/\,|\s/);
+      if (asmElementsThisLine[0] == 'move' && index > 0 && !['nop', 'sw'].includes(asmElementsLastLine[0])) {
+        let srcRegThisLine = asmElementsThisLine[2]
+        let dstRegLastLine = asmElementsLastLine[1]
+        if (srcRegThisLine == dstRegLastLine) {
+          let dstRegThisLine = asmElementsThisLine[1]
+          let newLastLine = this._asm[index - 1].replace(dstRegLastLine, dstRegThisLine);
+          newAsm.pop()
+          // 'move $v0, $v0'
+          let newElements = newLastLine.trim().split(/\,\s|\s/);
+          if (newElements[0] == 'move' && newElements[1] == newElements[2]) continue
+          newAsm.push(newLastLine)
+        }
+        else {
+          newAsm.push(this._asm[index])
+        }
+      }
+      else {
+        newAsm.push(this._asm[index])
+      }
+    }
+    this._asm = newAsm
   }
 }

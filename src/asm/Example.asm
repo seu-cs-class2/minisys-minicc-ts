@@ -13,8 +13,7 @@ fib:			# vars = 2, regs to save($s#) = 0, outgoing args = 4, need to save return
 _label_2_true:
 	beq	$t2, $zero, _label_3_false
 	nop
-	addiu	$t0, $zero, 1
-	move	$v0, $t0
+	addiu	$v0, $zero, 1
 	lw	$ra, 28($sp)
 	addiu	$sp, $sp, 32
 	jr	$ra
@@ -27,8 +26,7 @@ _label_3_false:
 _label_4_true:
 	beq	$t2, $zero, _label_5_false
 	nop
-	addiu	$t0, $zero, 0
-	move	$v0, $t0
+	addiu	$v0, $zero, 0
 	lw	$ra, 28($sp)
 	addiu	$sp, $sp, 32
 	jr	$ra
@@ -36,8 +34,7 @@ _label_4_true:
 _label_5_false:
 	addiu	$t0, $zero, 1
 	lw	$t1, 32($sp)
-	sub	$t2, $t1, $t0
-	move	$a0, $t2
+	sub	$a0, $t1, $t0
 	jal	fib
 	nop
 	move	$t0, $v0
@@ -50,8 +47,7 @@ _label_5_false:
 	nop
 	move	$t0, $v0
 	lw	$t1, 20($sp)
-	add	$t2, $t1, $t0
-	move	$v0, $t2
+	add	$v0, $t1, $t0
 	sw	$t0, 24($sp)
 	lw	$ra, 28($sp)
 	addiu	$sp, $sp, 32
@@ -60,8 +56,7 @@ _label_5_false:
 foo:			# vars = 0, regs to save($s#) = 0, outgoing args = 0, do not need to save return address
 	addiu	$sp, $sp, -0
 	sw	$a0, 0($sp)
-	addiu	$t0, $zero, 2
-	move	$v0, $t0
+	addiu	$v0, $zero, 2
 	addiu	$sp, $sp, 0
 	jr	$ra
 	nop
@@ -80,8 +75,7 @@ _label_10_loop:
 	slt	$t2, $t1, $t0
 	beq	$t2, $zero, _label_11_break
 	nop
-	lw	$t0, 24($sp)
-	move	$v1, $t0
+	lw	$v1, 24($sp)
 	sll	$v1, $v1, 2
 	sw	$t0, arr($v1)
 	addiu	$t1, $zero, 1
@@ -91,8 +85,7 @@ _label_10_loop:
 	nop
 _label_11_break:
 	addiu	$t0, $zero, 3
-	addiu	$t1, $zero, 1
-	move	$v1, $t1
+	addiu	$v1, $zero, 1
 	sll	$v1, $v1, 2
 	lw	$t2, arr($v1)
 	addiu	$t3, $zero, 2
@@ -174,12 +167,9 @@ _label_19_false:
 	j	_label_12_loop
 	nop
 _label_13_break:
-	addiu	$t0, $zero, 5
-	move	$a0, $t0
+	addiu	$a0, $zero, 5
 	jal	fib
 	nop
-	move	$t0, $v0
-	move	$v0, $t0
 	sw	$t0, 28($sp)
 	lw	$ra, 36($sp)
 	addiu	$sp, $sp, 40
