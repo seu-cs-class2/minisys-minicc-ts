@@ -5,7 +5,7 @@
  * 2021-01 @ https://github.com/seu-cs-class2/minisys-minicc-ts
  */
 
-import { IRFunc, IRVar, MiniCType, Quad } from '../ir/IR'
+import { IRArray, IRFunc, IRVar, MiniCType, Quad } from '../ir/IR'
 import { GlobalScope, IRGenerator } from '../ir/IRGenerator'
 import { assert } from '../seu-lex-yacc/utils'
 import { UsefulRegs } from './Arch'
@@ -97,8 +97,7 @@ export class ASMGenerator {
     for (let var_ of globalVars) {
       if (var_ instanceof IRVar) {
         this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} 0x0`) // 全局变量初始值给 0x0
-      }
-      else {
+      } else {
         this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} ${Array(var_.len).fill('0x0').join(', ')}`) // 全局变量初始值给 0x0
       }
     }
@@ -384,8 +383,8 @@ export class ASMGenerator {
             boundMemAddress: memLoc,
           })
         }
-      } else {
-        throw new Error('Arrays are only supported as global variables!')
+      } else if (localVar instanceof IRArray) {
+        assert(false, 'Arrays are only supported as global variables!')
       }
     }
 
@@ -787,7 +786,8 @@ export class ASMGenerator {
 
               this.deallocateBlockMemory()
 
-              if (currentFrameInfo == undefined) throw new Error('undefined frame info')
+              assert(currentFrameInfo, 'Undefined frame info')
+              currentFrameInfo = currentFrameInfo as StackFrameInfo
               for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
                 this.newAsm(
                   `lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`
@@ -835,7 +835,7 @@ export class ASMGenerator {
               this.manageResDescriptors(regX, res)
               break
             }
-              
+
             default:
               break
           }
@@ -885,7 +885,8 @@ export class ASMGenerator {
             }
             case 'return_void': {
               this.deallocateBlockMemory()
-              if (currentFrameInfo == undefined) throw new Error('undefined frame info')
+              assert(currentFrameInfo, 'Undefined frame info')
+              currentFrameInfo = currentFrameInfo as StackFrameInfo
               for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
                 this.newAsm(
                   `lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`

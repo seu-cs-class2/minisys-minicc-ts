@@ -36,31 +36,10 @@ int main(void) {
 `
 
 const CCode = `
-int func(int x) {
-  int a;
-  a = 20;
-  return x;
-}
-void delay(int cycle) {
-  int a;
-  a = cycle;
-  while (a > 0) {
-    a = a - 1;
-  }
-  return;
-}
-
+int a[10];
 int main(void) {
-  int a;
-  int sum;
-  a = 5;
-  sum = 0;
-  while (a > 0) {
-    sum = sum + a;
-    a = a - 1;
-    delay(1000);
-  }
-  return sum;
+  a[5] = 2;
+  return 0;
 }
 `
 
