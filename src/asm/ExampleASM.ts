@@ -18,22 +18,6 @@ const CCode = fs
   .split('\n')
   .join('\n')
 
-// const CCode = `
-//   int m;
-//   int main(void) {
-//     int a;
-//     int b;
-//     m = 0;
-//     a = 10;
-//     b = 20;
-//     b = a + b;
-//     if (a > b) {
-//       a = a / b - 20;  
-//     }
-//     return b;
-//   }
-// `
-
 const lexDFA = DFA.fromFile(path.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'))
 let tokens = lexSourceCode(CCode, lexDFA)
 
@@ -42,10 +26,6 @@ const root = parseTokensLALR(tokens, lalr) as ASTNode
 
 const ir = new IRGenerator(root)
 console.log(ir.toIRString())
-
-// for(const block of ir.basicBlocks) {
-//   console.log(block)
-// }
 
 const asm = new ASMGenerator(ir)
 console.log(asm.toAssembly())

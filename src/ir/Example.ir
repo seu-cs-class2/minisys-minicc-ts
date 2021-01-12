@@ -1,11 +1,7 @@
 [FUNCTIONS]
-	name: func
-	retType: void
-	paramList: _var_1(int); _var_2(int)
-
-	name: foo
+	name: fib
 	retType: int
-	paramList: _var_5(int)
+	paramList: _var_0(int)
 
 	name: main
 	retType: int
@@ -13,79 +9,53 @@
 
 	name: __asm
 	retType: void
-	paramList: _var_28(string)
+	paramList: _var_23(string)
 
 
 [GLOBALVARS]
-	_var_0(int)
 
 [VARPOOL]
-	_var_0, a, int, 0
+	_var_0, x, int, 0/1
 	_var_1, a, int, 0/1
 	_var_2, b, int, 0/1
-	_var_3, z, int, 0/1
-	_var_5, x, int, 0/2
-	_var_7, a, int, 0/3
-	_var_8, b, int, 0/3
-	_var_17, c, int, 0/3/4/5
+	_var_16, result, int, 0/4
+	_var_17, arr, int, 0/4
 
 [QUADS]
-	(set_label   ,             ,             , _label_0_func_entry )
-	(SLASH       , _var_1      , _var_2      , _var_4              )
-	(=var        , _var_4      ,             , _var_3              )
-	(return_void ,             ,             , _label_1_func_exit  )
-	(set_label   ,             ,             , _label_1_func_exit  )
-	(set_label   ,             ,             , _label_2_foo_entry  )
+	(set_label   ,             ,             , _label_0_fib_entry  )
+	(=const      , 1           ,             , _var_3              )
+	(EQ_OP       , _var_0      , _var_3      , _var_4              )
+	(set_label   ,             ,             , _label_2_true       )
+	(j_false     , _var_4      ,             , _label_3_false      )
+	(=const      , 1           ,             , _var_5              )
+	(return_expr , _var_5      ,             , _label_1_fib_exit   )
+	(set_label   ,             ,             , _label_3_false      )
 	(=const      , 2           ,             , _var_6              )
-	(return_expr , _var_6      ,             , _label_3_foo_exit   )
-	(set_label   ,             ,             , _label_3_foo_exit   )
-	(set_label   ,             ,             , _label_4_main_entry )
-	(=const      , 10          ,             , _var_9              )
-	(=var        , _var_9      ,             , _var_7              )
-	(=const      , 20          ,             , _var_10             )
-	(=var        , _var_10     ,             , _var_8              )
-	(set_label   ,             ,             , _label_6_loop       )
-	(GT_OP       , _var_7      , _var_8      , _var_11             )
-	(j_false     , _var_11     ,             , _label_7_break      )
-	(=const      , 15          ,             , _var_12             )
-	(=var        , _var_12     ,             , _var_7              )
-	(=const      , 0x00        ,             , _var_13             )
-	(=const      , 1           ,             , _var_14             )
-	(=$          , _var_13     , _var_14     ,                     )
-	(set_label   ,             ,             , _label_8_loop       )
-	(=const      , 1           ,             , _var_15             )
-	(EQ_OP       , _var_7      , _var_15     , _var_16             )
-	(j_false     , _var_16     ,             , _label_9_break      )
-	(=const      , 2           ,             , _var_18             )
-	(MULTIPLY    , _var_8      , _var_18     , _var_19             )
-	(=var        , _var_19     ,             , _var_8              )
-	(call        , foo         , _var_8      ,                     )
-	(call        , foo         , _var_8      , _var_20             )
-	(=var        , _var_20     ,             , _var_7              )
-	(j           ,             ,             , _label_9_break      )
-	(j           ,             ,             , _label_8_loop       )
-	(set_label   ,             ,             , _label_9_break      )
-	(GT_OP       , _var_7      , _var_8      , _var_21             )
-	(set_label   ,             ,             , _label_10_true      )
-	(j_false     , _var_21     ,             , _label_11_false     )
-	(PLUS        , _var_8      , _var_7      , _var_22             )
-	(=var        , _var_22     ,             , _var_8              )
-	(j           ,             ,             , _label_6_loop       )
-	(set_label   ,             ,             , _label_11_false     )
-	(LT_OP       , _var_7      , _var_8      , _var_23             )
-	(set_label   ,             ,             , _label_12_true      )
-	(j_false     , _var_23     ,             , _label_13_false     )
-	(j           ,             ,             , _label_7_break      )
-	(set_label   ,             ,             , _label_13_false     )
-	(BITXOR_OP   , _var_7      , _var_8      , _var_24             )
-	(=var        , _var_24     ,             , _var_7              )
-	(NOT_OP      , _var_7      ,             , _var_25             )
-	(=var        , _var_25     ,             , _var_7              )
-	(OR_OP       , _var_7      , _var_8      , _var_26             )
-	(=var        , _var_26     ,             , _var_7              )
-	(j           ,             ,             , _label_6_loop       )
-	(set_label   ,             ,             , _label_7_break      )
-	(=const      , 0           ,             , _var_27             )
-	(return_expr , _var_27     ,             , _label_5_main_exit  )
-	(set_label   ,             ,             , _label_5_main_exit  )
+	(EQ_OP       , _var_0      , _var_6      , _var_7              )
+	(set_label   ,             ,             , _label_4_true       )
+	(j_false     , _var_7      ,             , _label_5_false      )
+	(=const      , 0           ,             , _var_8              )
+	(return_expr , _var_8      ,             , _label_1_fib_exit   )
+	(set_label   ,             ,             , _label_5_false      )
+	(=const      , 1           ,             , _var_9              )
+	(MINUS       , _var_0      , _var_9      , _var_10             )
+	(call        , fib         , _var_10     , _var_11             )
+	(=var        , _var_11     ,             , _var_1              )
+	(=const      , 2           ,             , _var_12             )
+	(MINUS       , _var_0      , _var_12     , _var_13             )
+	(call        , fib         , _var_13     , _var_14             )
+	(=var        , _var_14     ,             , _var_2              )
+	(PLUS        , _var_1      , _var_2      , _var_15             )
+	(return_expr , _var_15     ,             , _label_1_fib_exit   )
+	(set_label   ,             ,             , _label_1_fib_exit   )
+	(set_label   ,             ,             , _label_6_main_entry )
+	(=const      , 5           ,             , _var_18             )
+	(call        , fib         , _var_18     , _var_19             )
+	(=var        , _var_19     ,             , _var_16             )
+	(=const      , 3           ,             , _var_20             )
+	(=const      , 1           ,             , _var_21             )
+	(=[]         , _var_20     , _var_21     , _var_17             )
+	(=const      , 0           ,             , _var_22             )
+	(return_expr , _var_22     ,             , _label_7_main_exit  )
+	(set_label   ,             ,             , _label_7_main_exit  )
 
