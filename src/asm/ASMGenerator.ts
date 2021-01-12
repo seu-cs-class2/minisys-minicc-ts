@@ -99,7 +99,7 @@ export class ASMGenerator {
         this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} 0x0`) // 全局变量初始值给 0x0
       }
       else {
-        this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} ${var_.len}:0x0`) // 全局变量初始值给 0x0
+        this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} ${Array(var_.len).fill('0x0').join(', ')}`) // 全局变量初始值给 0x0
       }
     }
   }
