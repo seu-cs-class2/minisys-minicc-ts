@@ -721,7 +721,7 @@ export class ASMGenerator {
               if (immediateNum <= 65535 && immediateNum >= 0) {
                 this.newAsm(`addiu ${regX}, $zero, ${arg1}`)
               } else {
-                const lowerHalf = immediateNum & 0x00ff
+                const lowerHalf = immediateNum & 0x0000ffff
                 const higherHalf = immediateNum >> 16
                 this.newAsm(`lui ${regX}, ${higherHalf}`)
                 this.newAsm(`ori ${regX}, ${regX}, ${lowerHalf}`)
