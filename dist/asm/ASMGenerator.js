@@ -28,9 +28,10 @@ class ASMGenerator {
             this._registerDescriptors.set(regName, { usable: true, variables: new Set() });
         }
         this.newAsm('.data');
-        this.processGlobalVars();
+        this.initializeGlobalVars();
         this.newAsm('.text');
         this.processTextSegment();
+        this.peepholeOptimize();
     }
     /**
      * 从内存取变量到寄存器
@@ -78,24 +79,29 @@ class ASMGenerator {
         return table[type];
     }
     /**
-     * 处理全局变量
+     * 生成声明全局变量代码
      */
-    processGlobalVars() {
+    initializeGlobalVars() {
         const globalVars = this._ir.varPool.filter(v => IRGenerator_1.IRGenerator.sameScope(v.scope, IRGenerator_1.GlobalScope));
         for (let var_ of globalVars) {
-            this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} 0x0`); // 全局变量初始值给 0x0
+            if (var_ instanceof IR_1.IRVar) {
+                this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} 0x0`); // 全局变量初始值给 0x0
+            }
+            else {
+                this.newAsm(`${var_.name}: ${this.toMinisysType(var_.type)} ${Array(var_.len).fill('0x0').join(', ')}`); // 全局变量初始值给 0x0
+            }
         }
     }
     /**
-     * 为一条四元式获取每个变量可用的寄存器
+     * 为一条四元式获取每个变量可用的寄存器（龙书8.6.3）
      */
     getRegs(ir, blockIndex, irIndex) {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         const { op, arg1, arg2, res } = ir;
         const binaryOp = arg1.trim() && arg2.trim(); // 是二元表达式
         const unaryOp = !!(+!!arg1.trim() ^ +!!arg2.trim()); // 是一元表达式
         let regs = [''];
-        if (['=$', 'call', 'j_false', '=var', '=const'].includes(op)) {
+        if (['=$', 'call', 'j_false', '=var', '=const', '=[]', '[]'].includes(op)) {
             switch (op) {
                 case '=$': {
                     let regY = this.allocateReg(blockIndex, irIndex, arg1, undefined, undefined);
@@ -133,17 +139,38 @@ class ASMGenerator {
                     regs = [regY, regX];
                     break;
                 }
+                case '=[]': {
+                    let regY = this.allocateReg(blockIndex, irIndex, arg1, undefined, undefined);
+                    if (!((_e = this._registerDescriptors.get(regY)) === null || _e === void 0 ? void 0 : _e.variables.has(arg1))) {
+                        this.loadVar(arg1, regY);
+                    }
+                    let regZ = this.allocateReg(blockIndex, irIndex, arg2, undefined, undefined);
+                    if (!((_f = this._registerDescriptors.get(regZ)) === null || _f === void 0 ? void 0 : _f.variables.has(arg2))) {
+                        this.loadVar(arg2, regZ);
+                    }
+                    regs = [regY, regZ];
+                    break;
+                }
+                case '[]': {
+                    let regZ = this.allocateReg(blockIndex, irIndex, arg2, undefined, undefined);
+                    if (!((_g = this._registerDescriptors.get(regZ)) === null || _g === void 0 ? void 0 : _g.variables.has(arg2))) {
+                        this.loadVar(arg2, regZ);
+                    }
+                    let regX = this.allocateReg(blockIndex, irIndex, res, undefined, undefined);
+                    regs = [regZ, regX];
+                    break;
+                }
                 default:
                     break;
             }
         }
         else if (binaryOp) {
             let regY = this.allocateReg(blockIndex, irIndex, arg1, arg2, res);
-            if (!((_e = this._registerDescriptors.get(regY)) === null || _e === void 0 ? void 0 : _e.variables.has(arg1))) {
+            if (!((_h = this._registerDescriptors.get(regY)) === null || _h === void 0 ? void 0 : _h.variables.has(arg1))) {
                 this.loadVar(arg1, regY);
             }
             let regZ = this.allocateReg(blockIndex, irIndex, arg2, arg1, res);
-            if (!((_f = this._registerDescriptors.get(regZ)) === null || _f === void 0 ? void 0 : _f.variables.has(arg2))) {
+            if (!((_j = this._registerDescriptors.get(regZ)) === null || _j === void 0 ? void 0 : _j.variables.has(arg2))) {
                 this.loadVar(arg2, regZ);
             }
             // if res is either of arg1 or arg2, then simply use the same register
@@ -162,7 +189,7 @@ class ASMGenerator {
         else if (unaryOp) {
             // unary op
             let regY = this.allocateReg(blockIndex, irIndex, arg1, undefined, res);
-            if (!((_g = this._registerDescriptors.get(regY)) === null || _g === void 0 ? void 0 : _g.variables.has(arg1))) {
+            if (!((_k = this._registerDescriptors.get(regY)) === null || _k === void 0 ? void 0 : _k.variables.has(arg1))) {
                 this.loadVar(arg1, regY);
             }
             let regX = res == arg1 ? regY : this.allocateReg(blockIndex, irIndex, res, undefined, undefined);
@@ -172,6 +199,9 @@ class ASMGenerator {
             utils_1.assert(false, 'Illegal op.');
         return regs;
     }
+    /**
+     * 寄存器分配（龙书8.6.3）
+     */
     allocateReg(blockIndex, irIndex, thisArg, otherArg, res) {
         var _a, _b, _c, _d, _e, _f;
         const addrDesc = (_a = this._addressDescriptors.get(thisArg)) === null || _a === void 0 ? void 0 : _a.currentAddresses;
@@ -286,10 +316,9 @@ class ASMGenerator {
         return finalReg;
     }
     /**
-     * 根据IRFunc计算该Procedure所需的Frame大小，
-     * 默认使用所有通用寄存器；
+     * 根据IRFunc计算该Procedure所需的Frame大小.
+     * 默认使用所有通用寄存器.
      * 没有子函数则不用存返回地址，否则需要，并且分配至少4个outgoing args块
-     * 先不考虑数组
      */
     calcFrameInfo() {
         for (const outer of this._ir.funcPool) {
@@ -326,6 +355,9 @@ class ASMGenerator {
             }); // for now allocate all regs
         }
     }
+    /**
+     * 初始化该过程的寄存器和地址描述符
+     */
     allocateProcMemory(func) {
         const frameInfo = this._stackFrameInfos.get(func === null || func === void 0 ? void 0 : func.name);
         utils_1.assert(frameInfo, 'Function name not in the pool');
@@ -353,8 +385,8 @@ class ASMGenerator {
                     });
                 }
             }
-            else {
-                // TODO: array support
+            else if (localVar instanceof IR_1.IRArray) {
+                utils_1.assert(false, 'Arrays are only supported as global variables!');
             }
         }
         const availableRSs = func.name == 'main' ? 8 : frameInfo.numGPRs2Save;
@@ -365,6 +397,9 @@ class ASMGenerator {
         }
         this.allocateGlobalMemory();
     }
+    /**
+     * 初始化全局变量的描述符
+     */
     allocateGlobalMemory() {
         const globalVars = this._ir.varPool.filter(v => IRGenerator_1.IRGenerator.sameScope(v.scope, IRGenerator_1.GlobalScope));
         for (const globalVar of globalVars) {
@@ -375,10 +410,16 @@ class ASMGenerator {
                 });
             }
             else {
-                // TODO: array support
+                this._addressDescriptors.set(globalVar.id, {
+                    currentAddresses: new Set().add(globalVar.name),
+                    boundMemAddress: globalVar.name,
+                });
             }
         }
     }
+    /**
+     * 清除只属于该过程的描述符，并在必要时写回寄存器中的变量
+     */
     deallocateProcMemory() {
         for (const kvpair of this._addressDescriptors.entries()) {
             const boundMemAddress = kvpair[1].boundMemAddress;
@@ -403,6 +444,9 @@ class ASMGenerator {
             pair[1].variables.clear();
         }
     }
+    /**
+     * 清除只属于该基本块的描述符，并在必要时写回寄存器中的变量
+     */
     deallocateBlockMemory() {
         for (const kvpair of this._addressDescriptors.entries()) {
             const boundMemAddress = kvpair[1].boundMemAddress;
@@ -433,11 +477,39 @@ class ASMGenerator {
         }
     }
     /**
+     * 更新变量被赋值后的相应的描述符
+     */
+    manageResDescriptors(regX, res) {
+        var _a, _b, _c, _d;
+        // a. Change the register descriptor for regX so that it only holds res
+        (_a = this._registerDescriptors.get(regX)) === null || _a === void 0 ? void 0 : _a.variables.clear();
+        (_b = this._registerDescriptors.get(regX)) === null || _b === void 0 ? void 0 : _b.variables.add(res);
+        if (this._addressDescriptors.has(res)) {
+            // b. Remove regX from the address descriptor of any variable other than res
+            for (let descriptor of this._addressDescriptors.values()) {
+                if (descriptor.currentAddresses.has(regX)) {
+                    descriptor.currentAddresses.delete(regX);
+                }
+            }
+            // c. Change the address descriptor for res so that its only location is regX
+            // Note the memory location for res is NOT now in the address descriptor for res!
+            (_c = this._addressDescriptors.get(res)) === null || _c === void 0 ? void 0 : _c.currentAddresses.clear();
+            (_d = this._addressDescriptors.get(res)) === null || _d === void 0 ? void 0 : _d.currentAddresses.add(regX);
+        }
+        else {
+            // temporary vairable
+            this._addressDescriptors.set(res, {
+                boundMemAddress: undefined,
+                currentAddresses: new Set().add(regX),
+            });
+        }
+    }
+    /**
+     * 根据中间代码生成MIPS汇编
      * @see https://github.com/seu-cs-class2/minisys-minicc-ts/blob/master/docs/IR.md
      */
     processTextSegment() {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w;
-        // TODO: DOLLAR
+        var _a, _b, _c, _d, _e, _f, _g;
         let currentFunc, currentFrameInfo;
         for (let blockIndex = 0; blockIndex < this._ir.basicBlocks.length; blockIndex++) {
             const basicBlock = this._ir.basicBlocks[blockIndex];
@@ -528,39 +600,26 @@ class ASMGenerator {
                     if (res.length > 0) {
                         const [regX] = this.getRegs(quad, blockIndex, irIndex);
                         this.newAsm(`move ${regX}, $v0`);
-                        // Manage descriptors
-                        // a. Change the register descriptor for regX so that it only holds res
-                        (_b = this._registerDescriptors.get(regX)) === null || _b === void 0 ? void 0 : _b.variables.clear();
-                        (_c = this._registerDescriptors.get(regX)) === null || _c === void 0 ? void 0 : _c.variables.add(res);
-                        if (this._addressDescriptors.has(res)) {
-                            // b. Remove regX from the address descriptor of any variable other than res
-                            for (let descriptor of this._addressDescriptors.values()) {
-                                if (descriptor.currentAddresses.has(regX)) {
-                                    descriptor.currentAddresses.delete(regX);
-                                }
-                            }
-                            // c. Change the address descriptor for res so that its only location is regX
-                            // Note the memory location for res is NOT now in the address descriptor for res!
-                            (_d = this._addressDescriptors.get(res)) === null || _d === void 0 ? void 0 : _d.currentAddresses.clear();
-                            (_e = this._addressDescriptors.get(res)) === null || _e === void 0 ? void 0 : _e.currentAddresses.add(regX);
-                        }
-                        else {
-                            // temporary vairable
-                            this._addressDescriptors.set(res, {
-                                boundMemAddress: undefined,
-                                currentAddresses: new Set().add(regX),
-                            });
-                        }
+                        this.manageResDescriptors(regX, res);
                     }
                 }
                 else if (binaryOp) {
                     switch (op) {
                         case '=[]': {
-                            // TODO: array support
+                            const [regY, regZ] = this.getRegs(quad, blockIndex, irIndex);
+                            this.newAsm(`move $v1, ${regY}`);
+                            this.newAsm(`sll $v1, $v1, 2`);
+                            const baseAddr = (_b = this._addressDescriptors.get(res)) === null || _b === void 0 ? void 0 : _b.boundMemAddress;
+                            this.newAsm(`sw ${regZ}, ${baseAddr}($v1)`);
                             break;
                         }
                         case '[]': {
-                            // TODO: array support
+                            const [regZ, regX] = this.getRegs(quad, blockIndex, irIndex);
+                            this.newAsm(`move $v1, ${regZ}`);
+                            this.newAsm(`sll $v1, $v1, 2`);
+                            const baseAddr = (_c = this._addressDescriptors.get(arg1)) === null || _c === void 0 ? void 0 : _c.boundMemAddress;
+                            this.newAsm(`lw ${regX}, ${baseAddr}($v1)`);
+                            this.manageResDescriptors(regX, res);
                             break;
                         }
                         case '=$': {
@@ -666,29 +725,7 @@ class ASMGenerator {
                                         break;
                                     }
                                 }
-                                // Manage descriptors
-                                // a. Change the register descriptor for regX so that it only holds res
-                                (_f = this._registerDescriptors.get(regX)) === null || _f === void 0 ? void 0 : _f.variables.clear();
-                                (_g = this._registerDescriptors.get(regX)) === null || _g === void 0 ? void 0 : _g.variables.add(res);
-                                if (this._addressDescriptors.has(res)) {
-                                    // b. Remove regX from the address descriptor of any variable other than res
-                                    for (let descriptor of this._addressDescriptors.values()) {
-                                        if (descriptor.currentAddresses.has(regX)) {
-                                            descriptor.currentAddresses.delete(regX);
-                                        }
-                                    }
-                                    // c. Change the address descriptor for res so that its only location is regX
-                                    // Note the memory location for res is NOT now in the address descriptor for res!
-                                    (_h = this._addressDescriptors.get(res)) === null || _h === void 0 ? void 0 : _h.currentAddresses.clear();
-                                    (_j = this._addressDescriptors.get(res)) === null || _j === void 0 ? void 0 : _j.currentAddresses.add(regX);
-                                }
-                                else {
-                                    // temporary vairable
-                                    this._addressDescriptors.set(res, {
-                                        boundMemAddress: undefined,
-                                        currentAddresses: new Set().add(regX),
-                                    });
-                                }
+                                this.manageResDescriptors(regX, res);
                             }
                             break;
                         default:
@@ -722,39 +759,17 @@ class ASMGenerator {
                                 this.newAsm(`lui ${regX}, ${higherHalf}`);
                                 this.newAsm(`ori ${regX}, ${regX}, ${lowerHalf}`);
                             }
-                            // Manage descriptors
-                            // a. Change the register descriptor for regX so that it only holds res
-                            (_k = this._registerDescriptors.get(regX)) === null || _k === void 0 ? void 0 : _k.variables.clear();
-                            (_l = this._registerDescriptors.get(regX)) === null || _l === void 0 ? void 0 : _l.variables.add(res);
-                            if (this._addressDescriptors.has(res)) {
-                                // b. Remove regX from the address descriptor of any variable other than res
-                                for (let descriptor of this._addressDescriptors.values()) {
-                                    if (descriptor.currentAddresses.has(regX)) {
-                                        descriptor.currentAddresses.delete(regX);
-                                    }
-                                }
-                                // c. Change the address descriptor for res so that its only location is regX
-                                // Note the memory location for res is NOT now in the address descriptor for res!
-                                (_m = this._addressDescriptors.get(res)) === null || _m === void 0 ? void 0 : _m.currentAddresses.clear();
-                                (_o = this._addressDescriptors.get(res)) === null || _o === void 0 ? void 0 : _o.currentAddresses.add(regX);
-                            }
-                            else {
-                                // temporary vairable
-                                this._addressDescriptors.set(res, {
-                                    boundMemAddress: undefined,
-                                    currentAddresses: new Set().add(regX),
-                                });
-                            }
+                            this.manageResDescriptors(regX, res);
                             break;
                         }
                         case '=var':
                             const [regY] = this.getRegs(quad, blockIndex, irIndex);
                             // Add res to the register descriptor for regY
-                            (_p = this._registerDescriptors.get(regY)) === null || _p === void 0 ? void 0 : _p.variables.add(res);
+                            (_d = this._registerDescriptors.get(regY)) === null || _d === void 0 ? void 0 : _d.variables.add(res);
                             // Change the address descriptor for res so that its only location is regY
                             if (this._addressDescriptors.has(res)) {
-                                (_q = this._addressDescriptors.get(res)) === null || _q === void 0 ? void 0 : _q.currentAddresses.clear();
-                                (_r = this._addressDescriptors.get(res)) === null || _r === void 0 ? void 0 : _r.currentAddresses.add(regY);
+                                (_e = this._addressDescriptors.get(res)) === null || _e === void 0 ? void 0 : _e.currentAddresses.clear();
+                                (_f = this._addressDescriptors.get(res)) === null || _f === void 0 ? void 0 : _f.currentAddresses.add(regY);
                             }
                             else {
                                 // temporary vairable
@@ -790,8 +805,8 @@ class ASMGenerator {
                                 }
                             }
                             this.deallocateBlockMemory();
-                            if (currentFrameInfo == undefined)
-                                throw new Error('undefined frame info');
+                            utils_1.assert(currentFrameInfo, 'Undefined frame info');
+                            currentFrameInfo = currentFrameInfo;
                             for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
                                 this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`);
                             }
@@ -808,7 +823,7 @@ class ASMGenerator {
                         case 'PLUS':
                         case 'BITINV_OP': {
                             const [regY, regX] = this.getRegs(quad, blockIndex, irIndex);
-                            if (!((_s = this._registerDescriptors.get(regY)) === null || _s === void 0 ? void 0 : _s.variables.has(arg1))) {
+                            if (!((_g = this._registerDescriptors.get(regY)) === null || _g === void 0 ? void 0 : _g.variables.has(arg1))) {
                                 this.loadVar(arg1, regY);
                             }
                             switch (op) {
@@ -827,29 +842,13 @@ class ASMGenerator {
                                 default:
                                     break;
                             }
-                            // Manage descriptors
-                            // a. Change the register descriptor for regX so that it only holds res
-                            (_t = this._registerDescriptors.get(regX)) === null || _t === void 0 ? void 0 : _t.variables.clear();
-                            (_u = this._registerDescriptors.get(regX)) === null || _u === void 0 ? void 0 : _u.variables.add(res);
-                            if (this._addressDescriptors.has(res)) {
-                                // b. Remove regX from the address descriptor of any variable other than res
-                                for (let descriptor of this._addressDescriptors.values()) {
-                                    if (descriptor.currentAddresses.has(regX)) {
-                                        descriptor.currentAddresses.delete(regX);
-                                    }
-                                }
-                                // c. Change the address descriptor for res so that its only location is regX
-                                // Note the memory location for res is NOT now in the address descriptor for res!
-                                (_v = this._addressDescriptors.get(res)) === null || _v === void 0 ? void 0 : _v.currentAddresses.clear();
-                                (_w = this._addressDescriptors.get(res)) === null || _w === void 0 ? void 0 : _w.currentAddresses.add(regX);
-                            }
-                            else {
-                                // temporary vairable
-                                this._addressDescriptors.set(res, {
-                                    boundMemAddress: undefined,
-                                    currentAddresses: new Set().add(regX),
-                                });
-                            }
+                            this.manageResDescriptors(regX, res);
+                            break;
+                        }
+                        case 'DOLLAR': {
+                            const [regY, regX] = this.getRegs(quad, blockIndex, irIndex);
+                            this.newAsm(`lw ${regX}, 0(${regY})`);
+                            this.manageResDescriptors(regX, res);
                             break;
                         }
                         default:
@@ -896,8 +895,8 @@ class ASMGenerator {
                         }
                         case 'return_void': {
                             this.deallocateBlockMemory();
-                            if (currentFrameInfo == undefined)
-                                throw new Error('undefined frame info');
+                            utils_1.assert(currentFrameInfo, 'Undefined frame info');
+                            currentFrameInfo = currentFrameInfo;
                             for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
                                 this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`);
                             }
@@ -918,6 +917,38 @@ class ASMGenerator {
                 }
             }
         }
+    }
+    /**
+     * 窥孔优化
+     */
+    peepholeOptimize() {
+        let newAsm = [];
+        newAsm.push(this._asm[0]);
+        for (let index = 1; index < this._asm.length; index++) {
+            let asmElementsThisLine = this._asm[index].trim().split(/\,\s|\s/);
+            let asmElementsLastLine = this._asm[index - 1].trim().split(/\,|\s/);
+            if (asmElementsThisLine[0] == 'move' && index > 0 && !['nop', 'sw'].includes(asmElementsLastLine[0])) {
+                let srcRegThisLine = asmElementsThisLine[2];
+                let dstRegLastLine = asmElementsLastLine[1];
+                if (srcRegThisLine == dstRegLastLine) {
+                    let dstRegThisLine = asmElementsThisLine[1];
+                    let newLastLine = this._asm[index - 1].replace(dstRegLastLine, dstRegThisLine);
+                    newAsm.pop();
+                    // 'move $v0, $v0'
+                    let newElements = newLastLine.trim().split(/\,\s|\s/);
+                    if (newElements[0] == 'move' && newElements[1] == newElements[2])
+                        continue;
+                    newAsm.push(newLastLine);
+                }
+                else {
+                    newAsm.push(this._asm[index]);
+                }
+            }
+            else {
+                newAsm.push(this._asm[index]);
+            }
+        }
+        this._asm = newAsm;
     }
 }
 exports.ASMGenerator = ASMGenerator;

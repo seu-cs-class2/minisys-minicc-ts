@@ -17,7 +17,6 @@ const CCode = fs_1.default
     .toString()
     .replace(/\r\n/g, '\n')
     .split('\n')
-    .slice(3)
     .join('\n');
 const lexDFA = DFA_1.DFA.fromFile(path_1.default.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'));
 let tokens = Lex_1.lexSourceCode(CCode, lexDFA);

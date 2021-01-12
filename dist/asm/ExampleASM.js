@@ -19,30 +19,12 @@ const CCode = fs_1.default
     .replace(/\r\n/g, '\n')
     .split('\n')
     .join('\n');
-// const CCode = `
-//   int m;
-//   int main(void) {
-//     int a;
-//     int b;
-//     m = 0;
-//     a = 10;
-//     b = 20;
-//     b = a + b;
-//     if (a > b) {
-//       a = a / b - 20;  
-//     }
-//     return b;
-//   }
-// `
 const lexDFA = DFA_1.DFA.fromFile(path_1.default.join(__dirname, '../../syntax/MiniC/MiniC-Lex.json'));
 let tokens = Lex_1.lexSourceCode(CCode, lexDFA);
 const lalr = LALR_1.LALRAnalyzer.load(path_1.default.join(__dirname, '../../syntax/MiniC/MiniC-LALRParse.json'));
 const root = ParseLALR_1.parseTokensLALR(tokens, lalr);
 const ir = new IRGenerator_1.IRGenerator(root);
 console.log(ir.toIRString());
-// for(const block of ir.basicBlocks) {
-//   console.log(block)
-// }
 const asm = new ASMGenerator_1.ASMGenerator(ir);
 console.log(asm.toAssembly());
 fs_1.default.writeFileSync(path_1.default.join(__dirname, './Example.asm'), asm.toAssembly());

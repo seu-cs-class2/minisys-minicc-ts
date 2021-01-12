@@ -441,13 +441,7 @@ class IRGenerator {
         }
         if (node.children.length == 3) {
             // 数组声明
-            const type = this.parse_type_spec(node.$(1));
-            const name = node.$(2).literal;
-            const len = Number(node.$(3).literal);
-            utils_1.assert(!isNaN(len) && len > 0 && Math.floor(len) == len, `数组长度必须为正整数字面量，但取到 ${node.$(3).literal}`);
-            const arr = new IR_1.IRArray(this._newVarId(), type, name, len, this._scopePath);
-            utils_1.assert(!this._varPool.some(v => this.duplicateCheck(v, arr)), '局部变量重复声明：' + name);
-            this._newVar(arr);
+            utils_1.assert(false, `数组只能声明在全局作用域，而 ${node.$(2).literal} 不符合。`);
         }
     }
     parse_return_stmt(node, context) {
@@ -586,13 +580,13 @@ class IRGenerator {
         // 全局变量
         res += '[GLOBALVARS]\n';
         for (let v of this._varPool.filter(x => IRGenerator.sameScope(x.scope, exports.GlobalScope))) {
-            res += '\t' + `${v.id}(${v.type})` + '\n';
+            res += '\t' + `${v.id}(${v.type}, ${['var', 'arr'][+(v instanceof IR_1.IRArray)]})` + '\n';
         }
         res += '\n';
         // 变量池
         res += '[VARPOOL]\n';
         for (let v of this._varPool) {
-            res += '\t' + `${v.id}, ${v.name}, ${v.type}, ${v.scope.join('/')}` + '\n';
+            res += '\t' + `${v.id}, ${v.name}, ${v.type}, ${['var', 'arr'][+(v instanceof IR_1.IRArray)]}, ${v.scope.join('/')}` + '\n';
         }
         res += '\n';
         // 四元式
