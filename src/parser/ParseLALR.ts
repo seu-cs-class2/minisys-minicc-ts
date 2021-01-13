@@ -36,7 +36,9 @@ export function parseTokensLALR(tokens: Token[], analyzer: LALRAnalyzer): ASTNod
   // 检查未匹配符号
   assert(
     tokens.every(v => v.name !== UNMATCH_TOKENNAME),
-    'Token序列中存在未匹配的非法符号'
+    `Token序列中存在未匹配的非法符号 ${JSON.stringify(
+      tokens.filter(v => v.name == UNMATCH_TOKENNAME).map(v => v.literal)
+    )}`
   )
   // 移除注释
   tokens = tokens.map(v => {

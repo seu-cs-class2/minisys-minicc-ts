@@ -17,6 +17,8 @@ import { LALRAnalyzer } from './seu-lex-yacc/seuyacc/LALR'
 import { parseTokensLALR } from './parser/ParseLALR'
 import { IRGenerator } from './ir/IRGenerator'
 import { ASMGenerator } from './asm/ASMGenerator'
+import { IROptimizer } from './ir/IROptimizer'
+import { preCompile } from './pre-compile/PreCompile'
 const chalk = require('chalk') // 解决eval中chalk在编译后不被替换的问题
 
 const assert = (condition: unknown, hint: string) => {
@@ -56,9 +58,14 @@ print('*** Start frontend part... ***', 'bgBlue bold white')
 
 // 读入C源码
 print('  Reading source file...', 'yellow')
-const CCode = fs.readFileSync(codePath).toString('utf-8')
-assert(CCode.trim(), 'Source code is empty!')
+const rawCCode = fs.readFileSync(codePath).toString('utf-8')
+assert(rawCCode.trim(), 'Source code is empty!')
 print('  Source file loaded.', 'green')
+
+// 预编译
+print('  Start precompiling...', 'yellow')
+const CCode = preCompile(rawCCode, path.dirname(codePath))
+print('  Precompilation done.', 'green')
 
 // 词法分析
 print('  Loading DFA for lexing...', 'yellow')
@@ -86,7 +93,12 @@ print('  Generating Intermediate Representation...', 'yellow')
 const ir = new IRGenerator(astRoot!)
 print('  Intermediate Representation generation done.', 'green')
 
-// 目标代码生成
+// 中间代码优化
+print('  Optimizing Intermediate Representation...', 'yellow')
+const opt = new IROptimizer(ir)
+print(`  IR optimization done. Made ${opt.printLogs().split('\n').length} optimizations.`, 'green')
+
+// 目标代码生成与优化
 print('  Generating object code (assembly code)...', 'yellow')
 const asm = new ASMGenerator(ir)
 print('  Object code generation done.', 'green')

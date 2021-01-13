@@ -15,7 +15,7 @@ exports.WHITESPACE_SYMBOL_ID = -10;
 function parseTokensLALR(tokens, analyzer) {
     // 预处理
     // 检查未匹配符号
-    utils_1.assert(tokens.every(v => v.name !== utils_1.UNMATCH_TOKENNAME), 'Token序列中存在未匹配的非法符号');
+    utils_1.assert(tokens.every(v => v.name !== utils_1.UNMATCH_TOKENNAME), `Token序列中存在未匹配的非法符号 ${JSON.stringify(tokens.filter(v => v.name == utils_1.UNMATCH_TOKENNAME).map(v => v.literal))}`);
     // 移除注释
     tokens = tokens.map(v => {
         // 保护行号

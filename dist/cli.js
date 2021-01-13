@@ -21,6 +21,8 @@ const LALR_1 = require("./seu-lex-yacc/seuyacc/LALR");
 const ParseLALR_1 = require("./parser/ParseLALR");
 const IRGenerator_1 = require("./ir/IRGenerator");
 const ASMGenerator_1 = require("./asm/ASMGenerator");
+const IROptimizer_1 = require("./ir/IROptimizer");
+const PreCompile_1 = require("./pre-compile/PreCompile");
 const chalk = require('chalk'); // 解决eval中chalk在编译后不被替换的问题
 const assert = (condition, hint) => {
     if (!condition)
@@ -53,9 +55,13 @@ print(`  With IR: ${String(withIR)}`);
 print('*** Start frontend part... ***', 'bgBlue bold white');
 // 读入C源码
 print('  Reading source file...', 'yellow');
-const CCode = fs_1.default.readFileSync(codePath).toString('utf-8');
-assert(CCode.trim(), 'Source code is empty!');
+const rawCCode = fs_1.default.readFileSync(codePath).toString('utf-8');
+assert(rawCCode.trim(), 'Source code is empty!');
 print('  Source file loaded.', 'green');
+// 预编译
+print('  Start precompiling...', 'yellow');
+const CCode = PreCompile_1.preCompile(rawCCode, path_1.default.dirname(codePath));
+print('  Precompilation done.', 'green');
 // 词法分析
 print('  Loading DFA for lexing...', 'yellow');
 const lexDFADumpPath = path_1.default.join(__dirname, '../syntax/MiniC/MiniC-Lex.json');
@@ -78,7 +84,11 @@ print('*** Start backend part... ***', 'bgBlue bold white');
 print('  Generating Intermediate Representation...', 'yellow');
 const ir = new IRGenerator_1.IRGenerator(astRoot);
 print('  Intermediate Representation generation done.', 'green');
-// 目标代码生成
+// 中间代码优化
+print('  Optimizing Intermediate Representation...', 'yellow');
+const opt = new IROptimizer_1.IROptimizer(ir);
+print(`  IR optimization done. Made ${opt.printLogs().split('\n').length} optimizations.`, 'green');
+// 目标代码生成与优化
 print('  Generating object code (assembly code)...', 'yellow');
 const asm = new ASMGenerator_1.ASMGenerator(ir);
 print('  Object code generation done.', 'green');
