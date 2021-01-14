@@ -83,7 +83,7 @@ $ ./generate-minic.sh
 
   - [x] 从 IR 到 ASM 的转换
     
-  - [ ] ASM 的优化
+  - [x] ASM 的优化
 
 ## 文档
 
