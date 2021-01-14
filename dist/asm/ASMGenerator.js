@@ -41,6 +41,8 @@ class ASMGenerator {
         const varLoc = (_a = this._addressDescriptors.get(varId)) === null || _a === void 0 ? void 0 : _a.boundMemAddress;
         utils_1.assert(varLoc, `Cannot get the bound address for this variable: ${varId}`);
         this.newAsm(`lw ${register}, ${varLoc}`);
+        this.newAsm(`nop`);
+        this.newAsm(`nop`);
         // change the register descriptor so it holds only this var
         (_b = this._registerDescriptors.get(register)) === null || _b === void 0 ? void 0 : _b.variables.clear();
         (_c = this._registerDescriptors.get(register)) === null || _c === void 0 ? void 0 : _c.variables.add(varId);
@@ -576,10 +578,14 @@ class ASMGenerator {
                                 else {
                                     if (argNum < 4) {
                                         this.newAsm(`lw $a${argNum}, ${memLoc}`);
+                                        this.newAsm(`nop`);
+                                        this.newAsm(`nop`);
                                     }
                                     else {
                                         // since $v1 will not be used elsewhere, it is used to do this!
                                         this.newAsm(`lw $v1, ${memLoc}`);
+                                        this.newAsm(`nop`);
+                                        this.newAsm(`nop`);
                                         this.newAsm(`sw $v1, ${4 * argNum}($sp)`);
                                     }
                                 }
@@ -619,6 +625,8 @@ class ASMGenerator {
                             this.newAsm(`sll $v1, $v1, 2`);
                             const baseAddr = (_c = this._addressDescriptors.get(arg1)) === null || _c === void 0 ? void 0 : _c.boundMemAddress;
                             this.newAsm(`lw ${regX}, ${baseAddr}($v1)`);
+                            this.newAsm(`nop`);
+                            this.newAsm(`nop`);
                             this.manageResDescriptors(regX, res);
                             break;
                         }
@@ -802,6 +810,8 @@ class ASMGenerator {
                                 }
                                 else {
                                     this.newAsm(`lw $v0, ${memLoc}`);
+                                    this.newAsm(`nop`);
+                                    this.newAsm(`nop`);
                                 }
                             }
                             this.deallocateBlockMemory();
@@ -809,9 +819,13 @@ class ASMGenerator {
                             currentFrameInfo = currentFrameInfo;
                             for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
                                 this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`);
+                                this.newAsm(`nop`);
+                                this.newAsm(`nop`);
                             }
                             if (!currentFrameInfo.isLeaf) {
                                 this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`);
+                                this.newAsm(`nop`);
+                                this.newAsm(`nop`);
                             }
                             this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`);
                             this.newAsm(`jr $ra`);
@@ -848,6 +862,8 @@ class ASMGenerator {
                         case 'DOLLAR': {
                             const [regY, regX] = this.getRegs(quad, blockIndex, irIndex);
                             this.newAsm(`lw ${regX}, 0(${regY})`);
+                            this.newAsm(`nop`);
+                            this.newAsm(`nop`);
                             this.manageResDescriptors(regX, res);
                             break;
                         }
@@ -899,9 +915,13 @@ class ASMGenerator {
                             currentFrameInfo = currentFrameInfo;
                             for (let index = 0; index < currentFrameInfo.numGPRs2Save; index++) {
                                 this.newAsm(`lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`);
+                                this.newAsm(`nop`);
+                                this.newAsm(`nop`);
                             }
                             if (!currentFrameInfo.isLeaf) {
                                 this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`);
+                                this.newAsm(`nop`);
+                                this.newAsm(`nop`);
                             }
                             this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`);
                             this.newAsm(`jr $ra`);

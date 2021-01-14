@@ -49,6 +49,8 @@ export class ASMGenerator {
     const varLoc = this._addressDescriptors.get(varId)?.boundMemAddress
     assert(varLoc, `Cannot get the bound address for this variable: ${varId}`)
     this.newAsm(`lw ${register}, ${varLoc}`)
+    this.newAsm(`nop`)
+    this.newAsm(`nop`)
     // change the register descriptor so it holds only this var
     this._registerDescriptors.get(register)?.variables.clear()
     this._registerDescriptors.get(register)?.variables.add(varId)
@@ -577,9 +579,13 @@ export class ASMGenerator {
                 } else {
                   if (argNum < 4) {
                     this.newAsm(`lw $a${argNum}, ${memLoc}`)
+                    this.newAsm(`nop`)
+                    this.newAsm(`nop`)
                   } else {
                     // since $v1 will not be used elsewhere, it is used to do this!
                     this.newAsm(`lw $v1, ${memLoc}`)
+                    this.newAsm(`nop`)
+                    this.newAsm(`nop`)
                     this.newAsm(`sw $v1, ${4 * argNum}($sp)`)
                   }
                 }
@@ -620,6 +626,8 @@ export class ASMGenerator {
               this.newAsm(`sll $v1, $v1, 2`)
               const baseAddr = this._addressDescriptors.get(arg1)?.boundMemAddress
               this.newAsm(`lw ${regX}, ${baseAddr}($v1)`)
+              this.newAsm(`nop`)
+              this.newAsm(`nop`)
               this.manageResDescriptors(regX, res)
               break
             }
@@ -800,6 +808,8 @@ export class ASMGenerator {
                   this.newAsm(`move $v0, ${regLoc}`)
                 } else {
                   this.newAsm(`lw $v0, ${memLoc}`)
+                  this.newAsm(`nop`)
+                  this.newAsm(`nop`)
                 }
               }
 
@@ -811,10 +821,14 @@ export class ASMGenerator {
                 this.newAsm(
                   `lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`
                 )
+                this.newAsm(`nop`)
+                this.newAsm(`nop`)
               }
 
               if (!currentFrameInfo.isLeaf) {
                 this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`)
+                this.newAsm(`nop`)
+                this.newAsm(`nop`)
               }
               this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`)
               this.newAsm(`jr $ra`)
@@ -851,6 +865,8 @@ export class ASMGenerator {
             case 'DOLLAR': {
               const [regY, regX] = this.getRegs(quad, blockIndex, irIndex)
               this.newAsm(`lw ${regX}, 0(${regY})`)
+              this.newAsm(`nop`)
+              this.newAsm(`nop`)
               this.manageResDescriptors(regX, res)
               break
             }
@@ -910,10 +926,14 @@ export class ASMGenerator {
                 this.newAsm(
                   `lw $s${index}, ${4 * (currentFrameInfo.wordSize - currentFrameInfo.numGPRs2Save + index)}($sp)`
                 )
+                this.newAsm(`nop`)
+                this.newAsm(`nop`)
               }
 
               if (!currentFrameInfo.isLeaf) {
                 this.newAsm(`lw $ra, ${4 * (currentFrameInfo.wordSize - 1)}($sp)`)
+                this.newAsm(`nop`)
+                this.newAsm(`nop`)
               }
               this.newAsm(`addiu $sp, $sp, ${4 * currentFrameInfo.wordSize}`)
               this.newAsm(`jr $ra`)
