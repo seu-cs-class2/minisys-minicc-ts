@@ -541,23 +541,6 @@ export class ASMGenerator {
               if (ad == undefined || ad.currentAddresses == undefined || ad.currentAddresses.size == 0) {
                 assert(false, 'Actual argument does not have current address')
               } else {
-                for (const kvpair of this._addressDescriptors.entries()) {
-                  const boundMemAddress = kvpair[1].boundMemAddress
-                  const currentAddresses = kvpair[1].currentAddresses
-                  if (boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
-                    // need to write this back to its bound memory location
-                    if (currentAddresses.size > 0) {
-                      for (const addr of currentAddresses.values()) {
-                        if (addr.substr(0, 2) == '$t') {
-                          this.storeVar(kvpair[0], addr)
-                          break
-                        }
-                      }
-                    } else {
-                      assert(false, `Attempted to store a ghost variable: ${kvpair[0]}`)
-                    }
-                  }
-                }
                 let regLoc = ''
                 let memLoc = ''
                 for (const addr of ad.currentAddresses) {
@@ -589,6 +572,24 @@ export class ASMGenerator {
                     this.newAsm(`sw $v1, ${4 * argNum}($sp)`)
                   }
                 }
+              }
+            }
+          }
+
+          for (const kvpair of this._addressDescriptors.entries()) {
+            const boundMemAddress = kvpair[1].boundMemAddress
+            const currentAddresses = kvpair[1].currentAddresses
+            if (boundMemAddress != undefined && !currentAddresses.has(boundMemAddress)) {
+              // need to write this back to its bound memory location
+              if (currentAddresses.size > 0) {
+                for (const addr of currentAddresses.values()) {
+                  if (addr.substr(0, 2) == '$t') {
+                    this.storeVar(kvpair[0], addr)
+                    break
+                  }
+                }
+              } else {
+                assert(false, `Attempted to store a ghost variable: ${kvpair[0]}`)
               }
             }
           }
