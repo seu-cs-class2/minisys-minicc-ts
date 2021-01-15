@@ -759,7 +759,7 @@ export class ASMGenerator {
             case '=const': {
               const [regX] = this.getRegs(quad, blockIndex, irIndex)
               const immediateNum = parseInt(arg1)
-              if (immediateNum <= 65535 && immediateNum >= 0) {
+              if (immediateNum <= 32767 && immediateNum >= -32768) {
                 this.newAsm(`addiu ${regX}, $zero, ${immediateNum}`)
               } else {
                 const lowerHalf = immediateNum & 0x0000ffff
