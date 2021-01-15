@@ -711,12 +711,12 @@ export class ASMGenerator {
                   }
                   case 'GE_OP': {
                     this.newAsm(`slt ${regX}, ${regY}, ${regZ}`)
-                    this.newAsm(`nor ${regX}, ${regX}, ${regX}`)
+                    this.newAsm(`xori ${regX}, ${regX}, ${1}`)
                     break
                   }
                   case 'LE_OP': {
                     this.newAsm(`slt ${regX}, ${regZ}, ${regY}`)
-                    this.newAsm(`nor ${regX}, ${regX}, ${regX}`)
+                    this.newAsm(`xori ${regX}, ${regX}, ${1}`)
                     break
                   }
                   case 'MULTIPLY': {
