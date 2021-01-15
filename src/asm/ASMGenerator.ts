@@ -760,10 +760,10 @@ export class ASMGenerator {
               const [regX] = this.getRegs(quad, blockIndex, irIndex)
               const immediateNum = parseInt(arg1)
               if (immediateNum <= 65535 && immediateNum >= 0) {
-                this.newAsm(`addiu ${regX}, $zero, ${arg1}`)
+                this.newAsm(`addiu ${regX}, $zero, ${immediateNum}`)
               } else {
                 const lowerHalf = immediateNum & 0x0000ffff
-                const higherHalf = immediateNum >> 16
+                const higherHalf = immediateNum >>> 16
                 this.newAsm(`lui ${regX}, ${higherHalf}`)
                 this.newAsm(`ori ${regX}, ${regX}, ${lowerHalf}`)
               }
