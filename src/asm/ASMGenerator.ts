@@ -694,7 +694,7 @@ export class ASMGenerator {
                   }
                   case 'EQ_OP': {
                     this.newAsm(`sub ${regX}, ${regY}, ${regZ}`)
-                    this.newAsm(`nor ${regX}, ${regY}, ${regZ}`)
+                    this.newAsm(`nor ${regX}, ${regX}, ${regX}`)
                     break
                   }
                   case 'NE_OP': {
